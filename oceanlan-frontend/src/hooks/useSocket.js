@@ -5,11 +5,9 @@ import { AuthContext } from '../context/AuthContext';
 
 // Prod'da: https://oceanlan.com
 // Dev'de: http://localhost:3000 (backend'in portunu burada ne kullanıyorsan ona göre ayarla)
-const SOCKET_SERVER_URL =
-  import.meta.env.PROD
-    ? window.location.origin
-    : 'http://localhost:3000';
-
+const ENV_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Eğer adreste /api/v1 varsa temizle (Socket kök adrese bağlanır)
+const SOCKET_SERVER_URL = ENV_URL.replace('/api/v1', '');
 // 🔴 ÖNEMLİ: global socket burada TANIMLANACAK (yorum değil, gerçek kod)
 let globalSocket = null; // Bağlantıyı globalde tut
 
