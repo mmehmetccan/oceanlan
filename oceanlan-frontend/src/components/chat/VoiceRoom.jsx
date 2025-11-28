@@ -8,7 +8,7 @@ const VoiceRoom = () => {
   // useVoiceChannel artık fonksiyonları döndürüyor
   const { startScreenShare, stopScreenShare } = useVoiceChannel();
 
-  const { currentVoiceChannelId, leaveVoiceChannel, myScreenStream } = useContext(VoiceContext);
+  const { currentVoiceChannelId, leaveVoiceChannel, myScreenStream ,isLocalSpeaking} = useContext(VoiceContext);
   const { isMicMuted, toggleMic } = useContext(AudioSettingsContext);
 
   if (!currentVoiceChannelId) return null;
@@ -48,26 +48,25 @@ const VoiceRoom = () => {
             🖥️
         </button>
 
-        <button
-            onClick={toggleMic}
-            className={`voice-btn ${isMicMuted ? 'muted' : ''}`}
-            style={{
-                background: 'transparent',
-                border: 'none',
-                color: isMicMuted ? '#f04747' : '#fff',
-                cursor: 'pointer',
-                fontSize: '18px'
-            }}
-        >
-            {isMicMuted ? '🔇' : '🎙️'}
-        </button>
+          <button
+              className="voice-room-mic-btn"
+              onClick={toggleMic}
+          >
+              {/* ✅ Ses gidiyorsa yeşil nokta */}
+              <span
+                  className={`voice-speaking-indicator ${
+                      isLocalSpeaking && !isMicMuted ? 'active' : ''
+                  }`}
+              />
+              {isMicMuted ? '🔇' : '🎙️'}
+          </button>
 
-        <button
-            className="voice-room-leave-btn"
-            onClick={leaveVoiceChannel}
-        >
-            Kapat
-        </button>
+          <button
+              className="voice-room-leave-btn"
+              onClick={leaveVoiceChannel}
+          >
+              Kapat
+          </button>
       </div>
     </div>
   );

@@ -13,6 +13,31 @@ html, body, #root {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.voice-room-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: none;
+  background: #111827;
+  color: white;
+  cursor: pointer;
+}
+
+.voice-speaking-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background-color: #4b5563; /* Pasif: gri */
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Konuşurken (ses gidiyorken) */
+.voice-speaking-indicator.active {
+  background-color: #22c55e; /* Yeşil */
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+}
 
 .logo {
   height: 6em;

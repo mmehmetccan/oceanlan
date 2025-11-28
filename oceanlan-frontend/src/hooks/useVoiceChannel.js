@@ -36,6 +36,8 @@ export const useVoiceChannel = () => {
     setMyScreenStream,
     addIncomingStream,
     removeIncomingStream,
+    // Lokal kullanıcının konuşma durumunu UI’da göstermek için
+    setIsLocalSpeaking,
   } = useContext(VoiceContext);
 
   const { inputMode, pttKeyCode, isMicMuted, userVolumes } =
@@ -46,6 +48,10 @@ export const useVoiceChannel = () => {
   const screenStreamRef = useRef(null);
   const audioContextRef = useRef(null);
   const gainNodesRef = useRef({});
+
+  // Lokal ses analizi için
+  const localAnalyserRef = useRef(null);
+  const localAnalyserRafRef = useRef(null);
 
   const [isPTTPressed, setIsPTTPressed] = useState(false);
 
@@ -85,6 +91,7 @@ export const useVoiceChannel = () => {
     });
   }, [userVolumes]);
 
+  // PUSH TO TALK tuş dinleyicileri
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') return;
 
@@ -168,6 +175,51 @@ export const useVoiceChannel = () => {
           localStreamRef.current = stream;
           updateMicrophoneState();
 
+          // 🔊 LOKAL KONUŞMA ALGILAMA (Discord tarzı ışık)
+          try {
+            const audioContext = audioContextRef.current;
+            if (audioContext.state === 'suspended') {
+              audioContext.resume();
+            }
+
+            const source = audioContext.createMediaStreamSource(stream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 512;
+
+            const dataArray = new Uint8Array(analyser.fftSize);
+
+            localAnalyserRef.current = {
+              analyser,
+              dataArray,
+              source,
+            };
+
+            const checkLevel = () => {
+              if (!localAnalyserRef.current) return;
+
+              const { analyser, dataArray } = localAnalyserRef.current;
+              analyser.getByteTimeDomainData(dataArray);
+
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                const v = (dataArray[i] - 128) / 128; // -1..1 normalize
+                sum += v * v;
+              }
+              const rms = Math.sqrt(sum / dataArray.length);
+              const threshold = 0.03; // Konuşuyor sayılması için seviye
+
+              const speaking = rms > threshold;
+              setIsLocalSpeaking(speaking);
+
+              localAnalyserRafRef.current =
+                requestAnimationFrame(checkLevel);
+            };
+
+            checkLevel();
+          } catch (err) {
+            console.warn('Lokal ses analizi başlatılamadı:', err);
+          }
+
           // --- INITIATOR ---
           socket.on('user-joined-voice', ({ socketId, userId }) => {
             console.log('[VOICE] user-joined-voice, initiator peer ->', socketId);
@@ -176,7 +228,7 @@ export const useVoiceChannel = () => {
               initiator: true,
               trickle: true,
               stream,
-              config: { iceServers: ICE_SERVERS }, // 🔥 BURASI YENİ
+              config: { iceServers: ICE_SERVERS },
             });
 
             if (screenStreamRef.current) {
@@ -205,7 +257,7 @@ export const useVoiceChannel = () => {
               initiator: false,
               trickle: true,
               stream,
-              config: { iceServers: ICE_SERVERS }, // 🔥 BURASI YENİ
+              config: { iceServers: ICE_SERVERS },
             });
 
             if (screenStreamRef.current) {
@@ -311,6 +363,20 @@ export const useVoiceChannel = () => {
           setMyScreenStream(null);
         }
 
+        if (localAnalyserRef.current) {
+          try {
+            localAnalyserRef.current.source.disconnect();
+          } catch (e) {
+            // ignore
+          }
+          localAnalyserRef.current = null;
+        }
+        if (localAnalyserRafRef.current) {
+          cancelAnimationFrame(localAnalyserRafRef.current);
+          localAnalyserRafRef.current = null;
+        }
+        setIsLocalSpeaking(false);
+
         Object.values(peersRef.current).forEach((p) => p.destroy());
         peersRef.current = {};
 
@@ -325,7 +391,16 @@ export const useVoiceChannel = () => {
         socket.off('force-join-voice-channel');
       }
     };
-  }, [socket, currentVoiceChannelId, currentServerId, user, userVolumes]);
+  }, [
+    socket,
+    currentVoiceChannelId,
+    currentServerId,
+    user,
+    userVolumes,
+    isMicMuted,
+    inputMode,
+    isPTTPressed,
+  ]);
 
   return { startScreenShare, stopScreenShare };
 };

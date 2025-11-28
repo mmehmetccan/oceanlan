@@ -10,6 +10,7 @@ export const VoiceProvider = ({ children }) => {
   // 📢 YENİ: Ekran Paylaşımı State'leri
   const [myScreenStream, setMyScreenStream] = useState(null); // Kendi paylaştığım ekran
   const [incomingStreams, setIncomingStreams] = useState({}); // { socketId: stream } (Başkalarının ekranları)
+  const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
 
   const joinVoiceChannel = (serverId, channelId) => {
     if (currentVoiceChannelId === channelId) return;
@@ -58,7 +59,9 @@ export const VoiceProvider = ({ children }) => {
         setMyScreenStream,
         incomingStreams,
         addIncomingStream,
-        removeIncomingStream
+        removeIncomingStream,
+        isLocalSpeaking,
+        setIsLocalSpeaking,
     }}>
       {children}
     </VoiceContext.Provider>
