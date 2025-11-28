@@ -8,22 +8,32 @@ const AudioSettingsPage = () => {
   const {
     inputMode, setInputMode,
     pttKey, setPttKey, pttKeyCode, setPttKeyCode,
-    outputDeviceId, setOutputDeviceId // 👈 Context'ten çekildi
+    outputDeviceId, setOutputDeviceId,
+    inputDeviceId, setInputDeviceId // 👈 Context'ten çekildi
   } = useContext(AudioSettingsContext);
 
   const [isListening, setIsListening] = useState(false);
-  const [audioDevices, setAudioDevices] = useState([]); // 👈 Cihaz listesi için
+  const [audioOutputDevices, setAudioOutputDevices] = useState([]);
+  const [audioInputDevices, setAudioInputDevices] = useState([]);
   const navigate = useNavigate();
 
   // Cihazları Listele
   useEffect(() => {
     const getDevices = async () => {
       try {
-        // İzin istemek gerekebilir, o yüzden önce bir getUserMedia denemesi yapılabilir
-        // Ama genellikle cihaz listesi izin verildiyse gelir.
+        // İzin iste (cihaz isimlerini görebilmek için gereklidir)
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+
         const devices = await navigator.mediaDevices.enumerateDevices();
+
+        // Çıkış cihazları (Hoparlör)
         const outputs = devices.filter(device => device.kind === 'audiooutput');
-        setAudioDevices(outputs);
+        setAudioOutputDevices(outputs);
+
+        // Giriş cihazları (Mikrofon)
+        const inputs = devices.filter(device => device.kind === 'audioinput');
+        setAudioInputDevices(inputs);
+
       } catch (err) {
         console.error("Cihazlar alınamadı:", err);
       }
@@ -34,7 +44,6 @@ const AudioSettingsPage = () => {
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
 
-  // Tuş atama
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (isListening) {
@@ -58,7 +67,26 @@ const AudioSettingsPage = () => {
           <button onClick={() => navigate(-1)} className="close-settings-btn">ESC ✕</button>
         </div>
 
-        {/* 👇 YENİ BÖLÜM: ÇIKIŞ CİHAZI */}
+        {/* 👇 YENİ: GİRİŞ CİHAZI (MİKROFON) */}
+        <div className="settings-section">
+            <h3>Giriş Cihazı (Mikrofon)</h3>
+            <select
+                value={inputDeviceId}
+                onChange={(e) => setInputDeviceId(e.target.value)}
+                style={{
+                    width: '100%', padding: '10px', borderRadius: '8px',
+                    background: '#2f3136', color: 'white', border: '1px solid #202225'
+                }}
+            >
+                {audioInputDevices.map(device => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Mikrofon ${device.deviceId.slice(0,5)}...`}
+                    </option>
+                ))}
+            </select>
+        </div>
+
+        {/* 👇 YENİ: ÇIKIŞ CİHAZI (HOPARLÖR) */}
         <div className="settings-section">
             <h3>Çıkış Cihazı (Hoparlör / Kulaklık)</h3>
             <select
@@ -69,15 +97,13 @@ const AudioSettingsPage = () => {
                     background: '#2f3136', color: 'white', border: '1px solid #202225'
                 }}
             >
-                {audioDevices.map(device => (
+                {audioOutputDevices.map(device => (
                     <option key={device.deviceId} value={device.deviceId}>
                         {device.label || `Hoparlör ${device.deviceId.slice(0,5)}...`}
                     </option>
                 ))}
             </select>
-            <p className="hint">Sesin hangi cihazdan geleceğini buradan seçebilirsiniz.</p>
         </div>
-        {/* ----------------------------- */}
 
         <div className="settings-section">
           <h3>Giriş Modu</h3>
@@ -111,12 +137,6 @@ const AudioSettingsPage = () => {
               </div>
             </div>
         )}
-
-        <div className="settings-section">
-          <h3>Giriş Hassasiyeti</h3>
-          <p className="hint">Otomatik olarak belirlenir (Şimdilik varsayılan).</p>
-          <input type="range" disabled className="sensitivity-slider"/>
-        </div>
       </div>
   );
 };

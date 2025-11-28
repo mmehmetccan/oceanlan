@@ -9,8 +9,9 @@ export const AudioSettingsProvider = ({ children }) => {
   const [pttKey, setPttKey] = useState(localStorage.getItem('pttKey') || 'Space');
   const [pttKeyCode, setPttKeyCode] = useState(localStorage.getItem('pttKeyCode') || 'Space');
 
-  // 👇 YENİ: Hoparlör Seçimi (Varsayılan 'default')
+  // 👇 YENİ: Cihaz Seçimleri (Varsayılan 'default')
   const [outputDeviceId, setOutputDeviceId] = useState(localStorage.getItem('outputDeviceId') || 'default');
+  const [inputDeviceId, setInputDeviceId] = useState(localStorage.getItem('inputDeviceId') || 'default');
 
   // Global Mikrofon ve Kulaklık Durumu
   const [isMicMuted, setIsMicMuted] = useState(false);
@@ -21,9 +22,10 @@ export const AudioSettingsProvider = ({ children }) => {
     localStorage.setItem('inputMode', inputMode);
     localStorage.setItem('pttKey', pttKey);
     localStorage.setItem('pttKeyCode', pttKeyCode);
-    // 👇 YENİ: Hoparlör ayarını kaydet
+    // 👇 Ayarları kaydet
     localStorage.setItem('outputDeviceId', outputDeviceId);
-  }, [inputMode, pttKey, pttKeyCode, outputDeviceId]);
+    localStorage.setItem('inputDeviceId', inputDeviceId);
+  }, [inputMode, pttKey, pttKeyCode, outputDeviceId, inputDeviceId]);
 
   const setUserVolume = (userId, volume) => {
     setUserVolumes(prev => ({
@@ -45,7 +47,8 @@ export const AudioSettingsProvider = ({ children }) => {
         inputMode, setInputMode,
         pttKey, setPttKey,
         pttKeyCode, setPttKeyCode,
-        outputDeviceId, setOutputDeviceId, // 👈 DIŞARI AKTARILDI
+        outputDeviceId, setOutputDeviceId, // 👈 Hoparlör
+        inputDeviceId, setInputDeviceId,   // 👈 Mikrofon
         isMicMuted, toggleMic, setIsMicMuted,
         isDeafened, toggleDeafen,
         userVolumes, setUserVolume, getUserVolume

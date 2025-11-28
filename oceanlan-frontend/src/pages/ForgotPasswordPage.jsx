@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-
+import axiosInstance from '../utils/axiosInstance'; // 👈 Import et
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ForgotPasswordPage = () => {
@@ -17,8 +17,7 @@ const ForgotPasswordPage = () => {
     setError('');
 
     try {
-      const res = await axios.post(`${API_URL_BASE}/api/v1/auth/forgotpassword`, { email });
-      setMessage(res.data.message);
+    const res = await axiosInstance.post('/auth/forgotpassword', { email });      setMessage(res.data.message);
     } catch (err) {
       setError(err.response?.data?.message || 'Bir hata oluştu');
     } finally {

@@ -10,74 +10,81 @@ const sendFriendRequest = async (req, res) => {
   try {
     const { recipientUsername, targetUserId } = req.body;
     const requesterId = req.user.id;
+
     if (!recipientUsername && !targetUserId) {
       return res.status(400).json({
         success: false,
-        message: 'Lutfen kullanici adi veya hedef kullanici ID bilgisini gonderin',
+        message: 'Lütfen kullanıcı adı veya hedef kullanıcı ID bilgisini gönderin',
       });
     }
+
     let recipient = null;
     if (targetUserId) {
       recipient = await User.findById(targetUserId);
     } else if (recipientUsername) {
       recipient = await User.findOne({ username: recipientUsername });
     }
+
     if (!recipient) {
-      return res.status(404).json({ success: false, message: 'Kullanici bulunamadi' });
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
     }
+
     const recipientId = recipient._id.toString();
+
     if (requesterId === recipientId) {
       return res.status(400).json({
         success: false,
-        message: 'Kendinize arkadaslik istegi gonderemezsiniz',
+        message: 'Kendinize arkadaşlık isteği gönderemezsiniz',
       });
     }
-    const requesterUser = await User.findById(requesterId).select('friends');
-    const isAlreadyFriends = requesterUser.friends.some(
-      (friendId) => friendId.toString() === recipientId
-    );
-    if (isAlreadyFriends) {
-      return res.status(400).json({
-        success: false,
-        message: 'Bu kullanici ile zaten arkadassiniz',
-      });
+
+    // Zaten arkadaş mı?
+    const requester = await User.findById(requesterId);
+    if (requester.friends.includes(recipientId)) {
+      return res.status(400).json({ success: false, message: 'Bu kullanıcı ile zaten arkadaşsınız' });
     }
+
+    // Bekleyen istek var mı?
     const existingRequest = await FriendRequest.findOne({
       $or: [
         { requester: requesterId, recipient: recipientId },
         { requester: recipientId, recipient: requesterId },
       ],
+      status: 'pending',
     });
+
     if (existingRequest) {
-      if (existingRequest.status === 'pending') {
-        return res.status(400).json({
-          success: false,
-          message: 'Zaten bekleyen bir arkadaslik isteginiz var',
-        });
-      }
-      if (existingRequest.status === 'accepted') {
-        return res.status(400).json({
-          success: false,
-          message: 'Bu kullanici ile zaten arkadassiniz',
-        });
-      }
+      return res.status(400).json({ success: false, message: 'Zaten bekleyen bir istek var' });
     }
+
     const newRequest = await FriendRequest.create({
       requester: requesterId,
       recipient: recipientId,
       status: 'pending',
     });
+
+    // --- SOCKET.IO BİLDİRİMİ (YENİ) ---
+    const io = req.app.get('io');
+    if (io) {
+        // İsteği alan kişinin (recipient) ekranına düşmesi için isteği populate edip gönderiyoruz
+        const populatedRequest = await FriendRequest.findById(newRequest._id)
+            .populate('requester', 'username email avatar avatarUrl onlineStatus lastSeenAt'); // Gönderenin bilgileri
+
+        // Alıcının odasına 'newFriendRequest' event'i at
+        io.to(recipientId).emit('newFriendRequest', populatedRequest);
+    }
+    // ----------------------------------
+
     return res.status(201).json({
       success: true,
-      message: 'Arkadaslik istegi basariyla gonderildi',
+      message: 'Arkadaşlık isteği başarıyla gönderildi',
       data: newRequest,
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ success: false, message: 'Sunucu Hatasi', error: error.message });
+    return res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };
+
 const getPendingRequests = async (req, res) => {
   try {
     // 1. Kimin isteklerine bakıyoruz? (Giriş yapan kullanıcı, yani 'mehmet')
@@ -103,68 +110,66 @@ const getPendingRequests = async (req, res) => {
 
 const respondToFriendRequest = async (req, res) => {
   try {
-    // 1. Gerekli bilgileri al
-    const { requestId } = req.params; // İsteğin ID'si (URL'den)
-    const { response } = req.body; // 'accepted' veya 'rejected' (Gövdeden)
-    const userId = req.user.id; // İsteği yanıtlayan (giriş yapan) kullanıcı (mehmet)
+    const { requestId } = req.params;
+    const { response } = req.body; // 'accepted' veya 'rejected'
+    const userId = req.user.id;
 
-    // 2. İsteği bul
     const request = await FriendRequest.findById(requestId);
-
     if (!request) {
       return res.status(404).json({ success: false, message: 'İstek bulunamadı' });
     }
 
-    // 3. YETKİ KONTROLÜ: Bu isteği yanıtlayan kişi, isteğin alıcısı mı?
+    // Sadece alıcı yanıt verebilir
     if (request.recipient.toString() !== userId) {
-      return res.status(403).json({ success: false, message: 'Bu isteği yanıtlama yetkiniz yok' });
+      return res.status(403).json({ success: false, message: 'Bu isteğe yanıt verme yetkiniz yok' });
     }
 
-    // 4. İstek zaten yanıtlanmış mı?
     if (request.status !== 'pending') {
-      return res.status(400).json({ success: false, message: 'Bu istek zaten yanıtlanmış' });
+      return res.status(400).json({ success: false, message: 'Bu istek zaten sonuçlanmış' });
     }
 
-    // 5. İsteği yanıtla
     if (response === 'accepted') {
-      // 5.A: İsteği 'accepted' olarak güncelle
       request.status = 'accepted';
       await request.save();
 
-      // 5.B: İki kullanıcıyı da birbirinin 'friends' dizisine ekle
       const requesterId = request.requester;
-      const recipientId = request.recipient; // (userId ile aynı)
+      const recipientId = request.recipient;
 
-      // Alıcıyı (mehmet) gönderenin (ahmet) listesine ekle
-      await User.findByIdAndUpdate(requesterId, {
-        $push: { friends: recipientId },
+      // İki kullanıcının da friends listesine ekle
+      await User.findByIdAndUpdate(requesterId, { $push: { friends: recipientId } });
+      await User.findByIdAndUpdate(recipientId, { $push: { friends: requesterId } });
+
+      // --- SOCKET.IO KABUL BİLDİRİMİ (YENİ) ---
+      const io = req.app.get('io');
+      if (io) {
+          // İsteği gönderen kişiye (Requester) "Kabul Edildi" haberi ver
+          // Ona bizim (kabul edenin) bilgilerimizi yolla ki listesine eklesin
+          const acceptorUser = await User.findById(recipientId).select('username avatarUrl onlineStatus lastSeenAt email');
+
+          // İsteği gönderen kişinin odasına sinyal yolla
+          io.to(requesterId.toString()).emit('friendRequestAccepted', acceptorUser);
+      }
+      // ----------------------------------------
+
+      return res.status(200).json({
+        success: true,
+        message: 'Arkadaşlık isteği kabul edildi',
       });
-
-      // Göndereni (ahmet) alıcının (mehmet) listesine ekle
-      await User.findByIdAndUpdate(recipientId, {
-        $push: { friends: requesterId },
-      });
-
-      // TODO: Socket.IO ile 'requester'a (ahmet'e) "isteğiniz kabul edildi" bildirimi gönder
-
-      res.status(200).json({ success: true, message: 'Arkadaşlık isteği kabul edildi' });
-
     } else if (response === 'rejected') {
-      // 5.C: İsteği 'rejected' olarak güncelle (veya silebilirsiniz)
       request.status = 'rejected';
       await request.save();
-      // (Alternatif olarak: await FriendRequest.findByIdAndDelete(requestId);)
-
-      res.status(200).json({ success: true, message: 'Arkadaşlık isteği reddedildi' });
-
+      return res.status(200).json({
+        success: true,
+        message: 'Arkadaşlık isteği reddedildi',
+      });
     } else {
-      res.status(400).json({ success: false, message: 'Geçersiz yanıt (sadece "accepted" veya "rejected")' });
+      return res.status(400).json({ success: false, message: 'Geçersiz yanıt' });
     }
-
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
+    return res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };
+
 const getOrCreateConversation = async (req, res) => {
   try {
     // 1. Gerekli bilgileri al

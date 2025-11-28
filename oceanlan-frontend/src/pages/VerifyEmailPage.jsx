@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-
+import axiosInstance from '../utils/axiosInstance';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -24,9 +24,9 @@ const VerifyEmailPage = () => {
       try {
         let url;
         if (isChangeEmail) {
-            url = `${API_URL_BASE}/api/v1/users/verify-new-email/${token}`;
+            url = `/users/verify-new-email/${token}`;
         } else {
-            url = `${API_URL_BASE}/api/v1/auth/verifyemail/${token}`;
+            url = `/auth/verifyemail/${token}`;
         }
 
         const res = await axios.put(url);
