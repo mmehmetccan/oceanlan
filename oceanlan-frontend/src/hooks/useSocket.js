@@ -1,28 +1,33 @@
 // src/hooks/useSocket.js
-import { useEffect, useContext, useState, useRef } from 'react';
+import { useEffect, useContext, useState } from 'react';
 import io from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 
+// Prod'da: https://oceanlan.com
+// Dev'de: http://localhost:3000 (backend'in portunu burada ne kullanıyorsan ona göre ayarla)
 const SOCKET_SERVER_URL =
   import.meta.env.PROD
-    ? window.location.origin        // https://oceanlan.com
-    : 'http://localhost:3000';      // Vite dev iken backendlet globalSocket = null; // Bağlantıyı globalde tut
+    ? window.location.origin
+    : 'http://localhost:3000';
+
+// 🔴 ÖNEMLİ: global socket burada TANIMLANACAK (yorum değil, gerçek kod)
+let globalSocket = null; // Bağlantıyı globalde tut
 
 export const useSocket = () => {
-  const { isAuthenticated, token } = useContext(AuthContext); // Token'ı context'ten al
+  const { isAuthenticated, token } = useContext(AuthContext);
   const [socket, setSocket] = useState(globalSocket);
 
   useEffect(() => {
     // 1. GİRİŞ YAPILDIYSA ve token varsa ve global socket YOKSA
     if (isAuthenticated && token && !globalSocket) {
-      console.log("[useSocket] Token bulundu, socket bağlantısı kuruluyor...");
+      console.log('[useSocket] Token bulundu, socket bağlantısı kuruluyor...');
 
       const newSocket = io(SOCKET_SERVER_URL, {
-        // Backend'deki 'io.use()' middleware'inin okuması için token'ı gönder
         auth: { token },
         transports: ['websocket', 'polling'],
-          withCredentials: true,
-
+        withCredentials: true,
+        // prod'da nginx üzerinden /socket.io ya gidiyor
+        // path: '/socket.io', // istersen bunu da açıkça yazabilirsin
       });
 
       newSocket.on('connect', () => {
@@ -34,8 +39,7 @@ export const useSocket = () => {
       });
 
       newSocket.on('connect_error', (err) => {
-          // Eğer backend (io.use) token'ı reddederse burada hata görürüz
-          console.error('[SOCKET HATA]: Bağlantı hatası:', err.message);
+        console.error('[SOCKET HATA]: Bağlantı hatası:', err.message);
       });
 
       globalSocket = newSocket;
@@ -43,13 +47,11 @@ export const useSocket = () => {
     }
     // 2. ÇIKIŞ YAPILDIYSA ve global socket VARSA
     else if (!isAuthenticated && globalSocket) {
-      console.log("[useSocket] Çıkış yapıldı, socket bağlantısı kesiliyor...");
+      console.log('[useSocket] Çıkış yapıldı, socket bağlantısı kesiliyor...');
       globalSocket.close();
       globalSocket = null;
       setSocket(null);
     }
-
-  // 'isAuthenticated' veya 'token' değiştiğinde bu efekti yeniden çalıştır
   }, [isAuthenticated, token]);
 
   return { socket };
