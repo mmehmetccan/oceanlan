@@ -9,6 +9,8 @@ import { ToastProvider } from './context/ToastContext';
 import { VoiceProvider } from './context/VoiceContext';
 import { AudioSettingsProvider } from './context/AudioSettingsContext'; // 👈 EKLENDİ
 
+
+
 // --- PAGE IMPORTS ---
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';

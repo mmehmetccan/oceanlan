@@ -70,8 +70,6 @@ export const useVoiceChannel = () => {
 
         if (remoteUserId && userVolumes[remoteUserId] !== undefined) {
             // Volume 0-200 arası geliyor, HTML Audio 0.0-1.0 arası kabul eder (Max 1.0)
-            // Ancak 100'ün üstü için gain node gerekir, basitlik için max 1.0 yapıyoruz.
-            // Daha yüksek ses için Web Audio API gerekir ama şu an ses gelmesi öncelikli.
             let volume = userVolumes[remoteUserId] / 100;
             if (volume > 1) volume = 1;
             audioElement.volume = volume;
@@ -193,7 +191,7 @@ export const useVoiceChannel = () => {
         });
     }
 
-    // 👇 SES ÇALMA MANTIĞI DEĞİŞTİ (GARANTİ YÖNTEM)
+    // 👇 SES ÇALMA MANTIĞI (GARANTİ YÖNTEM)
     const handleRemoteStream = (remoteStream, socketId, userId) => {
         if (remoteStream.getVideoTracks().length > 0) {
             addIncomingStream(socketId, remoteStream);
