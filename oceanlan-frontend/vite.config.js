@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -5,8 +6,6 @@ const BACKEND_PORT = 3000;
 
 export default defineConfig({
   plugins: [react()],
-
-  // Electron için dosya yolları
   base: './',
 
   server: {
@@ -26,15 +25,15 @@ export default defineConfig({
   },
 
   define: {
-    // Önceden vardı
+    // simple-peer global istiyor
     global: 'window',
 
-    // 👇 BUNU EKLİYORUZ: process'i browser'da sahte bir obje yap
-    process: {
-      env: {},
-    },
-    // İstersen ekstra güvenlik için şunu da ekleyebilirsin:
-    // 'process.env': {},
+    // kütüphaneler process.env okursa boş obje dönecek
+    'process.env': '{}',
+
+    // asıl kritik kısım: process.nextTick polyfill
+    process:
+      '({ env: {}, nextTick: (cb, ...args) => Promise.resolve().then(() => cb(...args)) })',
   },
 
   esbuild: {
