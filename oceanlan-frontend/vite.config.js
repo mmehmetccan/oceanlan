@@ -25,17 +25,20 @@ export default defineConfig({
     },
   },
 
-  // 👇 DÜZELTME BURADA:
-  // Eski hali: global: JSON.stringify({})
-  // Yeni hali: global: 'window'
-  // Bu değişiklik, "Invalid define value" hatasını kesin çözer.
   define: {
+    // Önceden vardı
     global: 'window',
+
+    // 👇 BUNU EKLİYORUZ: process'i browser'da sahte bir obje yap
+    process: {
+      env: {},
+    },
+    // İstersen ekstra güvenlik için şunu da ekleyebilirsin:
+    // 'process.env': {},
   },
 
-  // .js dosyalarında JSX kullanımına izin ver
   esbuild: {
-    loader: "jsx",
+    loader: 'jsx',
     include: /src\/.*\.jsx?$/,
     exclude: [],
   },

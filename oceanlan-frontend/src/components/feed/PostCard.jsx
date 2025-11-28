@@ -80,14 +80,19 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
             <div className="post-content">
                 <p>{post.content}</p>
 
-                {/* 📢 DÜZELTME BURADA: avatarSrc yerine mediaSrc kullanıldı */}
                 {post.mediaUrl && post.mediaType === 'image' && (
-                    <img
-                        src={mediaSrc}
-                        alt="Gönderi içeriği"
-                        className="post-media"
-                    />
-                )}
+    <img
+        src={mediaSrc}
+        alt={post.content || 'Gönderi görseli'}
+        className="post-media"
+        onError={(e) => {
+            // Resim yüklenemezse tamamen gizle
+            if (e?.target) {
+                e.target.style.display = 'none';
+            }
+        }}
+    />
+)}
 
                 {post.mediaUrl && post.mediaType === 'video' && (
                     <video controls src={mediaSrc} className="post-media" />
