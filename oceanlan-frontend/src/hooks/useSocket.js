@@ -3,8 +3,10 @@ import { useEffect, useContext, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 
-const SOCKET_SERVER_URL = 'http://localhost:3000';
-let globalSocket = null; // Bağlantıyı globalde tut
+const SOCKET_SERVER_URL =
+  import.meta.env.PROD
+    ? window.location.origin        // https://oceanlan.com
+    : 'http://localhost:3000';      // Vite dev iken backendlet globalSocket = null; // Bağlantıyı globalde tut
 
 export const useSocket = () => {
   const { isAuthenticated, token } = useContext(AuthContext); // Token'ı context'ten al
@@ -19,6 +21,8 @@ export const useSocket = () => {
         // Backend'deki 'io.use()' middleware'inin okuması için token'ı gönder
         auth: { token },
         transports: ['websocket', 'polling'],
+          withCredentials: true,
+
       });
 
       newSocket.on('connect', () => {
