@@ -1,0 +1,181 @@
+/* src/styles/Layout.css */
+
+/* === Genel root ayarları === */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--color-dark);
+  color: var(--color-text-light);
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* ===========================
+   DASHBOARD ANA LAYOUT
+=========================== */
+
+.dashboard-layout {
+  display: flex;
+  height: 100vh;
+  background-color: #36393f;
+  position: relative;
+  color: var(--color-text-light);
+}
+
+/* 1) SOL SUNUCU ÇUBUĞU (Discord tarzı) */
+.server-sidebar {
+  width: 72px;
+  background-color: #202225;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 10px;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+/* Sunucu / DM / + ikonları */
+.sidebar-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #36393f;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-light);
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s, border-radius 0.2s, transform 0.1s;
+}
+
+.sidebar-icon:hover {
+  background-color: var(--color-primary);
+  border-radius: 16px;
+  transform: translateY(-2px);
+}
+
+.sidebar-icon.active {
+  background-color: var(--color-primary);
+  border-radius: 16px;
+}
+
+/* Özel ikon tipleri */
+.sidebar-icon.dm-icon {
+  font-weight: 600;
+}
+
+.sidebar-icon.add-icon {
+  font-size: 22px;
+}
+
+.sidebar-icon.settings-icon {
+  font-size: 18px;
+}
+
+/* Sidebar ayracı */
+.divider {
+  width: 32px;
+  height: 2px;
+  background-color: #2f3136;
+  border: none;
+  margin: 8px 0;
+}
+
+/* 2) ORTA SÜTUN (ServerView, FriendsView vs.) */
+.secondary-sidebar {
+  width: 280px;
+  background-color: #2f3136;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #202225;
+  overflow: hidden;
+}
+
+/* 3) SAĞ TARAF ANA İÇERİK (ChatArea, DMView, Feed) */
+.main-content-area {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #36393f;
+  position: relative;
+  padding-bottom: 64px; /* alttaki ses barı için boşluk */
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* ===========================
+   ALTTAKİ SES BARI (VoiceRoom.jsx)
+=========================== */
+
+.voice-room-controls {
+  position: fixed;
+  left: 72px;   /* server-sidebar genişliği kadar */
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  background-color: #202225;
+  border-top: 1px solid #111318;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  z-index: 100;
+}
+
+.voice-room-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.voice-room-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.voice-room-subtitle {
+  font-size: 11px;
+  color: var(--color-text-dark);
+}
+
+.voice-room-leave-btn {
+  background-color: var(--color-error);
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.05s;
+}
+
+.voice-room-leave-btn:hover {
+  background-color: #c03535;
+  transform: translateY(-1px);
+}
+
+/* Secondary sidebar placeholder (profile route) */
+.secondary-placeholder {
+  padding: 16px;
+  color: var(--color-text-dark);
+  font-size: 14px;
+  text-align: center;
+}
+

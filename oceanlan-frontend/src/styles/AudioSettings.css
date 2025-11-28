@@ -1,0 +1,120 @@
+/* src/styles/AudioSettings.css */
+.audio-settings-container {
+    padding: 30px;
+    color: #fff;
+    max-width: 800px;
+}
+
+.audio-settings-container h2 {
+    border-bottom: 1px solid #3f4147;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.settings-section {
+    margin-bottom: 30px;
+}
+
+.settings-section h3 {
+    font-size: 16px;
+    color: #b9bbbe;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: #2f3136;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.radio-option.selected {
+    background: #40444b;
+    border-color: #5865f2;
+}
+
+.radio-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.radio-content span {
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.radio-content small {
+    color: #b9bbbe;
+    margin-top: 4px;
+}
+
+.keybind-wrapper {
+    background: #2f3136;
+    padding: 20px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.keybind-btn {
+    background: #202225;
+    border: 1px solid #202225;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: monospace;
+    width: fit-content;
+    min-width: 150px;
+    text-align: center;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+}
+
+.keybind-btn.listening {
+    border-color: #5865f2;
+    color: #5865f2;
+    background: #292b2f;
+}
+
+.sensitivity-slider {
+    width: 100%;
+    accent-color: #5865f2;
+}
+
+.hint {
+    color: #b9bbbe;
+    font-size: 13px;
+    margin-top: 5px;
+}
+.close-settings-btn {
+    background: transparent;
+    border: 2px solid #b9bbbe;
+    color: #b9bbbe;
+    border-radius: 50px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.close-settings-btn:hover {
+    border-color: #dcddde;
+    color: #dcddde;
+    background: rgba(255,255,255,0.1);
+}

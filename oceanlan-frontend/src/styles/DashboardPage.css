@@ -1,0 +1,23 @@
+/* Sidebar'ın bulunduğu CSS dosyasına eklenmeli */
+
+.sidebar-icon {
+    position: relative;
+    /* ... mevcut stiller ... */
+}
+
+.notification-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #f04747; /* Kırmızı renk */
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 50%; /* Yuvarlak şekil */
+    min-width: 12px;
+    text-align: center;
+    line-height: 10px;
+    border: 2px solid #202225; /* Sidebar arka plan rengi */
+    transform: translate(25%, -25%); /* İkonun üst sağına taşır */
+}

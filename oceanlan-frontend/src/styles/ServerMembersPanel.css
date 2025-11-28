@@ -1,0 +1,145 @@
+/* Örnek Gerekli CSS Stilleri */
+
+.members-sidebar {
+    width: 240px;
+    padding: 12px 10px;
+    background: linear-gradient(180deg, rgba(47, 49, 54, 0.94), rgba(32, 34, 40, 0.96));
+    color: #ffffff;
+    height: 100%;
+    overflow-y: auto;
+    border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.members-sidebar h3 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9da3af;
+    padding: 0 2px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.member-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.15s, transform 0.15s, border-color 0.15s;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.member-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+}
+
+.member-avatar {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.member-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.member-info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+    gap: 2px;
+}
+
+.member-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f5f5f7;
+}
+
+.member-badge {
+    font-size: 10px;
+    color: #f5d66a;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(245, 214, 106, 0.35);
+    background: rgba(245, 214, 106, 0.12);
+}
+
+.member-sub {
+    font-size: 12px;
+    color: #9da3af;
+}
+
+.members-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.members-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+}
+
+/* src/styles/ServerMembersPanel.css dosyasının en altına ekle */
+
+.member-avatar-container {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+/* Avatarın kendisi container'ı doldursun */
+.member-avatar {
+    width: 100%;
+    height: 100%;
+    margin-right: 0; /* Override */
+}
+
+/* Durum Noktası */
+.status-indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 3px solid #2f3136; /* Arka plan rengiyle aynı çerçeve (cutout efekti) */
+}
+
+.status-indicator.online {
+    background-color: #3ba55d; /* Yeşil */
+}
+
+.status-indicator.offline {
+    background-color: #747f8d; /* Gri */
+    /* İstersen offline olanların içini boşaltabilirsin: */
+    /* background-color: #2f3136; border: 3px solid #747f8d; */
+}
+
+.member-sub-status {
+    font-size: 10px;
+    color: #9da3af;
+    display: block;
+}

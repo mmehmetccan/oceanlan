@@ -1,0 +1,437 @@
+/* src/styles/ServerView.css */
+
+/* ===========================
+   HEADER
+=========================== */
+.server-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(32, 34, 41, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+}
+
+.server-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 18px 14px;
+}
+
+.server-title-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.server-avatar-chip {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: linear-gradient(140deg, #5865f2, #7289da);
+  box-shadow: 0 12px 26px rgba(88, 101, 242, 0.35);
+}
+
+.server-title-text h2.server-name {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-title-text .server-subtitle {
+  color: var(--color-text-dark);
+  font-size: 13px;
+}
+
+.server-settings-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.server-settings-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ===========================
+   KANAL SÜTUNU GENEL
+=========================== */
+.server-view .channels-list {
+  flex: 1;
+  padding: 12px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 15px 45px rgba(0, 0, 0, 0.35);
+}
+
+.server-view .channels-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.server-view .channels-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.server-view .channels-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.channel-group {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 16px 18px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.channel-group:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.channel-group h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-text-dark);
+  margin-bottom: 10px;
+}
+
+.channel-group-empty {
+  font-size: 13px;
+  color: var(--color-text-dark);
+  padding: 6px 4px;
+}
+
+/* ===========================
+   KANAL KARTLARI
+=========================== */
+.channel-group-item {
+  margin-bottom: 8px;
+}
+
+.channel-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-text-light);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  box-sizing: border-box;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.channel-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.channel-item:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateX(4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+}
+
+.channel-item.active {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.08), rgba(32, 34, 41, 0.9));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  transform: translateX(6px);
+}
+
+.channel-item.drop-target {
+  border-color: rgba(50, 168, 82, 0.75);
+  box-shadow: 0 12px 32px rgba(50, 168, 82, 0.3);
+}
+
+.channel-item.voice-channel {
+  cursor: pointer;
+}
+
+.channel-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.channel-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-light);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.channel-item.voice-channel .channel-icon {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-light);
+}
+
+.channel-name {
+  font-weight: 600;
+  color: var(--color-text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.channel-occupancy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.channel-item.voice-channel .channel-occupancy {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ===========================
+   SES KANALINDAKI KULLANICILAR
+=========================== */
+.voice-channel-users {
+  margin-left: 12px;
+  margin-top: 12px;
+  padding: 14px 14px 14px 20px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.voice-user-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.voice-user-item:hover {
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.voice-user-item.draggable {
+  cursor: grab;
+}
+
+.voice-user-item.draggable:active {
+  cursor: grabbing;
+}
+
+.voice-user-item-self {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(31, 33, 40, 0.95));
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.voice-user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  padding: 3px;
+  background: linear-gradient(135deg, rgba(132, 132, 143, 0.9), rgba(66, 67, 76, 0.85));
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.voice-user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 11px;
+  object-fit: cover;
+  display: block;
+}
+
+.voice-user-avatar::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  bottom: 4px;
+  right: 4px;
+  border: 2px solid rgba(8, 9, 12, 0.9);
+  background: #3ba55d;
+}
+
+.voice-user-avatar.status-muted::after {
+  background: #f04747;
+}
+
+.voice-user-avatar.status-deafened::after {
+  background: #faae2b;
+}
+
+.voice-user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.voice-user-name {
+  font-weight: 600;
+  color: #f1f1f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice-user-name.text-muted {
+  color: rgba(241, 241, 245, 0.6);
+}
+
+.voice-user-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.voice-user-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ===========================
+   VOICE ROOM FOOTER (Sesten Ayrıl vb.)
+=========================== */
+.voice-room-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  background: linear-gradient(135deg, rgba(32, 34, 40, 0.95), rgba(24, 25, 30, 0.95));
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  box-sizing: border-box;
+  z-index: 100;
+  gap: 12px;
+}
+
+.voice-room-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.voice-room-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.voice-room-subtitle {
+  font-size: 12px;
+  color: var(--color-text-dark);
+}
+
+.voice-room-leave-btn {
+  background: linear-gradient(135deg, #f04747, #c03535);
+  border: none;
+  color: #ffffff;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 20px rgba(192, 53, 53, 0.35);
+}
+
+.voice-room-leave-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(192, 53, 53, 0.45);
+}
+
+.voice-user-tag.voice-user-tag-muted {
+  background: rgba(240, 71, 71, 0.25);
+  color: #ffbaba;
+}
+
+.voice-user-tag.voice-user-tag-deafened {
+  background: rgba(250, 174, 43, 0.25);
+  color: #f9d486;
+}

@@ -1,0 +1,865 @@
+/* src/index.css */
+
+/* Temel Sıfırlama ve Değişkenler */
+:root {
+  --color-dark: #202225; /* Ana Arkaplan (Koyu Gri) */
+  --color-darker: #2f3136; /* İkinci Arkaplan (Daha Koyu Gri) */
+  --color-sidebar: #2c2f33; /* Kenar Çubuğu Rengi */
+  --color-primary: #5865f2; /* Discord Mavisi/Mor */
+  --color-secondary: #7289da; /* Açık Mavi */
+  --color-text-light: #dcddde; /* Açık Renk Metin */
+  --color-text-dark: #99aab5; /* Koyu Renk Metin */
+  --color-success: #32a852; /* Başarı Rengi */
+  --color-error: #f04747; /* Hata Rengi */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--color-dark);
+  color: var(--color-text-light);
+  min-height: 100vh;
+  overflow: hidden; /* Genel kaydırmayı engelle */
+}
+
+/* -------------------- */
+/* 1. Kimlik Doğrulama Alanı (Auth) */
+/* -------------------- */
+
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: var(--color-darker);
+}
+
+.auth-container h2 {
+  color: var(--color-text-light);
+  margin-bottom: 20px;
+}
+
+.auth-container form {
+  display: flex;
+  flex-direction: column;
+  width: 350px;
+  padding: 30px;
+  background-color: var(--color-dark);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.auth-container input {
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #4f545c;
+  border-radius: 4px;
+  background-color: #2f3136;
+  color: var(--color-text-light);
+  font-size: 16px;
+}
+
+.auth-container button {
+  padding: 12px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.auth-container button:hover:not(:disabled) {
+  background-color: var(--color-secondary);
+}
+
+.auth-container button:disabled {
+  background-color: #4f545c;
+  cursor: not-allowed;
+}
+
+.auth-container .error {
+  color: var(--color-error);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* -------------------- */
+/* 2. Dashboard Düzeni (Ana Uygulama) */
+/* -------------------- */
+
+/* Tüm sayfa: üstte bar, altta içerik */
+.dashboard-layout {
+  display: flex;
+  flex-direction: column; /* Üstte Sidebar, altında tek satır */
+  height: 100vh;
+}
+
+/* Alt kısım: Kanallar - Chat - Üyeler */
+.dashboard-main-row {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* scroll bug fix */
+}
+.dashboard-main-row.single-column {
+  flex: 1;
+}
+
+.main-with-members {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.dashboard-main {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* scroll sorunlarını engeller */
+}
+/* 2.1. Server Sidebar (En Soldaki İkonlar) */
+
+
+.server-topbar {
+  height: 82px;
+  background-color: var(--color-dark);
+  border-bottom: 1px solid #36393f;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.server-topbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.server-topbar-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.server-topbar-scroll::-webkit-scrollbar-thumb {
+  background-color: #36393f;
+  border-radius: 999px;
+}
+
+/* Hep yatay elemanlar olacak */
+.sidebar-icon {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--color-sidebar);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s, border-radius 0.2s;
+}
+
+.sidebar-icon:hover {
+  background-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.sidebar-icon.active {
+  background-color: var(--color-primary);
+}
+/* Sunucu “story” görünümü (hikâye halkası) */
+.server-story {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.server-story-ring {
+  padding: 2px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 0 0,
+    #f09433,
+    #e6683c,
+    #dc2743,
+    #cc2366,
+    #bc1888
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.server-story-initials {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background-color: var(--color-sidebar);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.server-story.active .server-story-ring {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+}
+
+/* DM, +, ayarlar ikonları için ufak oynamalar */
+.dm-icon {
+  font-size: 14px;
+}
+
+.add-icon {
+  font-size: 20px;
+}
+
+.settings-icon {
+  font-size: 18px;
+}
+
+/* Sağ tarafa itici boşluk */
+.server-topbar-spacer {
+  flex-grow: 1;
+}
+
+.divider {
+  width: 50%;
+  border: none;
+  border-top: 2px solid #36393f;
+  margin: 5px 0 10px 0;
+}
+
+/* 2.2. Secondary Sidebar (Kanallar/Arkadaşlar Listesi) */
+/* Sol: Kanallar */
+.secondary-sidebar {
+  width: 240px;          /* istersen 260 yap */
+  background-color: var(--color-darker);
+  flex-shrink: 0;
+  padding: 10px 0;
+  overflow-y: auto;
+  border-right: 1px solid #36393f;
+}
+
+.secondary-sidebar h3 {
+  color: var(--color-text-light);
+  padding: 10px 15px;
+  font-size: 16px;
+  border-bottom: 1px solid #36393f;
+  margin-bottom: 5px;
+}
+
+/* Channel/Member Listesi Stilleri */
+/* Channel / Member listeleri başlıkları */
+.channel-list h4,
+.member-list h4,
+.channels-list h3,
+.members-sidebar h3 {
+  color: var(--color-text-dark);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 8px 12px 4px;
+}
+
+/* Kanal satırları */
+.channel-item,
+.member-item {
+  position: relative;
+  padding: 6px 12px;
+  margin: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-light);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.channel-item:hover,
+.member-item:hover {
+  background-color: #36393f;
+}
+
+/* Aktif kanal vurgusu (sol renkli bar) */
+.channel-item.active {
+  background-color: #4f545c;
+  color: #ffffff;
+}
+
+.channel-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 999px;
+  background-color: var(--color-primary);
+}
+
+/* Kanal içi düzen */
+.channel-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.channel-icon {
+  font-size: 14px;
+  color: var(--color-text-dark);
+}
+
+.channel-item.active .channel-icon {
+  color: #ffffff;
+}
+
+.channel-name {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-meta {
+  font-size: 11px;
+  color: var(--color-text-dark);
+}
+
+/* Ses kanalındaki kullanıcılar */
+.voice-channel-users {
+  margin-left: 24px;
+  padding-left: 8px;
+  border-left: 2px solid #36393f;
+  margin-top: 2px;
+}
+
+.voice-user-item {
+  font-size: 13px;
+  padding: 2px 0;
+  color: var(--color-text-light);
+}
+
+.voice-user-item.draggable {
+  cursor: grab;
+}
+
+.voice-user-name {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.text-muted {
+  opacity: 0.6;
+}
+
+/* Drop hedefi highlight */
+.channel-item.voice-channel.drop-target {
+  outline: 1px dashed var(--color-primary);
+  background-color: #3a414a;
+}
+/* 2.3. Ana İçerik Alanı (Sohbet/Ayarlar) */
+.main-content-area {
+  flex: 1;
+  background-color: var(--color-sidebar);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 64px; /* alttaki ses barı için */
+}
+/* Sağ taraftaki üye paneli */
+.members-sidebar {
+  width: 230px;
+  background-color: var(--color-darker);
+  flex-shrink: 0;
+  border-left: 1px solid #36393f;
+  padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.members-sidebar h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--color-text-dark);
+  margin: 0 0 6px;
+}
+
+.members-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.member-dot {
+  margin-right: 6px;
+  font-size: 10px;
+  color: var(--color-text-dark);
+}
+/* Zaten var ama tekrar hatırlatayım: */
+.channel-item,
+.member-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  margin: 2px 8px;
+  border-radius: 4px;
+  color: var(--color-text-light);
+  text-decoration: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.channel-item:hover,
+.member-item:hover {
+  background-color: #4f545c;
+}
+
+/* -------------------- */
+/* 3. Sohbet Alanı (ChatArea / DMView) */
+/* -------------------- */
+
+.chat-area {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-header {
+  padding: 15px;
+  border-bottom: 1px solid #36393f;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-light);
+  background-color: var(--color-darker);
+}
+
+.messages-container {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(47, 49, 54, 0.9), rgba(28, 30, 36, 0.9));
+}
+
+.message-item {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  max-width: 680px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+}
+
+.message-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.message-author {
+  font-weight: 700;
+  color: #fff;
+  margin-right: 10px;
+}
+
+.message-time {
+    font-size: 12px;
+    color: var(--color-text-dark);
+}
+
+.message-content {
+  margin-top: 0;
+  line-height: 1.5;
+  color: #e7e8ec;
+}
+
+.message-input-area {
+  padding: 16px;
+  background-color: #1e2027;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.message-input-area form {
+  display: flex;
+}
+
+.message-input-area input {
+  flex-grow: 1;
+  padding: 12px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-light);
+  margin-right: 10px;
+  font-size: 16px;
+}
+
+.message-input-area button {
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #5865f2, #7289da);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 10px 20px rgba(88, 101, 242, 0.35);
+}
+
+.message-input-area button:hover {
+  transform: translateY(-1px);
+}
+
+/* Image modal preview */
+.image-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.image-modal {
+  max-width: 90vw;
+  max-height: 90vh;
+  padding: 12px;
+  background: rgba(20, 22, 28, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.image-modal img {
+  max-width: 100%;
+  max-height: 80vh;
+  display: block;
+  border-radius: 10px;
+}
+
+/* -------------------- */
+/* 4. Friends View */
+/* -------------------- */
+
+.friends-view {
+    padding: 20px;
+}
+
+.friends-view h3 {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-text-dark);
+    margin: 20px 0 15px;
+}
+
+.friends-view input {
+    width: 70%;
+    padding: 10px;
+    background-color: #40444b;
+    border: none;
+    border-radius: 4px;
+    color: var(--color-text-light);
+    margin-right: 10px;
+}
+
+.friends-view button {
+    padding: 10px 15px;
+    background-color: var(--color-success);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.friends-view ul {
+    list-style: none;
+}
+
+.friends-view ul li {
+    padding: 10px;
+    background-color: #36393f;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* -------------------- */
+/* 5. Modals (JoinServerModal) */
+/* -------------------- */
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: var(--color-darker);
+    padding: 30px;
+    border-radius: 8px;
+    width: 400px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.modal-content h3 {
+    border: none;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content input {
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #4f545c;
+    border-radius: 4px;
+    background-color: #2f3136;
+    color: var(--color-text-light);
+}
+
+.create-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.create-server-form input {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.create-server-form .danger {
+  background: linear-gradient(135deg, #f04747, #c03535);
+  border: none;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.modal-content button[type="submit"] {
+    padding: 10px;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.modal-content .close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    color: var(--color-text-dark);
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.member-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+.member-menu-panel {
+  position: absolute;
+  min-width: 240px;
+  max-width: 320px;
+  background-color: #2f3136;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  transform: translateX(8px); /* tıklanan yerden hafif sağa kay */
+  animation: memberMenuSlideIn 0.15s ease-out;
+}
+
+@keyframes memberMenuSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(8px);
+  }
+}
+
+.member-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #202225;
+  padding-bottom: 6px;
+}
+
+.member-menu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #36393f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.member-menu-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.member-menu-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.member-menu-name.clickable {
+  cursor: pointer;
+}
+
+.member-menu-name.clickable:hover {
+  text-decoration: underline;
+}
+.member-menu-sub {
+  font-size: 11px;
+  color: var(--color-text-dark);
+}
+
+.member-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.member-menu-btn {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background-color: #40444b;
+  color: var(--color-text-light);
+  font-size: 13px;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.member-menu-btn:hover {
+  background-color: #4f545c;
+}
+
+.member-menu-btn.danger {
+  background-color: #f04747;
+}
+
+.member-menu-btn.danger:hover {
+  background-color: #c03535;
+}
+
+.member-menu-empty {
+  padding: 4px 2px;
+  font-size: 12px;
+  color: #aaa;
+}
+/* -------------------- */
+/* 6. Stream/Settings Sayfaları */
+/* -------------------- */
+
+.stream-settings-container, .server-settings-area {
+    padding: 30px;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.stream-settings-container h2, .server-settings-area h1 {
+    color: var(--color-primary);
+    margin-bottom: 20px;
+    border-bottom: 2px solid #36393f;
+    padding-bottom: 10px;
+}
+
+.settings-card {
+    background-color: var(--color-darker);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.settings-card h3 {
+    color: var(--color-text-light);
+    margin-bottom: 15px;
+}
+
+.settings-card label {
+    display: block;
+    color: var(--color-text-dark);
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.settings-card input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #4f545c;
+    border-radius: 4px;
+    background-color: #2f3136;
+    color: var(--color-success); /* Anahtarı vurgulama */
+    margin-bottom: 5px;
+}
+
+.settings-card .hint {
+    font-size: 12px;
+    color: #4f545c;
+    margin-bottom: 15px;
+}
+
+
+/* Media sizing inside messages */
+.message-item img {
+  max-width: 260px;
+  max-height: 180px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  object-fit: contain;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+}

@@ -1,0 +1,250 @@
+/* src/styles/UserProfileView.css */
+
+.user-profile-page {
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.user-profile-card {
+  width: 100%;
+  max-width: 900px;
+  background-color: #2f3136;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 16px 20px;
+  box-sizing: border-box;
+}
+
+/* ÜST KISIM */
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #202225;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.user-profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.user-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.user-profile-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-profile-name-row h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.user-profile-id-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background-color: #202225;
+  color: #b9bbbe;
+}
+
+.user-profile-sub {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin-top: 2px;
+}
+
+.user-profile-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Butonlar */
+.btn-primary,
+.btn-secondary {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.05s;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background-color: #5865f2;
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #4752c4;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: #4f545c;
+  color: #ffffff;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #5d6269;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* ALT KISIM */
+.user-profile-body {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+}
+
+.user-profile-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  color: #b9bbbe;
+}
+
+.empty-text {
+  font-size: 13px;
+  color: #b9bbbe;
+}
+
+/* Sunucular listesi (pill tarzı) */
+.pill-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill-item {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background-color: #202225;
+  font-size: 13px;
+}
+
+/* Arkadaş listesi */
+.friend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background-color: #202225;
+}
+
+.friend-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.friend-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.friend-name {
+  font-size: 13px;
+}
+/* === PROFİL MODAL === */
+.user-profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-profile-modal {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  background-color: #2f3136;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  padding: 16px 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  position: relative;
+}
+
+.user-profile-modal-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #b9bbbe;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.user-profile-modal-close:hover {
+  color: #ffffff;
+}
+
+.user-profile-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ff6b6b;
+}
+
+/* Mobile uyum */
+@media (max-width: 768px) {
+  .user-profile-card {
+    padding: 12px 12px;
+  }
+
+  .user-profile-body {
+    grid-template-columns: 1fr;
+  }
+}
