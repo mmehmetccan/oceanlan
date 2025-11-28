@@ -33,7 +33,7 @@ export default defineConfig({
 
     // asıl kritik kısım: process.nextTick polyfill
     process:
-      '({ env: {}, nextTick: (cb, ...args) => Promise.resolve().then(() => cb(...args)) })',
+      {},
   },
 
   esbuild: {
