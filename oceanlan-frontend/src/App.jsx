@@ -31,17 +31,12 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    /* DİKKAT: Sıralama Önemli!
-       AudioSettingsProvider, VoiceProvider'dan üstte olmalı ki
-       Voice kanalları ses ayarlarına erişebilsin.
-    */
     <AuthProvider>
       <ServerProvider>
-        <AudioSettingsProvider> {/* 👈 KRİTİK EKLEME */}
+        <AudioSettingsProvider>
           <VoiceProvider>
             <ToastProvider>
               <ToastContainer />
-
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -50,7 +45,7 @@ function App() {
                 <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
                 <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
 
-                {/* Dashboard ve Alt Rotaları */}
+                {/* 👇 SADECE BU KALSIN, DİĞER settings/audio ROTASINI BURADAN SİLİN */}
                 <Route
                   path="/dashboard/*"
                   element={
@@ -60,25 +55,13 @@ function App() {
                   }
                 />
 
-                {/* Ayarlar Sayfası Rotası */}
-                <Route
-                    path="/dashboard/settings/audio"
-                    element={
-                        <ProtectedRoute>
-                            <AudioSettingsPage />
-                        </ProtectedRoute>
-                    }
-                />
-
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
-
             </ToastProvider>
           </VoiceProvider>
-        </AudioSettingsProvider> {/* 👈 KAPANIŞ ETİKETİ */}
+        </AudioSettingsProvider>
       </ServerProvider>
     </AuthProvider>
   );
 }
-
 export default App;

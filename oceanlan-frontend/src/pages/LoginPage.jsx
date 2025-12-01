@@ -30,8 +30,8 @@ const isApp = isElectron();
     <div className="auth-wrapper">
       <div className="auth-box">
         <div className="auth-header">
-          <h2>Tekrar Hoş Geldin!</h2>
-          <p>Seni yeniden aramızda görmek çok güzel.</p>
+          <h2>Hoş Geldin!</h2>
+
         </div>
 
         {error && (
@@ -86,10 +86,11 @@ const isApp = isElectron();
                     Daha iyi bir deneyim için:
                 </p>
                 <a
-                    href={`${API_URL}/uploads/installer/OceanLan-Setup.exe`}
-                    target="_blank"
+                  href="https://oceanlan.com/download/setup.exe" // 👈 İndirme Linki (Bunu aşağıda anlatacağım)
                     rel="noopener noreferrer"
                     className="auth-button"
+                    target="_blank"
+
                     style={{
                         background: '#23a559',
                         textDecoration: 'none',

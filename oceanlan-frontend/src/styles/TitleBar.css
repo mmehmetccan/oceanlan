@@ -1,0 +1,81 @@
+/* src/styles/TitleBar.css */
+
+.app-titlebar {
+    height: 32px; /* İnce bir şerit */
+    background-color: #202225; /* En koyu ton */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    -webkit-app-region: drag; /* 👈 İŞTE BU! Sadece burası sürüklenebilir */
+    border-bottom: 1px solid #111214;
+    user-select: none;
+    width: 100%;
+    position: fixed; /* Sayfanın tepesine sabitle */
+    top: 0;
+    left: 0;
+    z-index: 10000; /* En üstte */
+}
+
+/* Sol Kısım */
+.titlebar-left {
+    padding-left: 12px;
+    width: 150px; /* Dengelemek için */
+}
+.app-name {
+    font-size: 12px;
+    font-weight: 800;
+    color: #72767d;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Orta Kısım */
+.titlebar-center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #dcddde;
+    font-size: 13px;
+    font-weight: 600;
+}
+.title-icon {
+    width: 16px;
+    height: 16px;
+    color: #5865f2;
+}
+
+/* Sağ Kısım (Butonlar) */
+.window-controls {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag; /* Butonlara tıklayabilmek için drag'ı kapat */
+}
+
+.win-btn {
+    background: transparent;
+    border: none;
+    color: #b9bbbe;
+    width: 46px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    outline: none;
+}
+
+.win-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.win-btn:hover {
+    background-color: #40444b;
+    color: #fff;
+}
+
+.win-btn.close:hover {
+    background-color: #ed4245;
+    color: #fff;
+}

@@ -1,5 +1,6 @@
 // src/context/VoiceContext.js
-import React, { createContext, useState, useRef } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
+import { useSocket } from '../hooks/useSocket';
 
 export const VoiceContext = createContext();
 
@@ -7,22 +8,55 @@ export const VoiceProvider = ({ children }) => {
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
   const [currentServerId, setCurrentServerId] = useState(null);
 
-  // 📢 YENİ: Ekran Paylaşımı State'leri
-  const [myScreenStream, setMyScreenStream] = useState(null); // Kendi paylaştığım ekran
-  const [incomingStreams, setIncomingStreams] = useState({}); // { socketId: stream } (Başkalarının ekranları)
+  // 📢 YENİ: İsimleri tutacak state'ler
+  const [currentVoiceChannelName, setCurrentVoiceChannelName] = useState(null);
+  const [currentServerName, setCurrentServerName] = useState(null);
+
+  const [myScreenStream, setMyScreenStream] = useState(null);
+  const [incomingStreams, setIncomingStreams] = useState({});
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
 
-  const joinVoiceChannel = (serverId, channelId) => {
-    if (currentVoiceChannelId === channelId) return;
-    setCurrentVoiceChannelId(channelId);
-    setCurrentServerId(serverId);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+      if(!socket) return;
+
+      const handleVoiceMoved = ({ newChannelId, serverId }) => {
+          console.log(`[VoiceContext] Taşındım: ${newChannelId}`);
+          setCurrentVoiceChannelId(newChannelId);
+          setCurrentServerId(serverId);
+          // Taşınma durumunda isimleri güncellemek için backend'den veri gelmesi gerekir.
+          // Şimdilik isimler eski kalabilir veya manuel tetiklenebilir.
+      };
+
+      socket.on('voice-channel-moved', handleVoiceMoved);
+
+      return () => {
+          socket.off('voice-channel-moved', handleVoiceMoved);
+      };
+  }, [socket]);
+
+  // 📢 GÜNCELLENDİ: Artık obje (isimli) veya sadece ID kabul ediyor
+  const joinVoiceChannel = (server, channel) => {
+    const sId = server._id || server;
+    const cId = channel._id || channel;
+
+    if (currentVoiceChannelId === cId) return;
+
+    setCurrentVoiceChannelId(cId);
+    setCurrentServerId(sId);
+
+    // Eğer isim bilgisi geldiyse kaydet
+    if (server.name) setCurrentServerName(server.name);
+    if (channel.name) setCurrentVoiceChannelName(channel.name);
   };
 
   const leaveVoiceChannel = () => {
     setCurrentVoiceChannelId(null);
     setCurrentServerId(null);
+    setCurrentVoiceChannelName(null);
+    setCurrentServerName(null);
 
-    // Çıkarken ekran paylaşımı varsa kapat
     if (myScreenStream) {
         myScreenStream.getTracks().forEach(track => track.stop());
         setMyScreenStream(null);
@@ -30,16 +64,10 @@ export const VoiceProvider = ({ children }) => {
     setIncomingStreams({});
   };
 
-  // 📢 YENİ: Gelen video akışını listeye ekle
   const addIncomingStream = (socketId, stream) => {
-      console.log(`[VoiceContext] Yeni video akışı eklendi: ${socketId}`);
-      setIncomingStreams(prev => ({
-          ...prev,
-          [socketId]: stream
-      }));
+      setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
   };
 
-  // 📢 YENİ: Gelen video akışını listeden çıkar
   const removeIncomingStream = (socketId) => {
       setIncomingStreams(prev => {
           const newStreams = { ...prev };
@@ -52,9 +80,10 @@ export const VoiceProvider = ({ children }) => {
     <VoiceContext.Provider value={{
         currentVoiceChannelId,
         currentServerId,
+        currentVoiceChannelName, // 👈
+        currentServerName,       // 👈
         joinVoiceChannel,
         leaveVoiceChannel,
-        // Yeni değerler
         myScreenStream,
         setMyScreenStream,
         incomingStreams,

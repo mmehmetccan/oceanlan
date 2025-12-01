@@ -1,7 +1,9 @@
 // public/electron.cjs
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow ,ipcMain} = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
+
 
 function createWindow() {
   // Paketlenmiş mi, değil mi? En güvenilir check bu:
@@ -10,7 +12,15 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 720,
-    icon: path.join(__dirname, 'oceanlan.png'),
+    icon: path.join(__dirname, 'oceanlanlogo.png'),
+    frame: false, // 👈 1. Çerçeveyi tamamen kaldırıyoruz (Kendi barımızı yapacağız)
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+        color: '#202225',      // Sidebar renginizle aynı yapıldı
+        symbolColor: '#ffffff', // Buton ikonları (X, -, □) beyaz olsun
+        height: 30              // Çubuğun yüksekliği
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
@@ -18,7 +28,18 @@ function createWindow() {
     },
   });
 
+  win.removeMenu();
+
+
   win.setMenuBarVisibility(false);
+
+  ipcMain.on('window-minimize', () => win.minimize());
+  ipcMain.on('window-maximize', () => {
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on('window-close', () => win.close());
+
 
   if (isDev) {
     // ==== DEV MODU: Vite server ====

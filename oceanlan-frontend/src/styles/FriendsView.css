@@ -1,87 +1,236 @@
-/* src/components/views/FriendsView.css */
+/* src/styles/FriendsView.css */
 
 .friends-view {
-  max-width: 900px;
+  width: 100%;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 24px 20px 32px;
+  padding: 30px 40px;
   box-sizing: border-box;
-  background: #0b1220; /* hafif koyu arka plan (discord vari) */
   color: #e5e7eb;
-  border-radius: 12px;
-  border: 1px solid #1f2937;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden; /* Ana scroll engellendi, liste kayacak */
 }
 
+/* --- Header ve Sekmeler --- */
 .friends-header {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
   margin-bottom: 20px;
+  border-bottom: 1px solid #3f4147;
+  padding-bottom: 20px;
+  flex-shrink: 0;
 }
 
-.friends-header h2 {
-  font-size: 1.6rem;
-  margin: 0 0 4px;
+.friends-title-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-.friends-subtitle {
-  margin: 0;
-  font-size: 0.9rem;
+.friends-icon {
+  font-size: 24px;
   color: #9ca3af;
 }
 
-/* Bölümler */
-.friends-section {
-  margin-top: 24px;
+.friends-header h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
 }
 
-.friends-section-title {
-  font-size: 1.05rem;
-  margin-bottom: 10px;
+/* Sekme (Tab) Butonları */
+.friends-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: #b9bbbe;
+  font-size: 14px;
   font-weight: 600;
-  color: #f9fafb;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Liste ve item'lar */
+.tab-btn:hover {
+  background-color: #3a3d42;
+  color: #dcddde;
+}
+
+.tab-btn.active {
+  background-color: #40444b; /* Aktif sekme arka planı */
+  color: #fff;
+}
+
+/* Özel Sekme Renkleri */
+.tab-btn.tab-online.active { color: #3ba55c; } /* Yeşil */
+.tab-btn.tab-all.active { color: #5865f2; } /* Mavi */
+.tab-btn.tab-pending.active { color: #faa61a; } /* Turuncu */
+.tab-btn.tab-add {
+  background-color: #3ba55c;
+  color: #fff;
+  margin-left: auto; /* En sağa yasla */
+}
+.tab-btn.tab-add.active {
+  background-color: transparent;
+  color: #3ba55c;
+  border: 1px solid #3ba55c;
+}
+
+/* --- Ekleme Formu --- */
+.friends-add-section {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid #3f4147;
+}
+
+.friends-add-header {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.friends-add-sub {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin-bottom: 15px;
+}
+
+.friends-add-form {
+  display: flex;
+  gap: 10px;
+  background: #1e1f22;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #1e1f22;
+  transition: border-color 0.2s;
+}
+
+.friends-add-form:focus-within {
+  border-color: #5865f2;
+}
+
+.friends-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+}
+
+.friends-input::placeholder {
+  color: #72767d;
+}
+
+.friends-message {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.friends-message.success { color: #3ba55c; }
+.friends-message.error { color: #f04747; }
+
+/* --- Liste Alanı --- */
+.friends-list-container {
+  flex: 1;
+  overflow-y: auto; /* Sadece liste kaysın */
+  padding-right: 8px;
+}
+
+.friends-list-container::-webkit-scrollbar {
+  width: 8px;
+  background-color: #2b2d31;
+}
+
+.friends-list-container::-webkit-scrollbar-thumb {
+  background-color: #1a1b1e;
+  border-radius: 4px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 20px 0 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #3f4147;
+}
+
 .friends-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .friend-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #020617;
-  border: 1px solid #111827;
-  margin-bottom: 8px;
-  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border-top: 1px solid #3f4147;
+  transition: background-color 0.15s;
+  cursor: pointer;
 }
 
 .friend-item:hover {
-  background: #020617;
-  border-color: #1f2937;
-  transform: translateY(-1px);
+  background-color: #393c43;
+  border-color: transparent;
+}
+
+.friend-item:hover .friend-actions {
+  opacity: 1; /* Hover'da butonları göster */
 }
 
 .friend-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-/* Avatar */
+.friend-avatar-wrapper {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
 .friend-avatar {
-  width: 36px;
-  height: 36px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
-  border: 2px solid #111827;
-  background: #020617;
+  background: #202225;
 }
 
-/* İsim ve alt bilgi */
+.friend-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid #2f3136; /* Arka plan rengiyle cutout efekti */
+}
+.friend-status-dot.online { background-color: #3ba55c; }
+.friend-status-dot.offline { background-color: #747f8d; }
+
 .friend-info {
   display: flex;
   flex-direction: column;
@@ -89,128 +238,74 @@
 
 .friend-username {
   font-weight: 600;
-  font-size: 0.95rem;
-  color: #e5e7eb;
+  font-size: 15px;
+  color: #fff;
 }
 
-.friend-meta {
-  font-size: 0.8rem;
-  color: #9ca3af;
+.friend-username span {
+  color: #b9bbbe;
+  font-size: 12px;
+  margin-left: 5px;
+  display: none; /* Tag'i şimdilik gizle */
 }
 
+.friend-status-text {
+  font-size: 12px;
+  color: #b9bbbe;
+}
+
+/* Aksiyon Butonları */
 .friend-actions {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 10px;
+  opacity: 0.7; /* Normalde biraz soluk */
+  transition: opacity 0.2s;
 }
 
-/* Butonlar */
-.friend-btn {
+.action-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   border: none;
-  outline: none;
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease,
-    color 0.15s ease;
-  white-space: nowrap;
-}
-
-.friend-btn:active {
-  transform: translateY(1px);
-}
-
-.friend-btn-primary {
-  background: #2563eb;
-  color: #f9fafb;
-}
-
-.friend-btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.friend-btn-accept {
-  background: #16a34a;
-  color: #ecfdf5;
-}
-
-.friend-btn-accept:hover {
-  background: #15803d;
-}
-
-.friend-btn-reject {
-  background: #b91c1c;
-  color: #fee2e2;
-}
-
-.friend-btn-reject:hover {
-  background: #991b1b;
-}
-
-/* Arkadaş ekleme formu */
-.friends-add-form {
-  margin-top: 8px;
-}
-
-.friends-input-group {
+  background: #2f3136;
+  color: #b9bbbe;
   display: flex;
-  gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
 }
 
-.friends-input {
-  flex: 1;
-  min-width: 180px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid #1f2937;
-  background: #020617;
-  color: #e5e7eb;
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background 0.15s ease;
+.action-icon-btn:hover {
+  color: #fff;
 }
 
-.friends-input::placeholder {
-  color: #6b7280;
-}
+.action-icon-btn.msg:hover { background-color: #3ba55c; } /* Mesaj */
+.action-icon-btn.del:hover { background-color: #ed4245; } /* Sil/Reddet */
+.action-icon-btn.acc:hover { background-color: #3ba55c; } /* Kabul */
 
-.friends-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.7);
-}
-
-/* Mesaj alanı */
-.friends-message {
-  margin-top: 8px;
-  font-size: 0.85rem;
-  color: #e5e7eb;
-}
-
-/* Boş durum metni */
 .friends-empty {
-  font-size: 0.9rem;
-  color: #9ca3af;
-  margin: 4px 0 0;
+  text-align: center;
+  margin-top: 40px;
+  color: #72767d;
 }
 
-/* Küçük ekran uyumu */
-@media (max-width: 640px) {
+.empty-img {
+  width: 200px;
+  height: auto;
+  opacity: 0.5;
+  margin-bottom: 15px;
+}
+
+@media (max-width: 768px) {
   .friends-view {
-    padding: 16px 12px 20px;
+    padding: 15px;
   }
-
-  .friend-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .friend-actions {
-    width: 100%;
-    justify-content: flex-end;
+    opacity: 1;
+  }
+  .friends-tabs {
+    flex-wrap: wrap;
   }
 }

@@ -1,0 +1,103 @@
+/* src/styles/Layout.css */
+
+/* --- SES KONTROL PANELİ --- */
+.voice-room-controls {
+  position: fixed;
+  left: 0;      /* 👈 EN SOLA KADAR UZATILDI (Eskiden 72px idi) */
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  background-color: #232428;
+  border-top: 1px solid #1e1f22;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  z-index: 9999;
+}
+
+/* Sol Taraf: Bilgi */
+.voice-room-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 150px;
+}
+
+.voice-connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #3ba55c;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.voice-icon-signal { width: 16px; height: 16px; }
+
+.voice-room-subtitle {
+  font-size: 12px;
+  color: #b5bac1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+/* Orta: Buton Grubu */
+.voice-controls-actions {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.voice-control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background-color: #2b2d31;
+  color: #b5bac1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.voice-control-btn:hover { background-color: #3f4147; color: #dbdee1; transform: translateY(-1px); }
+.voice-icon { width: 20px; height: 20px; }
+.strike-line { position: absolute; width: 80%; height: 2px; background-color: #ed4245; transform: rotate(-45deg); border-radius: 2px; }
+.voice-control-btn.active-red { color: #ed4245; background-color: #2b2d31; }
+.voice-control-btn.active-green { color: #fff; background-color: #3ba55c; }
+.voice-control-btn.terminate { margin-left: 8px; }
+.voice-control-btn.terminate:hover { background-color: #da373c; color: #fff; }
+
+/* --- SAĞ TARAF: Profil Resmi --- */
+.voice-user-section {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 50px;
+}
+
+.voice-user-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #202225;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    transition: all 0.15s ease; /* Hızlı geçiş */
+}
+
+/* KONUŞMA EFEKTİ (YEŞİL IŞIK) */
+.voice-user-img.speaking {
+    border-color: #3ba55c; /* Yeşil Kenarlık */
+    box-shadow: 0 0 0 2px #3ba55c, 0 0 10px rgba(59, 165, 92, 0.6); /* Yeşil Işık (Glow) */
+    transform: scale(1.05); /* Hafif büyüme */
+}

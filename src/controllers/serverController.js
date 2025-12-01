@@ -197,8 +197,11 @@ const getUserServers = async (req, res) => {
     const userId = req.user.id;
     const memberships = await Member.find({ user: userId });
     const serverIds = memberships.map(m => m.server);
+
+    // 👇 DÜZELTME: 'iconUrl' alanını da seçiyoruz!
     const servers = await Server.find({ _id: { $in: serverIds } })
-                                .select('name owner channels');
+                                .select('name owner channels iconUrl');
+
     res.status(200).json({
       success: true,
       count: servers.length,

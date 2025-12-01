@@ -863,3 +863,10 @@ body {
   object-fit: contain;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
 }
+
+/* Ancak butonlara tıklayabilmek için onları "sürüklenemez" yapmalıyız */
+.server-topbar button,
+.server-topbar a,
+.server-topbar .sidebar-icon {
+  -webkit-app-region: no-drag;
+}

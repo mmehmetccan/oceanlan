@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="public/oceanlanlogo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Oceanlan</title>
+    <script>
+      window.global = window;
+      window.process = {
+        env: { DEBUG: undefined },
+        version: '',
+        nextTick: function (cb) { setTimeout(cb, 0) }
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>
