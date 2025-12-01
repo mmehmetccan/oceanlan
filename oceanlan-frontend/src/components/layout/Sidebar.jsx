@@ -103,7 +103,9 @@ const Sidebar = ({ unreadCount }) => {
         <div className="server-topbar-spacer" />
 
         {!isApp && (
-            <a href="https://oceanlan.com/download/setup.exe" className="sidebar-icon settings-icon" title="İndir" style={{backgroundColor: '#23a559', color: 'white'}} target="_blank" rel="noopener noreferrer">
+            <a href="https://oceanlan.com/download/setup.exe"
+               className="sidebar-icon settings-icon"
+               title="İndir" style={{backgroundColor: '#23a559', color: 'white'}} target="_blank" rel="noopener noreferrer">
               <ArrowDownTrayIcon style={{width: '24px', height: '24px'}} />
             </a>
         )}

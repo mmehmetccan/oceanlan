@@ -1,8 +1,8 @@
-version: 1.0.8
+version: 1.0.9
 files:
-  - url: OceanLan-Setup-1.0.8.exe
-    sha512: r7NTKcpGDBN6OCGpfnsJUv76pWFvzQb2WnoPBIXP8dGVk67mAr07/jFHujOyQtUr3EkiSKqyOl3VTAGpdSisiA==
-    size: 98541367
-path: OceanLan-Setup-1.0.8.exe
-sha512: r7NTKcpGDBN6OCGpfnsJUv76pWFvzQb2WnoPBIXP8dGVk67mAr07/jFHujOyQtUr3EkiSKqyOl3VTAGpdSisiA==
-releaseDate: '2025-12-01T23:09:35.314Z'
+  - url: OceanLan-Setup-1.0.9.exe
+    sha512: kBJOqNsqFMVt/9wQFlNCVLzzmCOMnMF8Ag06WpUAYMEMMmSoOwwBjFDzU0/fPqYDl78EobDHCF5HQyJoEIqL5g==
+    size: 98564200
+path: OceanLan-Setup-1.0.9.exe
+sha512: kBJOqNsqFMVt/9wQFlNCVLzzmCOMnMF8Ag06WpUAYMEMMmSoOwwBjFDzU0/fPqYDl78EobDHCF5HQyJoEIqL5g==
+releaseDate: '2025-12-01T23:46:46.175Z'

@@ -143,9 +143,12 @@ autoUpdater.on('download-progress', (progressObj) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('Güncelleme indirildi. Uygulama kapatılınca kurulacak.');
-  // İstersen kullanıcıya sorup hemen yeniden başlatabilirsin:
-  // autoUpdater.quitAndInstall();
+  console.log('Güncelleme indirildi.');
+  // Frontend'e bilgi ver
+  sendStatusToWindow('success', 'Güncelleme indi! Uygulama yeniden başlatılıyor...');
+
+  // 👇 BU KOMUTUN BAŞINDAKİ // İŞARETİNİ KALDIRDIM. ARTIK OTOMATİK KURACAK.
+  autoUpdater.quitAndInstall();
 });
 
 app.whenReady().then(() => {
