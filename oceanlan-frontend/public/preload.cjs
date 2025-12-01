@@ -2,14 +2,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Ekran Kaynakları (Screen Share)
+  // Ekran Kaynakları
   getScreenSources: () => ipcRenderer.invoke('DESKTOP_CAPTURER_GET_SOURCES'),
 
-  // Pencere Kontrolleri (Kapat/Büyüt/Küçült)
+  // Pencere Kontrolleri
   minimize: () => ipcRenderer.send('window-minimize'),
   toggleMaximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
 
-  // Electron kontrolü
+  // 👇 YENİ: Güncelleme Mesajlarını Dinle
+  onUpdateMessage: (callback) => ipcRenderer.on('update-message', (_event, data) => callback(data)),
+
   isElectron: true
 });

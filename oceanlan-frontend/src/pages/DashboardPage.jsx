@@ -45,6 +45,22 @@ const DashboardPage = () => {
 
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
+
+  useEffect(() => {
+    // Sadece Electron'da çalışsın
+    if (window.electronAPI && window.electronAPI.onUpdateMessage) {
+
+        window.electronAPI.onUpdateMessage(({ type, text }) => {
+            console.log(`[UPDATE] ${type}: ${text}`);
+
+            // Tipe göre bildirim rengi
+            if (type === 'success') addToast(text, 'success');
+            else if (type === 'error') addToast(text, 'error');
+            else addToast(text, 'info');
+        });
+    }
+  }, [addToast]);
+
   useEffect(() => {
     if (!socket) return;
 

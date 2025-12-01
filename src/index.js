@@ -44,6 +44,8 @@ app.use(cors());
 
 const AVATAR_URL_PATH = '/uploads/avatars';
 
+const updatesPath = path.join(__dirname, '..', 'updates');
+
 // Fiziksel klasörler
 const uploadsPath = path.join(__dirname, '..', 'uploads');
 const AVATAR_PHYSICAL_PATH = path.join(uploadsPath, 'avatars');
@@ -54,6 +56,9 @@ console.log(`[DOSYA SUNUCUSU]: Resimler şu klasörden sunuluyor: ${uploadsPath}
 app.use('/uploads', express.static(uploadsPath));
 
 // Alt klasörler
+app.use('/updates', express.static(updatesPath));
+
+
 app.use('/uploads/server_icons', express.static(path.join(uploadsPath, 'server_icons')));
 app.use('/uploads/chat_attachments', express.static(path.join(uploadsPath, 'chat_attachments')));
 app.use('/uploads/avatars', express.static(AVATAR_PHYSICAL_PATH));

@@ -9,7 +9,8 @@ const {
     getFeed,
     likePost,
     dislikePost,
-    addComment
+    addComment,
+    deletePost
 } = require('../../controllers/postController');
 
 // Ana 'feed' rotası
@@ -23,5 +24,5 @@ router.route('/')
 router.route('/:postId/like').post(protect, likePost);
 router.route('/:postId/dislike').post(protect, dislikePost);
 router.route('/:postId/comment').post(protect, addComment);
-
+router.route('/:postId').delete(protect, deletePost);
 module.exports = router;

@@ -235,10 +235,43 @@ const addComment = async (req, res) => {
     }
 };
 
+const deletePost = async (req, res) => {
+    try {
+        const postId = req.params.postId;
+        const userId = req.user.id;
+
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Gönderi bulunamadı' });
+        }
+
+        // Sadece gönderi sahibi silebilir
+        if (post.user.toString() !== userId) {
+            return res.status(403).json({ success: false, message: 'Bu gönderiyi silme yetkiniz yok' });
+        }
+
+        // Gönderiyi sil
+        await Post.findByIdAndDelete(postId);
+
+        // Gönderiye ait yorumları da temizle
+        await Comment.deleteMany({ post: postId });
+
+        // Socket ile herkese haber ver (Anlık silinsin)
+        await broadcastPostUpdate(req, post, 'postDeleted', { postId });
+
+        res.status(200).json({ success: true, message: 'Gönderi silindi' });
+
+    } catch (error) {
+        console.error("Silme hatası:", error);
+        res.status(500).json({ success: false, message: 'İşlem başarısız', error: error.message });
+    }
+};
+
 module.exports = {
     createPost,
     getFeed,
     likePost,
     dislikePost,
-    addComment
+    addComment,
+    deletePost
 };

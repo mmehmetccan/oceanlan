@@ -3,7 +3,7 @@
   "homepage": "./",
   "name": "oceanlan",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -46,7 +46,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://oceanlan.com/download/"
+        "url": "https://oceanlan.com/updates/"
       }
     ],
     "copyright": "Copyright © 2025",
@@ -59,8 +59,16 @@
       "public/preload.cjs"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "public/oceanlanlogo.png"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/oceanlanlogo.png",
+      "artifactName": "OceanLan-Setup-${version}.exe"
     },
     "nsis": {
       "oneClick": false,

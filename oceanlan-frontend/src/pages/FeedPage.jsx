@@ -78,6 +78,12 @@ const FeedPage = () => {
   useEffect(() => {
     if (!socket || !user) return;
 
+
+
+    const handlePostDeleted = ({ postId }) => {
+        setPosts(prev => prev.filter(p => p._id !== postId));
+    };
+
     // 1. Post Olayları
     const handleNewPost = (newPost) => { if (newPost.user._id !== user.id) setPosts(p => [newPost, ...p]); };
     const handlePostUpdated = (updated) => { setPosts(p => p.map(post => post._id === updated._id ? updated : post)); };
@@ -114,7 +120,7 @@ const FeedPage = () => {
     socket.on('friendRemoved', handleFriendRemoved);
     socket.on('friendRequestCancelled', handleRequestCancelled);
     socket.on('unreadDm', handleUnreadDm);
-
+    socket.on('postDeleted', handlePostDeleted);
     return () => {
       socket.off('newFeedPost', handleNewPost);
       socket.off('postUpdated', handlePostUpdated);
@@ -124,8 +130,13 @@ const FeedPage = () => {
       socket.off('friendRemoved', handleFriendRemoved);
       socket.off('friendRequestCancelled', handleRequestCancelled);
       socket.off('unreadDm', handleUnreadDm);
+      socket.off('postDeleted', handlePostDeleted);
     };
   }, [socket, user]);
+
+  const handlePostDeletedLocal = (postId) => {
+      setPosts(prev => prev.filter(p => p._id !== postId));
+  };
 
   // --- ACTIONS ---
   const goProfile = () => navigate('/dashboard/settings/profile');
@@ -227,7 +238,16 @@ const FeedPage = () => {
       <div className="feed-main">
         <CreatePost onPostCreated={onPostCreated} />
         <div className="feed-list">
-          {loading ? <p className="feed-status">Yükleniyor...</p> : posts.map(post => <PostCard key={post._id} post={post} onPostUpdated={onPostUpdated} getAvatarUrl={getAvatarUrl} handleAvatarError={handleAvatarError} />)}
+          {loading ? <p className="feed-status">Yükleniyor...</p> : posts.map(post =>
+              <PostCard
+                  key={post._id}
+                  post={post}
+                  onPostUpdated={onPostUpdated}
+                  onPostDeleted={handlePostDeletedLocal}
+                  getAvatarUrl={getAvatarUrl}
+                  handleAvatarError={handleAvatarError}
+              />
+          )}
         </div>
       </div>
 
@@ -270,7 +290,8 @@ const FeedPage = () => {
           <div className="rail-list dm-list">
             {dmShortlist.length === 0 ? <p className="rail-empty">DM geçmişi yok.</p> : dmShortlist.map((dmUser) => {
                 // Okunmamış mı?
-                const hasUnread = unreadDmConversations.includes(dmUser.conversationId);
+                const hasUnread = unreadDmConversations.some(id => String(id) === String(dmUser.conversationId));
+
                 return (
                   <div key={dmUser._id} className="rail-user dm-user">
                     <div className="rail-user-avatar" style={{position:'relative'}}>
@@ -278,9 +299,15 @@ const FeedPage = () => {
                         {/* 🔴 KIRMIZI NOKTA */}
                         {hasUnread && (
                             <span style={{
-                                position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: '50%',
-                                backgroundColor: '#ed4245', border: '2px solid #2f3136', zIndex: 10
-                            }} />
+                                position: 'absolute',
+                                bottom: -2, right: -2,
+                                width: 16, height: 16,
+                                borderRadius: '50%',
+                                backgroundColor: '#ed4245',
+                                border: '3px solid #2f3136',
+                                boxShadow: '0 0 0 1px #ed4245',
+                                zIndex: 10
+                            }} title="Yeni Mesaj" />
                         )}
                     </div>
                     <div className="rail-user-meta">

@@ -48,7 +48,14 @@ const CommentSection = ({ postId, initialComments, onCommentAdded, getAvatarUrl,
                     placeholder="Bir yorum yaz..."
                     style={{ flex: 1, background: '#444', border: 'none', color: 'white', padding: '8px' }}
                 />
-                <button type="submit" disabled={isSubmitting}>Gönder</button>
+                <button
+                    className={"post-submit-btn"}
+                  type="submit"
+                  disabled={isSubmitting}
+
+                >
+                    {isSubmitting ? 'Gönderiliyor...' : 'Gönder'}
+                </button>
             </form>
 
             {/* Yorum Listesi */}

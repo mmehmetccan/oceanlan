@@ -4,6 +4,7 @@ import axiosInstance from '../../utils/axiosInstance';
 import { AuthContext } from '../../context/AuthContext';
 import CommentSection from './CommentSection';
 import { getFullImageUrl } from '../../utils/urlHelper';
+import { TrashIcon } from '@heroicons/react/24/outline';
 import '../../styles/FeedPage.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -15,6 +16,8 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
     const currentUserId = user?.id;
     const isLiked = currentUserId ? post.likes.includes(currentUserId) : false;
     const isDisliked = currentUserId ? post.dislikes.includes(currentUserId) : false;
+const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
+
 
     // 1. Profil Resmi URL'si
     const avatarRaw = post?.user?.avatarUrl || post?.user?.avatar;
@@ -22,6 +25,8 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
 
     // 2. Gönderi Medyası (Resim/Video) URL'si
     const mediaSrc = getFullImageUrl(post.mediaUrl);
+
+
 
     const handleAvatarErrorSafe = (event) => {
         if (typeof handleAvatarError === 'function') {
@@ -32,6 +37,20 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
             event.target.src = DEFAULT_AVATAR;
         }
     };
+
+
+    const handleDelete = async () => {
+        if (!window.confirm("Bu gönderiyi silmek istediğinize emin misiniz?")) return;
+        try {
+            await axiosInstance.delete(`/posts/${post._id}`);
+            // Parent component'e (FeedPage) haber ver
+            if (onPostDeleted) onPostDeleted(post._id);
+        } catch (error) {
+            console.error('Silme hatası:', error);
+            alert('Gönderi silinemedi.');
+        }
+    };
+
 
     const handleLike = async () => {
         try {
@@ -75,6 +94,27 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
                         {new Date(post.createdAt).toLocaleString()}
                     </time>
                 </div>
+
+                {/* 👇 SİLME BUTONU (Sadece Sahibi Görür) */}
+                {isOwner && (
+                    <button
+                        onClick={handleDelete}
+                        title="Gönderiyi Sil"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ed4245', // Kırmızı
+                            cursor: 'pointer',
+                            padding: '5px',
+                            borderRadius: '50%',
+                            transition: 'background 0.2s'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <TrashIcon style={{width: '20px', height: '20px'}} />
+                    </button>
+                )}
             </header>
 
             <div className="post-content">

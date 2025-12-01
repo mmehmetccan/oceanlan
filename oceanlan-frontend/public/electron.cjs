@@ -1,9 +1,14 @@
 // public/electron.cjs
-const { app, BrowserWindow ,ipcMain,desktopCapturer} = require('electron');
+const { app, BrowserWindow ,ipcMain,desktopCapturer,session} = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
+autoUpdater.logger = require("electron-log");
+autoUpdater.logger.transports.file.level = "info";
+
+// Otomatik indirsin mi? Evet.
+autoUpdater.autoDownload = true;
 
 function createWindow() {
   // Paketlenmiş mi, değil mi? En güvenilir check bu:
@@ -27,6 +32,14 @@ function createWindow() {
       contextIsolation: true,
     },
   });
+
+  // 👇 PENCEREYE MESAJ GÖNDEREN YARDIMCI FONKSİYON
+function sendStatusToWindow(type, text) {
+  // Tüm pencerelere gönder
+  BrowserWindow.getAllWindows().forEach(win => {
+    win.webContents.send('update-message', { type, text });
+  });
+}
 
   //win.removeMenu();
 
@@ -100,9 +113,40 @@ ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
   });
 
   win.webContents.on('did-finish-load', () => {
-    console.log('[did-finish-load]');
+    if (app.isPackaged) { // Sadece build edilmiş (.exe) versiyonda çalışsın
+       autoUpdater.checkForUpdatesAndNotify();
+    }
   });
 }
+autoUpdater.on('checking-for-update', () => {
+  // sendStatusToWindow('info', 'Güncellemeler kontrol ediliyor...'); // Çok sık çıkmasın diye kapalı
+  console.log('Güncellemeler kontrol ediliyor...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Yeni güncelleme bulundu, indiriliyor...');
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Güncel sürüm kullanılıyor.');
+});
+
+autoUpdater.on('error', (err) => {
+  console.log('Güncelleme hatası:', err);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  // İstersen indirme yüzdesini de loglayabilirsin
+  // let log_message = "İndirme hızı: " + progressObj.bytesPerSecond;
+  // log_message = log_message + ' - İndirilen ' + progressObj.percent + '%';
+  // sendStatusToWindow('progress', log_message);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Güncelleme indirildi. Uygulama kapatılınca kurulacak.');
+  // İstersen kullanıcıya sorup hemen yeniden başlatabilirsin:
+  // autoUpdater.quitAndInstall();
+});
 
 app.whenReady().then(() => {
   createWindow();
