@@ -1,5 +1,5 @@
 // public/electron.cjs
-const { app, BrowserWindow ,ipcMain} = require('electron');
+const { app, BrowserWindow ,ipcMain,desktopCapturer} = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -39,7 +39,14 @@ function createWindow() {
     else win.maximize();
   });
   ipcMain.on('window-close', () => win.close());
-
+ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
+  const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] });
+  return sources.map(source => ({
+    id: source.id,
+    name: source.name,
+    thumbnail: source.thumbnail.toDataURL()
+  }));
+});
 
   if (isDev) {
     // ==== DEV MODU: Vite server ====

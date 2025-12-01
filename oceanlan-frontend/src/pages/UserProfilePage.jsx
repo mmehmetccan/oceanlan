@@ -1,34 +1,36 @@
 // src/pages/UserProfilePage.jsx
 import React, { useState, useContext, useMemo, useEffect } from 'react';
-import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom'; // YENİ: Yönlendirme için
+import { ToastContext } from '../context/ToastContext'; // 🔔 Toast Eklendi
+import { useNavigate } from 'react-router-dom';
+import axiosInstance from '../utils/axiosInstance';
+import ConfirmationModal from '../components/modals/ConfirmationModal'; // 🔔 Modal Eklendi
 import '../styles/ProfileSettings.css';
-import axiosInstance from '../utils/axiosInstance'; // Axios instance kullanalım
 
-const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';const DEFAULT_AVATAR = '/default-avatar.png';
+const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const DEFAULT_AVATAR = '/default-avatar.png';
 
 const UserProfilePage = () => {
     const { user, dispatch, logout } = useContext(AuthContext);
-    const navigate = useNavigate(); // YENİ: Navigate hook'u
+    const { addToast } = useContext(ToastContext); // 🔔
+    const navigate = useNavigate();
 
     // Local state'ler
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState(null);
 
-    // 1. DÜZELTME: Sayfa açıldığında veritabanından güncel veriyi çek
+    // 🔔 Onay Modalı State'i
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
+
+    // 1. Sayfa açıldığında veritabanından güncel veriyi çek
     useEffect(() => {
         const fetchLatestUserData = async () => {
             try {
-                // Token ile 'me' endpointine istek at
                 const res = await axiosInstance.get('/users/me');
-
-                // Context'i güncelle (Veritabanındaki en güncel avatar için)
                 if (res.data.data) {
                     dispatch({
                         type: 'LOGIN_SUCCESS',
@@ -37,7 +39,6 @@ const UserProfilePage = () => {
                             user: res.data.data
                         }
                     });
-                    // Form alanlarını da güncelle
                     setUsername(res.data.data.username);
                     setEmail(res.data.data.email);
                 }
@@ -47,13 +48,11 @@ const UserProfilePage = () => {
         };
 
         if (user) {
-            // İlk açılışta verileri state'e doldur
             setUsername(user.username);
             setEmail(user.email);
-            // Sonra veritabanından teyit et
             fetchLatestUserData();
         }
-    }, []); // Sadece sayfa ilk açıldığında çalışır
+    }, []);
 
     // Avatar URL Hesaplaması
     const rawAvatarUrl = useMemo(
@@ -68,21 +67,33 @@ const UserProfilePage = () => {
         return rawAvatarUrl || DEFAULT_AVATAR;
     }, [rawAvatarUrl]);
 
-
-    // 2. DÜZELTME: Çıkış yapma fonksiyonu
-    const handleLogout = () => {
-        logout(); // Context'i temizle
-        navigate('/login'); // Sayfayı zorla giriş ekranına at
+    // 2. Çıkış Yapma (Onaylı)
+    const handleLogoutClick = () => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Çıkış Yap',
+            message: 'Hesabından çıkış yapmak istediğine emin misin?',
+            isDanger: true,
+            confirmText: 'Çıkış Yap',
+            onConfirm: () => {
+                logout();
+                navigate('/login');
+                addToast('Başarıyla çıkış yapıldı.', 'success'); // 🔔
+            }
+        });
     };
 
-    // User yoksa yükleniyor göster (Ama logout anında navigate çalışacağı için takılmayacak)
+    const performLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
     if (!user) {
         return <div className="profile-settings-area">Yükleniyor...</div>;
     }
 
     const handleUpdateSettings = async (e) => {
         e.preventDefault();
-        setMessage('');
         setLoading(true);
 
         try {
@@ -96,7 +107,7 @@ const UserProfilePage = () => {
             }
 
             if (Object.keys(updateData).length === 0) {
-                setMessage({ text: 'Değiştirilecek ayar yok.', type: 'info' });
+                addToast('Değiştirilecek ayar yok.', 'info'); // 🔔
                 setLoading(false);
                 return;
             }
@@ -104,8 +115,8 @@ const UserProfilePage = () => {
             const res = await axiosInstance.put('/users/me', updateData);
 
             if (newPassword) {
-                alert('Şifreniz güncellendi. Lütfen tekrar giriş yapın.');
-                handleLogout(); // Yeni şifre sonrası çıkış
+                addToast('Şifreniz güncellendi. Lütfen tekrar giriş yapın.', 'success'); // 🔔
+                performLogout();
                 return;
             }
 
@@ -114,14 +125,11 @@ const UserProfilePage = () => {
                 payload: { token: localStorage.getItem('token'), user: res.data.user },
             });
 
-            setMessage({ text: res.data.message, type: 'success' });
+            addToast(res.data.message, 'success'); // 🔔
             setCurrentPassword('');
             setNewPassword('');
         } catch (err) {
-            setMessage({
-                text: err.response?.data?.message || 'Güncelleme başarısız.',
-                type: 'error',
-            });
+            addToast(err.response?.data?.message || 'Güncelleme başarısız.', 'error'); // 🔔
         } finally {
             setLoading(false);
         }
@@ -131,8 +139,6 @@ const UserProfilePage = () => {
         if (!avatarFile) return;
 
         setLoading(true);
-        setMessage('');
-
         const formData = new FormData();
         formData.append('avatar', avatarFile);
 
@@ -158,17 +164,11 @@ const UserProfilePage = () => {
                 }
             });
 
-            setMessage({
-                text: res.data.message || 'Fotoğraf başarıyla yüklendi!',
-                type: 'success'
-            });
+            addToast(res.data.message || 'Fotoğraf başarıyla yüklendi!', 'success'); // 🔔
             setAvatarFile(null);
 
         } catch (error) {
-            setMessage({
-                text: error.response?.data?.message || 'Fotoğraf yükleme başarısız.',
-                type: 'error',
-            });
+            addToast(error.response?.data?.message || 'Fotoğraf yükleme başarısız.', 'error'); // 🔔
         } finally {
             setLoading(false);
         }
@@ -268,10 +268,6 @@ const UserProfilePage = () => {
                         />
                     </div>
 
-                    {message && (
-                        <p className={`profile-message ${message.type}`}>{message.text}</p>
-                    )}
-
                     <button
                         type="submit"
                         className="btn-accent"
@@ -287,11 +283,23 @@ const UserProfilePage = () => {
                     <h4>Hesaptan Ayrıl</h4>
                     <p>Başka bir kullanıcıyla oturum açmak için mevcut oturumunu sonlandır.</p>
                 </div>
-                {/* DÜZELTME: logout yerine handleLogout kullan */}
-                <button className="logout-button" onClick={handleLogout}>
+
+                {/* 🔔 MODAL TETİKLEYİCİ */}
+                <button className="logout-button" onClick={handleLogoutClick}>
                     Çıkış Yap
                 </button>
             </div>
+
+            {/* 🔔 ONAY PENCERESİ */}
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(p => ({...p, isOpen: false}))}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                onConfirm={confirmModal.onConfirm}
+                isDanger={confirmModal.isDanger}
+                confirmText={confirmModal.confirmText}
+            />
         </div>
     );
 };

@@ -3,9 +3,11 @@ import React, { useContext, useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ServerContext } from '../context/ServerContext';
 import { AuthContext } from '../context/AuthContext';
+import { ToastContext } from '../context/ToastContext'; // 🔔 Toast Eklendi
 import { checkUserPermission } from '../utils/permissionChecker';
 import { useServerSocket } from '../hooks/useServerSocket';
 import DeleteServerModal from '../components/modals/DeleteServerModal';
+import ConfirmationModal from '../components/modals/ConfirmationModal'; // 🔔 Modal Eklendi
 import axios from 'axios';
 import axiosInstance from '../utils/axiosInstance'; // axiosInstance kullan
 
@@ -24,6 +26,9 @@ const PERMISSIONS_LIST = [
 // ... (MemberRoleManager bileşeni aynı, GİZLENDİ)
 const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate }) => {
   const [memberRoles, setMemberRoles] = useState(new Set(member.roles.map(r => r._id)));
+  const { addToast } = useContext(ToastContext); // 🔔
+
+
   const handleRoleToggle = async (roleId) => {
     const newRolesSet = new Set(memberRoles);
     if (newRolesSet.has(roleId)) {
@@ -74,6 +79,7 @@ const ServerSettingsPage = () => {
   const { serverId } = useParams();
   const { activeServer, loading, fetchServerDetails, fetchUserServers } = useContext(ServerContext); // fetchUserServers eklendi
   const { user } = useContext(AuthContext);
+  const { addToast } = useContext(ToastContext); // 🔔
   const navigate = useNavigate(); // Yönlendirme için eklendi
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -100,6 +106,7 @@ const ServerSettingsPage = () => {
 // 📢 YENİ: Ban ve Resim State'leri
   const [bannedUsers, setBannedUsers] = useState([]);
   const [serverIconFile, setServerIconFile] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
   useServerSocket(serverId);
 
   // --- İZİN KONTROLLERİ GÜNCELLENDİ ---
@@ -130,10 +137,9 @@ const ServerSettingsPage = () => {
       try {
           await axiosInstance.delete(`${API_URL_BASE}/api/v1/servers/${serverId}/bans/${bannedUserId}`);
           setBannedUsers(prev => prev.filter(b => b.user._id !== bannedUserId));
-          alert('Ban kaldırıldı.');
-      } catch (err) {
-          alert('İşlem başarısız.');
-      }
+            addToast('Yasak kaldırıldı.', 'success'); // 🔔
+           } catch (err) {
+        addToast('İşlem başarısız.', 'error');      }
   };
 
   // --- YENİ: Sunucu Resmi Yükle ---
@@ -146,18 +152,17 @@ const ServerSettingsPage = () => {
           await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/icon`, formData, {
               headers: { 'Content-Type': 'multipart/form-data' }
           });
-          alert('Sunucu resmi güncellendi!');
+          addToast('Sunucu resmi güncellendi!', 'success'); // 🔔
           setServerIconFile(null);
           fetchServerDetails(serverId);
           fetchUserServers(); // Sidebar'ı güncelle
       } catch (err) {
-          alert('Yükleme başarısız.');
-      }
+        addToast('Yükleme başarısız.', 'error');      }
   };
 
   // --- ROL İŞLEVLERİ (Aynı, GİZLENDİ) ---
   const handleCreateRole = async () => {
-    if (!newRoleName) return alert('Rol adı boş olamaz.');
+if (!newRoleName) return addToast('Rol adı boş olamaz.', 'warning'); // 🔔
     try {
       await axios.post(
         `${API_URL_BASE}/api/v1/servers/${serverId}/roles`,
@@ -169,8 +174,7 @@ const ServerSettingsPage = () => {
       setNewRolePermissions([]);
       fetchServerDetails(serverId);
     } catch (error) {
-      alert(`Hata: ${error.response?.data?.message}`);
-    }
+addToast(`Hata: ${error.response?.data?.message}`, 'error');    }
   };
   const handleUpdateRolePermissions = async (roleId, permissions) => {
     try {
@@ -180,8 +184,7 @@ const ServerSettingsPage = () => {
       );
       fetchServerDetails(serverId);
     } catch (error) {
-      alert(`Hata: ${error.response?.data?.message}`);
-    }
+addToast(`Hata: ${error.response?.data?.message}`, 'error');    }
   };
   const handleNewRolePermToggle = (perm) => {
     setNewRolePermissions(prev =>
@@ -222,8 +225,8 @@ const ServerSettingsPage = () => {
         `${API_URL_BASE}/api/v1/servers/${serverId}/channels`,
         channelForm
       );
-      alert('Kanal başarıyla oluşturuldu!');
-      fetchServerDetails(serverId);
+addToast('Kanal başarıyla oluşturuldu!', 'success');
+fetchServerDetails(serverId);
       setSelectedChannel(null);
     } catch (error) {
       alert(`Hata: ${error.response?.data?.message || 'Kanal oluşturulamadı'}`);
@@ -237,11 +240,12 @@ const ServerSettingsPage = () => {
         `${API_URL_BASE}/api/v1/servers/${serverId}/channels/${selectedChannel._id}`,
         channelForm
       );
-      alert('Kanal başarıyla güncellendi!');
-      fetchServerDetails(serverId);
+addToast('Kanal başarıyla güncellendi!', 'success');
+fetchServerDetails(serverId);
       setSelectedChannel(null);
     } catch (error) {
-      alert(`Hata: ${error.response?.data?.message || 'Kanal güncellenemedi'}`);
+addToast(`Hata: ${error.response?.data?.message || 'Kanal güncellenemedi'}`, 'error');
+
     }
   };
   const handleDeleteChannel = async () => {
@@ -251,11 +255,11 @@ const ServerSettingsPage = () => {
       await axios.delete(
         `${API_URL_BASE}/api/v1/servers/${serverId}/channels/${selectedChannel._id}`
       );
-      alert('Kanal başarıyla silindi!');
+      addToast('Kanal başarıyla silindi!', 'success');
       fetchServerDetails(serverId);
       setSelectedChannel(null);
     } catch (error) {
-      alert(`Hata: ${error.response?.data?.message || 'Kanal silinemedi'}`);
+addToast(`Hata: ${error.response?.data?.message || 'Kanal silinemedi'}`, 'error');
     }
   };
   // Kanal İşlevleri GİZLENDİ
@@ -265,9 +269,9 @@ const ServerSettingsPage = () => {
     try {
       const res = await axios.post(`${API_URL_BASE}/api/v1/servers/${serverId}/invite`);
       fetchServerDetails(serverId);
-      alert(res.data.message || 'Yeni davet kodu oluşturuldu!');
+      addToast(res.data.message || 'Yeni davet kodu oluşturuldu!', 'success');
     } catch (error) {
-      alert(`Hata: ${error.response?.data?.message || 'Kod oluşturulamadı'}`);
+      addToast(`Hata: ${error.response?.data?.message || 'Kod oluşturulamadı'}`, 'error');
     }
   };
   // Davet İşlevi GİZLENDİ
@@ -275,18 +279,17 @@ const ServerSettingsPage = () => {
   // --- YENİ SUNUCU SİLME İŞLEVİ ---
   const handleDeleteServer = async () => {
       if (!isOwner) {
-          alert("Sadece sunucu sahibi sunucuyu silebilir.");
+          addToast("Sadece sunucu sahibi sunucuyu silebilir.", 'error');
           return;
       }
 
       try {
           await axios.delete(`${API_URL_BASE}/api/v1/servers/${serverId}`);
-          alert("Sunucu başarıyla silindi.");
+addToast("Sunucu başarıyla silindi.", 'success'); // 🔔
           await fetchUserServers();
           navigate('/dashboard/friends');
       } catch (error) {
-          alert(`Hata: ${error.response?.data?.message || 'Sunucu silinemedi'}`);
-      }
+addToast(`Hata: ${error.response?.data?.message || 'Sunucu silinemedi'}`, 'error');      }
   };
   // ------------------------------------
 
@@ -660,16 +663,18 @@ const ServerSettingsPage = () => {
 
       </div>
 
-      {showDeleteModal && (
-        <DeleteServerModal
-          serverName={activeServer.name}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={() => {
-            setShowDeleteModal(false);
-            handleDeleteServer();
-          }}
-        />
-      )}
+      {showDeleteModal && <DeleteServerModal serverName={activeServer.name} onClose={() => setShowDeleteModal(false)} onConfirm={() => { setShowDeleteModal(false); handleDeleteServer(); }} />}
+
+      {/* 🔔 ONAY PENCERESİ BİLEŞENİ */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(p => ({...p, isOpen: false}))}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        isDanger={confirmModal.isDanger}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 };

@@ -12,6 +12,7 @@ import UserProfilePage from './UserProfilePage';
 import FeedPage from './FeedPage';
 import ScreenShareDisplay from '../components/chat/ScreenShareDisplay';
 import AudioSettingsPage from './AudioSettingsPage';
+import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal'; // 👈 Eklendi
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
@@ -27,8 +28,13 @@ import { isElectron } from '../utils/platformHelper';
 
 const DashboardPage = () => {
   const { socket } = useSocket();
-  const { currentVoiceChannelId, joinVoiceChannel } = useContext(VoiceContext);
-  const { dispatch, unreadDmConversations } = useContext(AuthContext);
+const {
+      currentVoiceChannelId,
+      joinVoiceChannel,
+      isScreenPickerOpen,      // 👈 Context'ten al
+      setScreenPickerOpen,     // 👈 Context'ten al
+      screenShareCallback      // 👈 Context'ten al
+  } = useContext(VoiceContext);  const { dispatch, unreadDmConversations } = useContext(AuthContext);
   const location = useLocation();
 const isApp = isElectron();
   const onServerRoute = location.pathname.includes('/dashboard/server/');
@@ -77,6 +83,15 @@ style={{
             </Routes>
           </div>
         )}
+        {isScreenPickerOpen && (
+        <ScreenSharePickerModal
+            onClose={() => setScreenPickerOpen(false)}
+            onSelect={(sourceId) => {
+                setScreenPickerOpen(false);
+                if (screenShareCallback) screenShareCallback(sourceId);
+            }}
+        />
+      )}
 
         <div className="main-content-area">
           <ScreenShareDisplay />

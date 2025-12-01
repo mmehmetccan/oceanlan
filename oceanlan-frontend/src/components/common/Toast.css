@@ -1,53 +1,65 @@
 /* src/components/common/Toast.css */
 .toast-container {
   position: fixed;
-  top: 80px; /* Üst menünün altında kalmasın */
+  top: 50px; /* TitleBar'ın (32px) hemen altına */
   right: 20px;
-  z-index: 9999;
-  width: 300px;
+  z-index: 100000; /* 👈 ÇOK ÖNEMLİ: En yüksek katman yapıldı */
+  width: 320px;
+  pointer-events: none; /* Tıklamaları engellemesin (Toast'a tıklanabilir) */
 }
 
 .toast {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 14px 18px;
   margin-bottom: 10px;
-  border-radius: 5px;
+  border-radius: 8px;
   color: #fff;
-  background: #333;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  opacity: 0.9;
+  background: rgba(32, 34, 37, 0.95); /* Hafif saydam koyu */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   font-size: 14px;
+  backdrop-filter: blur(4px);
+  border-left: 4px solid transparent;
+  pointer-events: auto; /* Toast'a tıklanabilsin */
+  animation: slideIn 0.3s ease-out;
 }
 
+/* Tipler için renkler */
 .toast-success {
-  background-color: #4CAF50; /* Yeşil */
+  border-left-color: #3ba55c;
 }
 
 .toast-error {
-  background-color: #f44336; /* Kırmızı */
+  border-left-color: #ed4245;
 }
 
 .toast-info {
-  background-color: #2196F3; /* Mavi */
+  border-left-color: #5865f2;
 }
 
 .toast-warning {
-  background-color: #ff9800; /* Turuncu */
+  border-left-color: #faa61a;
 }
 
 .toast-close-btn {
   background: none;
   border: none;
-  color: #fff;
+  color: #b9bbbe;
   font-size: 20px;
   line-height: 1;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 12px;
   cursor: pointer;
   opacity: 0.7;
+  transition: opacity 0.2s;
 }
 
 .toast-close-btn:hover {
   opacity: 1;
+  color: #fff;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }

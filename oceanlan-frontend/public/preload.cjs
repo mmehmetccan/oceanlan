@@ -1,3 +1,7 @@
 // public/preload.cjs
-// Şimdilik boş, ileride burada Electron <-> Renderer köprüsü kurabilirsin.
-console.log('preload.cjs yüklendi');
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getScreenSources: () => ipcRenderer.invoke('DESKTOP_CAPTURER_GET_SOURCES'),
+  isElectron: true
+});

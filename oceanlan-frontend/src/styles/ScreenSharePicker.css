@@ -1,0 +1,58 @@
+/* src/styles/ScreenSharePicker.css */
+.screen-picker-modal {
+    width: 600px;
+    max-width: 90vw;
+    background-color: #36393f;
+    color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    overflow-y: auto;
+    margin-top: 15px;
+    padding-right: 5px;
+}
+
+.source-item {
+    cursor: pointer;
+    background: #2f3136;
+    border-radius: 8px;
+    padding: 10px;
+    transition: background 0.2s;
+    text-align: center;
+}
+
+.source-item:hover {
+    background: #40444b;
+}
+
+.source-item img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    object-fit: contain;
+    max-height: 100px;
+}
+
+.source-item span {
+    font-size: 12px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #dcddde;
+}
+
+.hint {
+    color: #b9bbbe;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
