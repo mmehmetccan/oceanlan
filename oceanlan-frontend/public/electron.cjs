@@ -65,6 +65,15 @@ ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
     win.loadFile(indexPath);
   }
 
+  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    // Medya (Kamera/Mikrofon/Ekran) izinlerini otomatik onayla
+    if (permission === 'media' || permission === 'display-capture') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   win.webContents.on('did-fail-load', (e, code, desc, url) => {
     console.error('[did-fail-load]', code, desc, url);
   });
