@@ -84,7 +84,7 @@ app.use('/api/v1/users', require('./api/routes/userRoutes'));
 app.use('/api/v1/servers/:serverId/roles', require('./api/routes/roleRoutes'));
 app.use('/api/v1/roles', require('./api/routes/roleRoutes'));
 app.use('/api/v1/posts', require('./api/routes/postRoutes'));
-
+app.use('/api/v1/contact', require('./api/routes/contactRoutes')); // 👈 YENİ EKLENEN
 // =========================================================================
 // 🔊 Sesli kanal state (bellek üstünde)
 // =========================================================================
@@ -459,29 +459,27 @@ io.on('connection', (socket) => {
       if (!data.content || !data.conversationId || !data.authorId) {
         return socket.emit('messageError', { message: 'Eksik DM verisi' });
       }
-
       const newDm = await PrivateMessage.create({
         content: data.content,
         author: data.authorId,
         conversation: data.conversationId,
       });
 
-      const populatedDm = await PrivateMessage.findById(newDm._id).populate(
-        'author',
-        'username avatarUrl onlineStatus'
-      );
+      // 👇 YENİ: Konuşmanın tarihini güncelle (Listede yukarı çıksın diye)
+      await Conversation.findByIdAndUpdate(data.conversationId, { lastMessageAt: Date.now() });
+
+      const populatedDm = await PrivateMessage.findById(newDm._id).populate('author', 'username');
 
       io.to(data.conversationId).emit('newPrivateMessage', populatedDm);
 
       const conversation = await Conversation.findById(data.conversationId);
-      const recipientId = conversation.participants.find(
-        (p) => p.toString() !== data.authorId.toString()
-      );
+      const recipientId = conversation.participants.find(p => p.toString() !== data.authorId.toString());
 
       if (recipientId) {
-        io.to(recipientId.toString()).emit('unreadDm', {
-          conversationId: data.conversationId,
-        });
+          io.to(recipientId.toString()).emit('unreadDm', {
+              conversationId: data.conversationId,
+              senderId: data.authorId // Frontend'de kimden geldiğini anlamak için
+          });
       }
     } catch (error) {
       console.error('[SOCKET HATA]: DM gönderilemedi:', error);

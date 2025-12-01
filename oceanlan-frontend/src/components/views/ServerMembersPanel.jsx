@@ -125,7 +125,7 @@ const ServerMembersPanel = () => {
                   {/* 📢 Sahip değilse ve offline ise tarihi küçük yaz (Opsiyonel) */}
                   {/* {!isOnline && <span className="member-sub-status">{formatLastSeen(member.user?.lastSeenAt)}</span>} */}
 
-                  {isOwner && <span className="member-badge">Sahip</span>}
+                  {isOwner && <span className="member-badge">Kurucu</span>}
                 </div>
               </div>
           );

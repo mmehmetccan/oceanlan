@@ -55,3 +55,28 @@
     border-radius: 50%;
     cursor: pointer;
 }
+.member-menu-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.menu-role-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+}
+
+/* Daire rengi efekti yerine direkt border rengi kullanıyoruz (JS tarafında style ile verildi) */
+
+.menu-role-badge.no-role {
+    color: #72767d;
+    border-color: #4f545c;
+    font-style: italic;
+}

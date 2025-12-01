@@ -1,13 +1,18 @@
+// src/models/ConversationModel.js
 const mongoose = require('mongoose');
 
-// İki kullanıcı arasındaki özel sohbeti (DM) temsil eder
 const ConversationSchema = new mongoose.Schema({
-  participants: [ // Katılımcılar (her zaman 2 kişi)
+  participants: [
     {
       type: mongoose.Schema.ObjectId,
       ref: 'User',
     }
   ],
+  // 👇 YENİ: Son mesajın atıldığı zamanı tutar
+  lastMessageAt: {
+    type: Date,
+    default: Date.now,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

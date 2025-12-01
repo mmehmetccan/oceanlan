@@ -4,7 +4,9 @@ import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext'; // 🔔 Toast Eklendi
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
-import ConfirmationModal from '../components/modals/ConfirmationModal'; // 🔔 Modal Eklendi
+import ConfirmationModal from '../components/modals/ConfirmationModal';
+import ContactModal from '../components/modals/ContactModal';
+import { EnvelopeIcon } from '@heroicons/react/24/outline'; // 👈 İKON
 import '../styles/ProfileSettings.css';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -25,6 +27,7 @@ const UserProfilePage = () => {
 
     // 🔔 Onay Modalı State'i
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
+const [showContact, setShowContact] = useState(false);
 
     // 1. Sayfa açıldığında veritabanından güncel veriyi çek
     useEffect(() => {
@@ -182,7 +185,7 @@ const UserProfilePage = () => {
                     <p>Kullanıcı bilgilerini, parolanı ve profil görselini buradan düzenle.</p>
                 </div>
                 <div className="profile-header-avatar">
-                    <img src={displayAvatarUrl} alt={`${user.username} avatarı`} />
+                    <img src={displayAvatarUrl} alt={`${user.username} avatarı`}/>
                     <div>
                         <strong>{user.username}</strong>
                         <span>{user.email}</span>
@@ -288,6 +291,33 @@ const UserProfilePage = () => {
                 <button className="logout-button" onClick={handleLogoutClick}>
                     Çıkış Yap
                 </button>
+            </div>
+            <div className="settings-card" style={{border: '1px solid #5865f2', marginTop: '20px'}}>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                }}>
+                    <div>
+                        <h4 style={{margin: 0, color: '#fff'}}>İletişim & Destek</h4>
+                        <p style={{margin: '5px 0 0', fontSize: '13px', color: '#b9bbbe'}}>
+                            Bir sorun mu yaşıyorsunuz veya öneriniz mi var? Bizimle iletişime geçin.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/dashboard/contact')} // 👈 DÜZELTME: Sayfaya git
+                        style={{
+                            background: '#5865f2', color: 'white', border: 'none',
+                            padding: '10px 16px', borderRadius: '8px', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600'
+                        }}
+                    >
+                        <EnvelopeIcon style={{width: 20}}/>
+                        Bize Ulaşın
+                    </button>
+                </div>
             </div>
 
             {/* 🔔 ONAY PENCERESİ */}

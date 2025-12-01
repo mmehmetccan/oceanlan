@@ -1,6 +1,7 @@
 // src/pages/DashboardPage.jsx
 import React, { useContext, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+
 import Sidebar from '../components/layout/Sidebar';
 import ServerView from '../components/views/ServerView';
 import DMView from '../components/views/DMView';
@@ -12,43 +13,50 @@ import UserProfilePage from './UserProfilePage';
 import FeedPage from './FeedPage';
 import ScreenShareDisplay from '../components/chat/ScreenShareDisplay';
 import AudioSettingsPage from './AudioSettingsPage';
-import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal'; // 👈 Eklendi
+import ContactPage from './ContactPage'; // 👈 İletişim Sayfası
+import FriendsView from '../components/views/FriendsView';
+import AllDmsPage from './AllDmsPage';
+import UserProfileViewPage from './UserProfileViewPage';
+import TitleBar from '../components/layout/TitleBar';
+import ServerMembersPanel from '../components/views/ServerMembersPanel';
+import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal';
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
-import ServerMembersPanel from '../components/views/ServerMembersPanel';
-import UserProfileViewPage from './UserProfileViewPage';
 import { AuthContext } from '../context/AuthContext';
-
-import FriendsView from '../components/views/FriendsView';
-import AllDmsPage from './AllDmsPage';
-
-import TitleBar from '../components/layout/TitleBar'; // 👈 YENİ İMPORT
+import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
 
 const DashboardPage = () => {
   const { socket } = useSocket();
-const {
+  const {
       currentVoiceChannelId,
       joinVoiceChannel,
-      isScreenPickerOpen,      // 👈 Context'ten al
-      setScreenPickerOpen,     // 👈 Context'ten al
-      screenShareCallback      // 👈 Context'ten al
-  } = useContext(VoiceContext);  const { dispatch, unreadDmConversations } = useContext(AuthContext);
+      isScreenPickerOpen,
+      setScreenPickerOpen,
+      screenShareCallback
+  } = useContext(VoiceContext);
+
+  const { dispatch, unreadDmConversations } = useContext(AuthContext);
+  const { addToast } = useContext(ToastContext);
   const location = useLocation();
-const isApp = isElectron();
+  const navigate = useNavigate();
+  const isApp = isElectron();
+
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
   useEffect(() => {
     if (!socket) return;
 
     const handleUnreadDm = (data) => {
+      // State'e işle (Sidebar rozeti için)
       dispatch({ type: 'NEW_UNREAD_DM', payload: { conversationId: data.conversationId } });
+
+      // 📢 YENİ: Ekrana Bildirim Bas
+      addToast("Yeni bir mesajın var!", "info");
     };
 
-    // Ses kanalına zorla taşıma (Move User) dinleyicisi
     const handleForceJoin = ({ serverId, channelId }) => {
-        console.log(`[Dashboard] Zorunlu taşıma alındı: ${channelId}`);
         joinVoiceChannel(serverId, channelId);
     };
 
@@ -59,19 +67,20 @@ const isApp = isElectron();
       socket.off('unreadDm', handleUnreadDm);
       socket.off('force-join-voice-channel', handleForceJoin);
     };
-  }, [socket, dispatch, joinVoiceChannel]);
+  }, [socket, dispatch, joinVoiceChannel, addToast]);
 
   return (
-    <div className="dashboard-layout"
-style={{
+    <div
+      className="dashboard-layout"
+      style={{
         position: 'relative',
         overflow: 'hidden',
-        // Eğer App ise üstten boşluk bırak (TitleBar yüksekliği kadar)
-        paddingTop: isApp ? '32px' : '0'
+        paddingTop: isApp ? '32px' : '0' // App ise üstten boşluk bırak
       }}
     >
-      {/* 📢 BAŞLIK ÇUBUĞU EN ÜSTE */}
-      <TitleBar />
+      {/* 📢 TitleBar: Butona basınca sayfaya git */}
+      <TitleBar onContactClick={() => navigate('/dashboard/contact')} />
+
       <Sidebar unreadCount={unreadDmConversations?.length || 0} />
 
       <div className={`dashboard-main-row ${onServerRoute ? '' : 'single-column'}`}>
@@ -83,15 +92,16 @@ style={{
             </Routes>
           </div>
         )}
+
         {isScreenPickerOpen && (
-        <ScreenSharePickerModal
-            onClose={() => setScreenPickerOpen(false)}
-            onSelect={(sourceId) => {
-                setScreenPickerOpen(false);
-                if (screenShareCallback) screenShareCallback(sourceId);
-            }}
-        />
-      )}
+            <ScreenSharePickerModal
+                onClose={() => setScreenPickerOpen(false)}
+                onSelect={(sourceId) => {
+                    setScreenPickerOpen(false);
+                    if (screenShareCallback) screenShareCallback(sourceId);
+                }}
+            />
+        )}
 
         <div className="main-content-area">
           <ScreenShareDisplay />
@@ -100,6 +110,10 @@ style={{
             <Route path="feed" element={<FeedPage />} />
             <Route path="friends" element={<FriendsView />} />
             <Route path="all-dms" element={<AllDmsPage />} />
+
+            {/* 📢 İLETİŞİM SAYFASI ROTASI */}
+            <Route path="contact" element={<ContactPage />} />
+
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
             <Route path="dm/:friendId/:conversationId" element={<DMView />} />
             <Route path="settings/stream" element={<StreamSettingsPage />} />
@@ -114,17 +128,14 @@ style={{
         {onServerRoute && <ServerMembersPanel />}
       </div>
 
-      {/* 📢 SES PANELİ (VoiceRoom) İÇİN GÖRÜNÜRLÜK GARANTİSİ
-         z-index: 9999 ve position: absolute ile en üste sabitliyoruz.
-      */}
       {currentVoiceChannelId && (
         <div style={{
             position: 'absolute',
             bottom: 0,
-            left: 72, // Sidebar genişliği kadar (CSS'e göre değişebilir, genelde 72px)
-            width: 240, // Discord sol panel genişliği standartı
-            zIndex: 9999, // En üstte görünsün
-            backgroundColor: '#292b2f', // Arka plan rengi (tema rengine göre)
+            left: 72,
+            width: 240,
+            zIndex: 9999,
+            backgroundColor: '#292b2f',
             borderTop: '1px solid #3f4147'
         }}>
             <VoiceRoom />

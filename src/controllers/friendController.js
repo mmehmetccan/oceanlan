@@ -160,9 +160,44 @@ const getPendingRequests = async (req, res) => {
 const getFriends = async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await User.findById(userId).populate('friends', 'username email avatarUrl onlineStatus lastSeenAt');
-    res.status(200).json({ success: true, data: user ? user.friends : [] });
-  } catch (error) { res.status(500).json({ success: false, message: 'Hata', error: error.message }); }
+
+    // 1. Arkadaşları çek
+    const user = await User.findById(userId)
+      .populate('friends', 'username email avatar avatarUrl onlineStatus lastSeenAt');
+
+    if (!user) return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+
+    // 2. Kullanıcının dahil olduğu tüm konuşmaları çek
+    const conversations = await Conversation.find({ participants: userId });
+
+    // 3. Arkadaş listesini konuşma verisiyle birleştir
+    let friendsData = user.friends.map((friend) => {
+      const friendObj = friend.toObject();
+
+      // Bu arkadaşla olan konuşmayı bul
+      const conv = conversations.find(c => c.participants.map(p => p.toString()).includes(friend._id.toString()));
+
+      return {
+        ...friendObj,
+        onlineStatus: friendObj.onlineStatus || 'offline',
+        conversationId: conv ? conv._id : null,
+        lastMessageAt: conv ? conv.lastMessageAt : new Date(0) // Konuşma yoksa en sona at
+      };
+    });
+
+    // 4. Sırala: En yeni mesaj en üstte
+    friendsData.sort((a, b) => {
+        return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    });
+
+    res.status(200).json({
+      success: true,
+      data: friendsData,
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Hata', error: error.message });
+  }
 };
 
 const getDmMessages = async (req, res) => {
@@ -196,22 +231,43 @@ const sendPrivateFileMessage = async (req, res) => {
     try {
         const { conversationId } = req.params;
         const userId = req.user.id;
-        if (!req.file) return res.status(400).json({ success: false, message: 'Dosya yok' });
+        // ... (Dosya kontrolleri aynı) ...
+        if (!req.file || !req.file.filename) return res.status(400).json({ success: false, message: 'Dosya işlenemedi.' });
+
+        let fileType = 'other';
+        if (req.file.mimetype.startsWith('image')) fileType = 'image';
+        else if (req.file.mimetype.startsWith('video')) fileType = 'video';
         const fileUrl = `/uploads/chat_attachments/${req.file.filename}`;
-        const fileType = req.file.mimetype.startsWith('image') ? 'image' : req.file.mimetype.startsWith('video') ? 'video' : 'other';
+        const textContent = (req.body && req.body.content) ? req.body.content : '';
+
         const newDm = await PrivateMessage.create({
-            content: req.body.content || '', author: userId, conversation: conversationId, fileUrl, fileType
+            content: textContent,
+            author: userId,
+            conversation: conversationId,
+            fileUrl: fileUrl,
+            fileType: fileType
         });
+
+        // YENİ: Tarihi güncelle
+        await Conversation.findByIdAndUpdate(conversationId, { lastMessageAt: Date.now() });
+
         const populatedDm = await PrivateMessage.findById(newDm._id).populate('author', 'username');
+
         const io = req.app.get('io');
         if (io) {
             io.to(conversationId).emit('newPrivateMessage', populatedDm);
-            const conv = await Conversation.findById(conversationId);
-            const recipient = conv.participants.find(p => p.toString() !== userId);
-            if(recipient) io.to(recipient.toString()).emit('unreadDm', { conversationId });
+            const conversation = await Conversation.findById(conversationId);
+            if (conversation) {
+                const recipientId = conversation.participants.find(p => p.toString() !== userId);
+                if (recipientId) {
+                    io.to(recipientId.toString()).emit('unreadDm', { conversationId, senderId: userId });
+                }
+            }
         }
         res.status(201).json({ success: true, data: populatedDm });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Hata', error: error.message });
+    }
 };
 
 module.exports = {

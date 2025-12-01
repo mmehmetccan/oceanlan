@@ -3,12 +3,10 @@ import React, { useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { isElectron } from '../../utils/platformHelper';
-import { MinusIcon, Square2StackIcon, XMarkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { MinusIcon, Square2StackIcon, XMarkIcon, ChatBubbleLeftRightIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import '../../styles/TitleBar.css';
 
-const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
-
-const TitleBar = () => {
+const TitleBar = ({ onContactClick }) => {
     const location = useLocation();
     const { activeServer } = useContext(ServerContext);
 
@@ -22,37 +20,47 @@ const TitleBar = () => {
     else if (location.pathname.includes('/dashboard/server') && activeServer) title = activeServer.name;
     else if (location.pathname.includes('/settings')) title = "Ayarlar";
 
-    const handleMinimize = () => ipcRenderer?.send('window-minimize');
-    const handleMaximize = () => ipcRenderer?.send('window-maximize');
-    const handleClose = () => ipcRenderer?.send('window-close');
+    // 👇 YENİ: Preload üzerinden fonksiyonları çağırıyoruz
+    const handleMinimize = () => {
+        if (window.electronAPI) window.electronAPI.minimize();
+    };
+    const handleMaximize = () => {
+        if (window.electronAPI) window.electronAPI.toggleMaximize();
+    };
+    const handleClose = () => {
+        if (window.electronAPI) window.electronAPI.close();
+    };
 
     return (
         <div className="app-titlebar">
-            {/* SOL: Logo veya Boşluk */}
+            {/* SOL: Logo veya İsim */}
             <div className="titlebar-left">
                 <span className="app-name">OceanLan</span>
             </div>
 
-            {/* ORTA: Mevcut Sayfa İsmi */}
+            {/* ORTA: Sayfa Başlığı */}
             <div className="titlebar-center">
-                <ChatBubbleLeftRightIcon className="title-icon" />
+                <ChatBubbleLeftRightIcon className="title-icon"/>
                 <span>{title}</span>
             </div>
-
-            {/* SAĞ: Pencere Kontrolleri */}
             <div className="window-controls">
-                <button onClick={handleMinimize} className="win-btn min" title="Küçült">
-                    <MinusIcon />
+
+                {/* 📢 İLETİŞİM BUTONU */}
+                <button
+                    onClick={onContactClick}
+                    className="win-btn"
+                    title="İletişim / Destek"
+                    style={{ color: '#b9bbbe' }}
+                >
+                    <EnvelopeIcon style={{width: 18, height: 18}} />
                 </button>
-                <button onClick={handleMaximize} className="win-btn max" title="Büyüt">
-                    <Square2StackIcon />
-                </button>
-                <button onClick={handleClose} className="win-btn close" title="Kapat">
-                    <XMarkIcon />
-                </button>
+
+                <button onClick={handleMinimize} className="win-btn min" title="Küçült"><MinusIcon /></button>
+                <button onClick={handleMaximize} className="win-btn max" title="Büyüt"><Square2StackIcon /></button>
+                <button onClick={handleClose} className="win-btn close" title="Kapat"><XMarkIcon /></button>
             </div>
         </div>
     );
 };
 
-export default TitleBar;
+            export default TitleBar;

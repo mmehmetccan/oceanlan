@@ -12,7 +12,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 720,
-    icon: path.join(__dirname, 'oceanlanlogo.png'),
+    icon: path.join(__dirname, 'favicon.ico'),
     frame: false, // 👈 1. Çerçeveyi tamamen kaldırıyoruz (Kendi barımızı yapacağız)
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
@@ -24,11 +24,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
-      contextIsolation: false,
+      contextIsolation: true,
     },
   });
 
-  win.removeMenu();
+  //win.removeMenu();
 
 
   win.setMenuBarVisibility(false);
@@ -39,14 +39,26 @@ function createWindow() {
     else win.maximize();
   });
   ipcMain.on('window-close', () => win.close());
+
+
 ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
-  const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] });
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['window', 'screen'],
+        thumbnailSize: { width: 300, height: 300 }, // Önizleme kalitesi
+        fetchWindowIcons: true
+      });
+
   return sources.map(source => ({
-    id: source.id,
-    name: source.name,
-    thumbnail: source.thumbnail.toDataURL()
-  }));
-});
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL()
+      }));
+    } catch (error) {
+      console.error("Kaynaklar alınamadı:", error);
+      return [];
+    }
+  });
 
   if (isDev) {
     // ==== DEV MODU: Vite server ====
@@ -67,11 +79,20 @@ ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
 
   win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
     // Medya (Kamera/Mikrofon/Ekran) izinlerini otomatik onayla
-    if (permission === 'media' || permission === 'display-capture') {
+    const allowedPermissions = ['media', 'display-capture', 'notifications', 'audio-capture', 'video-capture'];
+    if (allowedPermissions.includes(permission)) {
       callback(true);
     } else {
       callback(false);
     }
+  });
+
+  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    // Biz kendi modalımızı kullanacağımız için burayı pas geçebiliriz
+    // veya ileride native bir pencere açtırabiliriz.
+    // Şimdilik default davranışı null yaparak engelliyoruz ki bizim kod çalışsın.
+    // Veya desktopCapturer kullanacağımız için buraya düşmeyebilir.
+    // callback({ video: request.video, audio: request.audio });
   });
 
   win.webContents.on('did-fail-load', (e, code, desc, url) => {

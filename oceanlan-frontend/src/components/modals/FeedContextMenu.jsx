@@ -1,8 +1,30 @@
 // src/components/modals/FeedContextMenu.jsx
-import React from 'react';
+import React, { useRef, useState, useLayoutEffect } from 'react';
 import '../../styles/MemberContextMenu.css';
 
 const FeedContextMenu = ({ x, y, user, relationshipType, onClose, onAction }) => {
+  const menuRef = useRef(null);
+  const [position, setPosition] = useState({ top: y, left: x, opacity: 0 });
+
+  useLayoutEffect(() => {
+      if (menuRef.current) {
+          const rect = menuRef.current.getBoundingClientRect();
+          const { innerWidth, innerHeight } = window;
+
+          let newTop = y;
+          let newLeft = x;
+
+          if (x + rect.width > innerWidth) {
+              newLeft = x - rect.width;
+          }
+          if (y + rect.height > innerHeight) {
+              newTop = y - rect.height;
+          }
+
+          setPosition({ top: newTop, left: newLeft, opacity: 1 });
+      }
+  }, [x, y]);
+
   if (!user) return null;
 
   const handleOpenProfile = () => {
@@ -13,8 +35,15 @@ const FeedContextMenu = ({ x, y, user, relationshipType, onClose, onAction }) =>
     <>
       <div className="member-menu-overlay" onClick={onClose} />
       <div
+        ref={menuRef}
         className="member-menu-panel"
-        style={{ top: y, left: x, position: 'fixed', zIndex: 1000 }}
+        style={{
+            top: position.top,
+            left: position.left,
+            opacity: position.opacity,
+            position: 'fixed',
+            zIndex: 1000
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="member-menu-header">
@@ -30,7 +59,6 @@ const FeedContextMenu = ({ x, y, user, relationshipType, onClose, onAction }) =>
             />
           </div>
           <div className="member-menu-info">
-            {/* 👇 GÜNCELLEME: 'clickable' sınıfı eklendi */}
             <div
                 className="member-menu-name clickable"
                 onClick={handleOpenProfile}

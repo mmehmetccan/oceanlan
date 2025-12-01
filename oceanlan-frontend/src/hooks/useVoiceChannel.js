@@ -123,9 +123,10 @@ export const useVoiceChannel = () => {
 
   // -------------------- 4. EKRAN PAYLAŞIMI --------------------
   const startScreenShare = async (electronSourceId = null) => {
-    // A. Electron (App) Kontrolü
+
+    // 1. Electron Modal Kontrolü
+    // Eğer Electron ise VE kaynak ID henüz seçilmediyse Modalı aç
     if (window.electronAPI && !electronSourceId) {
-        // Kaynak seçimi için modalı aç
         setScreenShareCallback(() => (sourceId) => startScreenShare(sourceId));
         setScreenPickerOpen(true);
         return;
@@ -133,44 +134,51 @@ export const useVoiceChannel = () => {
 
     try {
       let stream;
+
       if (window.electronAPI && electronSourceId) {
-          // --- ELECTRON ---
-          // Electron'da sesli ekran paylaşımı zordur, şimdilik audio: false
-          // mandatory constraints kullanıyoruz
-          stream = await navigator.mediaDevices.getUserMedia({
-              audio: false,
-              video: {
-                  mandatory: {
-                      chromeMediaSource: 'desktop',
-                      chromeMediaSourceId: electronSourceId,
-                      minWidth: 1280,
-                      maxWidth: 1920,
-                      minHeight: 720,
-                      maxHeight: 1080
+          // --- ELECTRON (APP) ---
+          try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                  audio: false, // Electron'da sistem sesi zordur, false yapıyoruz (şimdilik)
+                  video: {
+                      mandatory: {
+                          chromeMediaSource: 'desktop',
+                          chromeMediaSourceId: electronSourceId,
+                          minWidth: 1280,
+                          maxWidth: 1920,
+                          minHeight: 720,
+                          maxHeight: 1080
+                      }
                   }
-              }
-          });
+              });
+          } catch (e) {
+              console.error("Electron getUserMedia hatası:", e);
+              addToast(`Yayın başlatılamadı: ${e.message}`, 'error');
+              return;
+          }
       } else {
-          // --- WEB ---
+          // --- WEB (Tarayıcı) ---
           stream = await navigator.mediaDevices.getDisplayMedia({
-              video: { cursor: 'always' },
-              audio: true
+            video: { cursor: 'always' },
+            audio: true
           });
       }
 
       screenStreamRef.current = stream;
       setMyScreenStream(stream);
 
-      // Mevcut bağlantılara akışı ekle
       Object.values(peersRef.current).forEach((peer) => {
-        try { peer.addStream(stream); } catch (e) { console.warn("Stream ekleme hatası:", e); }
+        try { peer.addStream(stream); } catch (e) { console.warn(e); }
       });
 
       stream.getVideoTracks()[0].onended = stopScreenShare;
       addToast('Ekran paylaşımı başlatıldı.', 'success');
+
     } catch (error) {
-      console.error('Ekran paylaşımı hatası:', error);
-      if (error.name !== 'NotAllowedError') addToast('Ekran paylaşımı başlatılamadı.', 'error');
+      console.error('Ekran paylaşımı genel hatası:', error);
+      if (error.name !== 'NotAllowedError') {
+          addToast('Ekran paylaşımı başlatılamadı.', 'error');
+      }
     }
   };
 

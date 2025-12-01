@@ -1,5 +1,5 @@
 // src/components/modals/MemberContextMenu.jsx
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useSocket } from '../../hooks/useSocket';
 import UserProfileModal from '../profile/UserProfileModal';
 import "../../styles/MemberContextMenu.css"
-import { AudioSettingsContext } from '../../context/AudioSettingsContext'; // YENİ IMPORT
+import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -23,50 +23,69 @@ const handleAvatarError = (e) => {
   }
 };
 
-// 💡 URL'Yİ MUTLAK YOLA ZORLAYAN HELPER
 const getDisplayAvatarUrl = (rawUrl) => {
     if (rawUrl.startsWith('/uploads')) {
         return `${API_URL_BASE}${rawUrl}`;
     }
     return rawUrl;
 };
-// ----------------------------------------
-
 
 const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const { activeServer, fetchServerDetails } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
-
   const [showProfile, setShowProfile] = useState(false);
-const { userVolumes, setUserVolume } = useContext(AudioSettingsContext);
+  const { userVolumes, setUserVolume } = useContext(AudioSettingsContext);
 
-  if (!member || !member.user) {
-    return null;
-  }
+  // 📢 YENİ: Konumlandırma için Ref ve State
+  const menuRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState({ top: y, left: x, opacity: 0 }); // İlk başta görünmez yap
+
+  // 📢 YENİ: Ekran taşmasını önleyen mantık
+  useLayoutEffect(() => {
+    if (menuRef.current) {
+        const { offsetWidth: width, offsetHeight: height } = menuRef.current;
+        let newTop = y;
+        let newLeft = x;
+
+        // Sağa taşıyor mu? (Menü genişliği ekranı geçiyor mu?)
+        if (x + width > window.innerWidth) {
+            newLeft = x - width; // Sola kaydır
+        }
+
+        // Aşağı taşıyor mu? (Menü yüksekliği ekranı geçiyor mu?)
+        if (y + height > window.innerHeight) {
+            newTop = y - height; // Yukarı kaydır
+        }
+
+        // Sola veya yukarı çok gittiyse sıfırla (Negatif olmasın)
+        if (newLeft < 0) newLeft = 10;
+        if (newTop < 0) newTop = 10;
+
+        setMenuStyle({ top: newTop, left: newLeft, opacity: 1 }); // Artık göster
+    }
+  }, [x, y]);
+
+  if (!member || !member.user) return null;
 
   const currentVolume = userVolumes[member.user._id] !== undefined ? userVolumes[member.user._id] : 100;
-const isSelf = user?.id === member.user._id;
-
-  // 💡 AVATAR URL'SİNİ HAZIRLA
+  const isSelf = user?.id === member.user._id;
   const rawAvatarSrc = getAvatarUrl(member);
   const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
-  // -------------------------
 
-  // --- İZİN KONTROLLERİ ---
+  // İzinler
   const userId = user?.id || user?._id;
   const canKick = checkUserPermission(activeServer, userId, 'KICK_MEMBERS');
   const canMute = checkUserPermission(activeServer, userId, 'MUTE_MEMBERS');
   const canDeafen = checkUserPermission(activeServer, userId, 'DEAFEN_MEMBERS');
   const canBan = checkUserPermission(activeServer, userId, 'BAN_MEMBERS');
-  // ------------------------
 
   const MEMBER_API_URL = `${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}`;
 
   const handleKick = async () => {
     if (!window.confirm(`${member.user.username} adlı üyeyi atmak istediğinizden emin misiniz?`)) return;
     try {
-      await axios.delete(MEMBER_API_URL); // Kick için DELETE
+      await axios.delete(MEMBER_API_URL);
       alert('Üye atıldı.');
       fetchServerDetails(serverId);
       onClose();
@@ -75,51 +94,34 @@ const isSelf = user?.id === member.user._id;
     }
   };
 
-  // --- BAN FONKSİYONU ---
   const handleBan = async () => {
     const reason = prompt(`${member.user.username} adlı üyeyi yasaklama nedeniniz:`);
-    if (reason === null) return; // İptale basıldı
-
+    if (reason === null) return;
     try {
-      await axios.post(`${MEMBER_API_URL}/ban`, { reason }); // Ban için POST
+      await axios.post(`${MEMBER_API_URL}/ban`, { reason });
       alert('Üye kalıcı olarak yasaklandı.');
-
-      // Socket ile anlık güncelleme (isteğe bağlı)
       socket.emit('memberBanned', { serverId, memberId: member._id });
-
-      fetchServerDetails(serverId); // Listeyi yenile
+      fetchServerDetails(serverId);
       onClose();
     } catch (error) {
       alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
   };
-  // -----------------------
 
-  // --- Mute ve Deafen ---
   const handleStatusUpdate = async (type) => {
     let newState;
     let payload;
-
     if (type === 'mute') {
       newState = !member.isMuted;
       payload = { isMuted: newState };
     } else if (type === 'deafen') {
       newState = !member.isDeafened;
       payload = { isDeafened: newState };
-    } else {
-      return;
-    }
+    } else { return; }
 
     try {
       const res = await axios.put(`${MEMBER_API_URL}/status`, payload);
-
-      // Socket ile güncelleme
-      socket.emit('memberUpdated', {
-        serverId,
-        memberId: member._id,
-        ...payload,
-      });
-
+      socket.emit('memberUpdated', { serverId, memberId: member._id, ...payload });
       alert(res.data.message);
       fetchServerDetails(serverId);
       onClose();
@@ -127,21 +129,22 @@ const isSelf = user?.id === member.user._id;
       alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
   };
-  // -----------------------
+
+  const displayRoles = member.roles?.filter(r => r.name !== '@everyone') || [];
 
   return (
     <>
       <div className="member-menu-overlay" onClick={onClose}>
         <div
+          ref={menuRef} // 📢 REF EKLENDİ
           className="member-menu-panel"
-          style={{ top: y, left: x }}
+          style={{ top: menuStyle.top, left: menuStyle.left, opacity: menuStyle.opacity }} // 📢 DİNAMİK STİL
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 💡 HEADER DÜZENLEMESİ: Avatarı göster */}
           <div className="member-menu-header">
             <div className="member-menu-avatar">
               <img
-                src={displayAvatarSrc} // 💡 Mutlak URL kullanıldı
+                src={displayAvatarSrc}
                 alt={`${member.user?.username || 'Üye'} avatarı`}
                 onError={handleAvatarError}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
@@ -150,32 +153,45 @@ const isSelf = user?.id === member.user._id;
             <div className="member-menu-info">
               <div
                 className="member-menu-name clickable"
-                onClick={() => {
-                  setShowProfile(true); // Profil modali aç
-                }}
+                onClick={() => setShowProfile(true)}
               >
                 {member.user?.username}
               </div>
               <div className="member-menu-sub">
-                {member.isMuted && 'Susturulmuş · '}
-                {member.isDeafened && 'Sağırlaştırılmış · '}
-                {activeServer?.owner?._id === member.user._id && 'Sunucu Sahibi'}
+                {activeServer?.owner?._id === member.user._id && <span style={{color:'#faa61a'}}>👑 Sunucu Sahibi</span>}
               </div>
+
+              {displayRoles.length > 0 ? (
+                  <div className="member-menu-roles">
+                      {displayRoles.map(role => (
+                          <span
+                            key={role._id}
+                            className="menu-role-badge"
+                            style={{
+                                color: role.color || '#b9bbbe',
+                                borderColor: role.color || '#4f545c'
+                            }}
+                          >
+                              {role.name}
+                          </span>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="member-menu-roles">
+                      <span className="menu-role-badge no-role">Rol Yok</span>
+                  </div>
+              )}
             </div>
           </div>
-          {/* ------------------------------------- */}
 
           <div className="member-menu-actions">
-            {/* 📢 YENİ: KULLANICI SES AYARI SLIDER'I */}
             {!isSelf && (
                 <div className="volume-control-group">
-                    <label className="volume-label">
-                        Kullanıcı Sesi: %{currentVolume}
-                    </label>
+                    <label className="volume-label">Ses Seviyesi: %{currentVolume}</label>
                     <input
                         type="range"
                         min="0"
-                        max="200" // %200'e kadar artırma imkanı
+                        max="200"
                         value={currentVolume}
                         onChange={(e) => setUserVolume(member.user._id, parseInt(e.target.value))}
                         className="volume-slider"
@@ -183,47 +199,26 @@ const isSelf = user?.id === member.user._id;
                 </div>
             )}
 
-            {/* Ayraç */}
             {!isSelf && <hr className="menu-divider" />}
 
             {canMute && (
-              <button
-                className="member-menu-btn"
-                onClick={() => handleStatusUpdate('mute')}
-              >
+              <button className="member-menu-btn" onClick={() => handleStatusUpdate('mute')}>
                 {member.isMuted ? 'Susturmayı Kaldır' : 'Sustur'}
               </button>
             )}
 
             {canDeafen && (
-              <button
-                className="member-menu-btn"
-                onClick={() => handleStatusUpdate('deafen')}
-              >
+              <button className="member-menu-btn" onClick={() => handleStatusUpdate('deafen')}>
                 {member.isDeafened ? 'Sağırlaştırmayı Kaldır' : 'Sağırlaştır'}
               </button>
             )}
 
             {canKick && (
-              <button
-                className="member-menu-btn danger"
-                onClick={handleKick}
-              >
-                Kullanıcıyı At
-              </button>
+              <button className="member-menu-btn danger" onClick={handleKick}>Kullanıcıyı At</button>
             )}
 
             {canBan && (
-              <button
-                className="member-menu-btn danger"
-                onClick={handleBan}
-              >
-                Kullanıcıyı Yasakla
-              </button>
-            )}
-
-            {!canKick && !canMute && !canDeafen && !canBan && (
-              <p className="member-menu-empty">Yetkiniz yok</p>
+              <button className="member-menu-btn danger" onClick={handleBan}>Kullanıcıyı Yasakla</button>
             )}
           </div>
         </div>
@@ -233,11 +228,7 @@ const isSelf = user?.id === member.user._id;
         <UserProfileModal
           userId={member.user._id}
           initialName={member.user.username}
-          onClose={() => {
-             // Modalı kapatmadan önce menüyü de kapat
-             onClose();
-             setShowProfile(false);
-          }}
+          onClose={() => { onClose(); setShowProfile(false); }}
         />
       )}
     </>
