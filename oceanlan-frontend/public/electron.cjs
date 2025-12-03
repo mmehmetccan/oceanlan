@@ -1,123 +1,157 @@
 // public/electron.cjs
-
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, session } = require('electron');
 const path = require('path');
-const isDev = require('electron-is-dev');
+const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
-const log = require('electron-log');
 
 // Loglama ayarları
-autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.logger = require("electron-log");
+autoUpdater.logger.transports.file.level = "info";
 
-let mainWindow;
-let splashWindow; // Splash penceresi değişkeni
+// Otomatik indirsin mi? Evet.
+autoUpdater.autoDownload = true;
 
-function createSplashWindow() {
-  splashWindow = new BrowserWindow({
-    width: 300,
-    height: 350,
-    transparent: true, // Arka plan şeffaf olabilir (köşeler oval görünür)
-    frame: false,      // Pencere çerçevesi (kapatma tuşu vs) olmasın
-    alwaysOnTop: true,
-    resizable: false,
+// 👇 BU FONKSİYON ARTIK DIŞARIDA (Global Scope)
+// Böylece her yerden erişilebilir.
+function sendStatusToWindow(type, text) {
+  BrowserWindow.getAllWindows().forEach(win => {
+    win.webContents.send('update-message', { type, text });
+  });
+}
+
+function createWindow() {
+  const isDev = !app.isPackaged;
+
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 720,
+    icon: path.join(__dirname, 'ms-icon-310x310.png'),
+    frame: false,
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+        color: '#202225',
+        symbolColor: '#ffffff',
+        height: 30
+    },
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
-      contextIsolation: false // Basit splash için güvenliği biraz esnetiyoruz
+      contextIsolation: true,
+    },
+  });
+
+  win.setMenuBarVisibility(false);
+
+  // Pencere Kontrolleri
+  ipcMain.on('window-minimize', () => win.minimize());
+  ipcMain.on('window-maximize', () => {
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on('window-close', () => win.close());
+
+  // Ekran Paylaşımı Kaynakları
+  ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['window', 'screen'],
+        thumbnailSize: { width: 300, height: 300 },
+        fetchWindowIcons: true
+      });
+
+      return sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL()
+      }));
+    } catch (error) {
+      console.error("Kaynaklar alınamadı:", error);
+      return [];
     }
   });
 
-  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+  if (isDev) {
+    const devUrl = 'http://localhost:5173/';
+    console.log('[DEV] loading:', devUrl);
+    win.loadURL(devUrl);
+  } else {
+    const appPath = app.getAppPath();
+    const indexPath = path.join(appPath, 'dist', 'index.html');
+    console.log('[PROD] indexPath:', indexPath);
+    win.loadFile(indexPath);
+  }
 
-  // Splash kapanınca değişkeni temizle
-  splashWindow.on('closed', () => (splashWindow = null));
-}
-
-function createMainWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    show: false, // 👈 ÖNEMLİ: İlk başta GİZLİ oluşturuyoruz
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-    autoHideMenuBar: true,
+  // İzin Yönetimi
+  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'display-capture', 'notifications', 'audio-capture', 'video-capture'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
   });
 
-  const startUrl = isDev
-    ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, '../dist/index.html')}`;
+  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    // Custom modal kullandığımız için burayı boş bırakıyoruz veya varsayılanı eziyoruz.
+  });
 
-  mainWindow.loadURL(startUrl);
+  win.webContents.on('did-fail-load', (e, code, desc, url) => {
+    console.error('[did-fail-load]', code, desc, url);
+  });
 
-  // Ana pencere hazır olduğunda değil, Splash işini bitirince göstereceğiz.
+  // 👇 PENCERE YÜKLENİNCE GÜNCELLEME KONTROLÜ BAŞLASIN
+  win.webContents.on('did-finish-load', () => {
+    if (app.isPackaged) {
+       autoUpdater.checkForUpdatesAndNotify();
+    }
+  });
 }
 
-app.whenReady().then(() => {
-  createSplashWindow(); // Önce Splash'i aç
-  createMainWindow();   // Ana pencereyi arkada hazırla (ama gösterme)
+// --- GÜNCELLEME OLAYLARI (Burada sendStatusToWindow kullanabiliriz) ---
 
-  if (!isDev) {
-    // Dev modunda değilsek güncellemeleri kontrol et
-    autoUpdater.checkForUpdates();
-  } else {
-    // Dev modundaysak 2 saniye bekleyip ana ekrana geç (Simülasyon)
-    setTimeout(() => {
-      splashWindow.close();
-      mainWindow.show();
-    }, 2000);
-  }
-});
-
-// --- UPDATER OLAYLARI ---
-
-// 1. Güncelleme var mı diye kontrol ediliyor
 autoUpdater.on('checking-for-update', () => {
-  if (splashWindow) splashWindow.webContents.send('message', 'Güncellemeler kontrol ediliyor...');
+  console.log('Güncellemeler kontrol ediliyor...');
+  // İsterseniz bunu da açabilirsiniz:
+  // sendStatusToWindow('info', 'Güncellemeler kontrol ediliyor...');
 });
 
-// 2. Güncelleme bulundu, indiriliyor
-autoUpdater.on('update-available', () => {
-  if (splashWindow) splashWindow.webContents.send('message', 'Güncelleme bulundu, indiriliyor...');
+autoUpdater.on('update-available', (info) => {
+  sendStatusToWindow('info', 'Yeni güncelleme bulundu, arka planda indiriliyor...');
 });
 
-// 3. Güncelleme YOKSA -> Splash kapa, Ana pencereyi aç
-autoUpdater.on('update-not-available', () => {
-  if (splashWindow) {
-    splashWindow.close();
-  }
-  if (mainWindow) {
-    mainWindow.show(); // Ana pencereyi göster
-  }
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Güncel sürüm kullanılıyor.');
 });
 
-// 4. Hata olursa -> Yine de uygulamayı aç (Kullanıcı mağdur olmasın)
 autoUpdater.on('error', (err) => {
-  log.error(err);
-  if (splashWindow) {
-    splashWindow.close();
-  }
-  if (mainWindow) {
-    mainWindow.show();
-  }
+  sendStatusToWindow('error', 'Güncelleme hatası: ' + (err.message || err));
 });
 
-// 5. İndirme ilerlemesi (İstersen yüzde yazdırabilirsin)
 autoUpdater.on('download-progress', (progressObj) => {
-  if (splashWindow) {
-    const log_message = `İndiriliyor... %${Math.round(progressObj.percent)}`;
-    splashWindow.webContents.send('message', log_message);
-  }
+  // İndirme yüzdesini loglayabiliriz
+  // const log_message = "İndirme hızı: " + progressObj.bytesPerSecond;
+  // console.log(log_message);
 });
 
-// 6. İndirme bitti -> Kur ve Yeniden Başlat
-autoUpdater.on('update-downloaded', () => {
-  if (splashWindow) splashWindow.webContents.send('message', 'Kuruluyor...');
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Güncelleme indirildi, yükleniyor...');
 
-  // Sessizce kur ve yeniden başlat (önceki cevaptaki ayar)
+  // KULLANICIYA SORMADAN DİREKT GÜNCELLEMEK İÇİN:
+  // quitAndInstall(isSilent, isForceRunAfter)
+  // isSilent: true -> Yükleyici arayüzünü gösterme
+  // isForceRunAfter: true -> Yükleme bitince uygulamayı hemen aç
   autoUpdater.quitAndInstall(true, true);
+});
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
 });
 
 app.on('window-all-closed', () => {

@@ -3,7 +3,7 @@
   "homepage": "./",
   "name": "oceanlan",
   "private": true,
-  "version": "1.1.5",
+  "version": "1.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -72,10 +72,9 @@
       "artifactName": "OceanLan-Setup-${version}.exe"
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
-      "createDesktopShortcut": true,
-      "runAfterFinish": true
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
     }
   }
 }
