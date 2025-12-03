@@ -1,5 +1,5 @@
 // src/pages/LoginPage.jsx
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext,useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline'; // İkonlar
@@ -12,9 +12,35 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
-const isApp = isElectron();
+
+
+  const isApp = isElectron();
+
+
+  useEffect(() => {
+    // Eğer uygulama içindeysek versiyon kontrolüne gerek yok, boşuna internet harcamayalım
+    if (!isApp) {
+      // version.json dosyasını sitenden okuyoruz
+      fetch('https://oceanlan.com/version.json')
+        .then(response => response.json())
+        .then(data => {
+          // Gelen versiyon numarasıyla linki oluşturuyoruz
+          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+          setDownloadUrl(newLink);
+          console.log("Güncel sürüm linki ayarlandı:", newLink);
+        })
+        .catch(err => {
+          console.error("Versiyon bilgisi alınamadı, varsayılan link kullanılıyor.", err);
+        });
+    }
+  }, [isApp]);
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -86,7 +112,7 @@ const isApp = isElectron();
                     Daha iyi bir deneyim için:
                 </p>
                 <a
-                  href="https://oceanlan.com/uploads/installer/setup.exe" // 👈 İndirme Linki (Bunu aşağıda anlatacağım)
+                    href={downloadUrl}
                     rel="noopener noreferrer"
                     className="auth-button"
                     target="_blank"

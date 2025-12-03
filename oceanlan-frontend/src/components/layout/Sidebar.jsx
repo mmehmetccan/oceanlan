@@ -1,5 +1,5 @@
 // src/components/layout/Sidebar.jsx
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState ,useEffect} from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import JoinServerModal from '../modals/JoinServerModal';
@@ -19,7 +19,24 @@ const Sidebar = ({ unreadCount }) => {
   const handleCreateServer = async () => { setIsCreateOpen(true); };
   const handleJoinServer = () => { setIsModalOpen(true); };
   const handleServerClick = (serverId) => { navigate(`/dashboard/server/${serverId}`); };
+
+  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
   const isApp = isElectron();
+
+  useEffect(() => {
+    if (!isApp) {
+      fetch('https://oceanlan.com/version.json')
+        .then(response => response.json())
+        .then(data => {
+          // package.json build ayarına uygun link yapısı:
+          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+          setDownloadUrl(newLink);
+        })
+        .catch(err => {
+          console.error("Sidebar versiyon kontrolü başarısız:", err);
+        });
+    }
+  }, [isApp]);
 
   return (
     <div className="server-topbar">
@@ -103,9 +120,12 @@ const Sidebar = ({ unreadCount }) => {
         <div className="server-topbar-spacer" />
 
         {!isApp && (
-            <a href="https://oceanlan.com/download/setup.exe"
+            <a href={downloadUrl}
                className="sidebar-icon settings-icon"
-               title="İndir" style={{backgroundColor: '#23a559', color: 'white'}} target="_blank" rel="noopener noreferrer">
+               title={`Masaüstü Uygulamasını İndir`}
+               style={{backgroundColor: '#23a559', color: 'white'}}
+               target="_blank"
+               rel="noopener noreferrer">
               <ArrowDownTrayIcon style={{width: '24px', height: '24px'}} />
             </a>
         )}
