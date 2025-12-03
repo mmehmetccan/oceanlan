@@ -19,6 +19,9 @@ export const VoiceProvider = ({ children }) => {
   const [isScreenPickerOpen, setScreenPickerOpen] = useState(false);
   const [screenShareCallback, setScreenShareCallback] = useState(null);
 
+  const [speakingUsers, setSpeakingUsers] = useState({});
+
+
   const { socket } = useSocket();
 
   useEffect(() => {
@@ -94,6 +97,8 @@ export const VoiceProvider = ({ children }) => {
         removeIncomingStream,
         isLocalSpeaking,
         setIsLocalSpeaking,
+         speakingUsers,
+        setSpeakingUsers,
 
         isScreenPickerOpen,
         setScreenPickerOpen,

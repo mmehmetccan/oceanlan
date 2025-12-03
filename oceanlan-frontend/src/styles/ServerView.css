@@ -1,5 +1,12 @@
 /* src/styles/ServerView.css */
 
+
+.voice-user-avatar.speaking {
+    box-shadow: 0 0 0 2px #3ba55d, 0 0 10px rgba(59, 165, 93, 0.6);
+    border-color: #3ba55d;
+    transform: scale(1.05);
+    transition: all 0.1s ease;
+}
 /* ===========================
    HEADER
 =========================== */

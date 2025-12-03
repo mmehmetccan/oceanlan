@@ -14,7 +14,6 @@ import '../../styles/ServerView.css';
 const DEFAULT_AVATAR = '/default-avatar.png';
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-
 const getBaseUrl = () => {
   const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   return url.replace(/\/api\/v1\/?$/, '');
@@ -34,11 +33,13 @@ const ServerView = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { activeServer, loading, fetchServerDetails, setActiveChannel } = useContext(ServerContext);
+  const { activeServer, loading, fetchServerDetails, setActiveChannel } =
+    useContext(ServerContext);
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
   const { addToast } = useContext(ToastContext);
-  const { joinVoiceChannel, currentVoiceChannelId } = useContext(VoiceContext);
+  const { joinVoiceChannel, currentVoiceChannelId, speakingUsers } =
+    useContext(VoiceContext);
 
   useServerSocket(serverId);
 
@@ -46,25 +47,27 @@ const ServerView = () => {
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedUser, setDraggedUser] = useState(null);
 
-  const canMoveMembers = activeServer && (
-      checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
-      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR')
-  );
+  const canMoveMembers =
+    activeServer &&
+    (checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
+      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR'));
 
-  // 📢 GÜNCELLENDİ: İsimleri de gönderiyoruz
+  // 📢 Ses kanalına katılırken sunucu ve kanal adını da gönderiyoruz
   const handleJoinVoiceChannel = (channel) => {
     if (!activeServer || !channel) return;
     joinVoiceChannel(
-        { _id: activeServer._id, name: activeServer.name },
-        { _id: channel._id, name: channel.name }
+      { _id: activeServer._id, name: activeServer.name },
+      { _id: channel._id, name: channel.name }
     );
   };
 
+  // Sunucu detayları ve default text kanalı yönlendirmesi
   useEffect(() => {
     if (!activeServer || activeServer._id !== serverId) {
       fetchServerDetails(serverId);
       return;
     }
+
     if (
       activeServer &&
       activeServer._id === serverId &&
@@ -73,14 +76,28 @@ const ServerView = () => {
       !location.pathname.includes('/settings') &&
       !currentVoiceChannelId
     ) {
-      const defaultChannel = activeServer.channels.find((c) => c.type === 'text') || activeServer.channels[0];
+      const defaultChannel =
+        activeServer.channels.find((c) => c.type === 'text') ||
+        activeServer.channels[0];
       if (defaultChannel) {
-        navigate(`/dashboard/server/${serverId}/channel/${defaultChannel._id}`, { replace: true });
+        navigate(
+          `/dashboard/server/${serverId}/channel/${defaultChannel._id}`,
+          { replace: true }
+        );
         setActiveChannel(defaultChannel);
       }
     }
-  }, [serverId, activeServer, navigate, location.pathname, fetchServerDetails, currentVoiceChannelId, setActiveChannel]);
+  }, [
+    serverId,
+    activeServer,
+    navigate,
+    location.pathname,
+    fetchServerDetails,
+    currentVoiceChannelId,
+    setActiveChannel,
+  ]);
 
+  // Ses durumu (voiceState) ve diğer socket eventleri
   useEffect(() => {
     if (!socket || !serverId) return;
 
@@ -88,7 +105,10 @@ const ServerView = () => {
       setVoiceState({ ...(newServerVoiceState || {}) });
     };
 
-    const handleVoiceMoved = ({ newChannelId }) => { console.log("Taşındım ->", newChannelId); };
+    const handleVoiceMoved = ({ newChannelId }) => {
+      console.log('Taşındım ->', newChannelId);
+    };
+
     const handleMemberUpdate = () => fetchServerDetails(serverId);
     const refetchServer = () => fetchServerDetails(serverId);
     const handleJoinVoiceError = (error) => addToast(error.message, 'error');
@@ -129,14 +149,30 @@ const ServerView = () => {
     setDraggedUser({ fromChannelId, userId });
     e.dataTransfer.effectAllowed = 'move';
   };
+
   const handleVoiceUserDragEnd = () => setDraggedUser(null);
+
   const handleVoiceChannelDragOver = (e, channel) => {
-    if (!draggedUser || !canMoveMembers || channel.type !== 'voice' || draggedUser.fromChannelId === channel._id) return;
-    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    if (
+      !draggedUser ||
+      !canMoveMembers ||
+      channel.type !== 'voice' ||
+      draggedUser.fromChannelId === channel._id
+    )
+      return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
+
   const handleVoiceChannelDrop = (e, channel) => {
     e.preventDefault();
-    if (!draggedUser || !canMoveMembers || channel.type !== 'voice' || draggedUser.fromChannelId === channel._id) return;
+    if (
+      !draggedUser ||
+      !canMoveMembers ||
+      channel.type !== 'voice' ||
+      draggedUser.fromChannelId === channel._id
+    )
+      return;
     socket.emit('move-voice-user', {
       serverId,
       fromChannelId: draggedUser.fromChannelId,
@@ -151,131 +187,237 @@ const ServerView = () => {
   }
 
   const serverMemberCount = activeServer?.members?.length ?? 0;
-  const textChannels = activeServer.channels.filter(c => c.type === 'text');
-  const voiceChannels = activeServer.channels.filter(c => c.type === 'voice');
+  const textChannels = activeServer.channels.filter((c) => c.type === 'text');
+  const voiceChannels = activeServer.channels.filter((c) => c.type === 'voice');
 
   const serverIconUrl = activeServer?.iconUrl
-      ? (activeServer.iconUrl.startsWith('http') ? activeServer.iconUrl : `${BASE_URL}${activeServer.iconUrl}`)
-      : null;
+    ? activeServer.iconUrl.startsWith('http')
+      ? activeServer.iconUrl
+      : `${BASE_URL}${activeServer.iconUrl}`
+    : null;
 
   const serverInitial = activeServer?.name?.charAt(0)?.toUpperCase() || '#';
 
   return (
-      <div className="server-view" onClick={() => setContextMenu(null)}>
-        <header className="server-view-header">
-          <div className="server-title-block">
-            <div className="server-avatar-chip"
-                 style={{overflow: 'hidden', padding: 0, background: serverIconUrl ? 'transparent' : ''}}>
-              {serverIconUrl ? (
-                  <img
-                      src={serverIconUrl}
-                      alt={activeServer.name}
-                      style={{width: '100%', height: '100%', objectFit: 'cover'}}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentNode.innerText = serverInitial; // Fallback
-                      }}
-                  />
-              ) : (
-                  serverInitial
-              )}
-            </div>
-            <div className="server-title-text">
-              <h2 className="server-name">{activeServer.name}</h2>
-              <span className="server-subtitle">{serverMemberCount} Üye</span>
-            </div>
+    <div className="server-view" onClick={() => setContextMenu(null)}>
+      <header className="server-view-header">
+        <div className="server-title-block">
+          <div
+            className="server-avatar-chip"
+            style={{
+              overflow: 'hidden',
+              padding: 0,
+              background: serverIconUrl ? 'transparent' : '',
+            }}
+          >
+            {serverIconUrl ? (
+              <img
+                src={serverIconUrl}
+                alt={activeServer.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerText = serverInitial; // Fallback
+                }}
+              />
+            ) : (
+              serverInitial
+            )}
           </div>
-        </header>
-
-        {checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') && (
-            <div className="server-view-toolbar">
-              <Link to={`/dashboard/server/${serverId}/settings`} className="server-settings-button">
-                ⚙ Sunucu Ayarları
-              </Link>
-            </div>
-        )}
-
-        <div className="channels-list">
-          <div className="channel-group text-channels-group">
-            <h3># Metin Kanalları</h3>
-            {textChannels.map((channel) => {
-              const isActive = location.pathname.includes(`/channel/${channel._id}`);
-              return (
-                  <Link key={channel._id} to={`/dashboard/server/${serverId}/channel/${channel._id}`}
-                        className={`channel-item text-channel ${isActive ? 'active' : ''}`}
-                        onClick={() => setActiveChannel(channel)}>
-                    <div className="channel-main"><span className="channel-icon">#</span><span className="channel-name">{channel.name}</span></div>
-                  </Link>
-               );
-            })}
-          </div>
-
-          <div className="channel-group voice-channels-group">
-            <h3>🎤 Ses Kanalları</h3>
-            {voiceChannels.map((channel) => {
-               const isActiveVoice = currentVoiceChannelId === channel._id;
-               const isDropTarget = draggedUser && canMoveMembers && draggedUser.fromChannelId !== channel._id;
-               const usersInThisChannel = voiceState[channel._id] || [];
-
-               return (
-                   <div key={channel._id} className="channel-group-item">
-                     <button
-                        className={`channel-item voice-channel ${isActiveVoice ? 'active' : ''} ${isDropTarget ? 'drop-target' : ''}`}
-                        onClick={() => handleJoinVoiceChannel(channel)} // 👈 Nesneyi gönderiyoruz
-                        onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
-                        onDrop={(e) => handleVoiceChannelDrop(e, channel)}
-                     >
-                       <div className="channel-main"><span className="channel-icon">🎤</span><span className="channel-name">{channel.name}</span></div>
-                       <div className="channel-meta"><span className="channel-occupancy">{usersInThisChannel.length} / {channel.maxUsers || '∞'}</span></div>
-                     </button>
-
-                     {usersInThisChannel.length > 0 && (
-                       <div className="voice-channel-users">
-                         {usersInThisChannel.map((voiceUser) => {
-                           const member = activeServer.members.find(m => m.user && String(m.user._id) === String(voiceUser.userId));
-                           const displayName = member?.user?.username || voiceUser.username || 'Kullanıcı';
-                           const rawAvatar = member?.user?.avatarUrl || member?.user?.avatar || DEFAULT_AVATAR;
-                           const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
-                           const isMuted = member?.isMuted;
-                           const isDeafened = member?.isDeafened;
-                           const isSelf = String(voiceUser.userId) === String(user?.id);
-                           const statusClass = isDeafened ? 'status-deafened' : isMuted ? 'status-muted' : 'status-live';
-
-                           return (
-                             <div
-                               key={voiceUser.userId}
-                               className={`voice-user-item ${canMoveMembers ? 'draggable' : ''} ${isSelf ? 'voice-user-item-self' : ''}`}
-                               draggable={canMoveMembers}
-                               onDragStart={(e) => handleVoiceUserDragStart(e, channel._id, voiceUser.userId)}
-                               onDragEnd={handleVoiceUserDragEnd}
-                               onContextMenu={(e) => member && handleContextMenu(e, member)}
-                             >
-                               <div className={`voice-user-avatar ${statusClass}`}>
-                                 <img src={absoluteAvatarSrc} alt={displayName} onError={handleAvatarError} />
-                               </div>
-                               <div className="voice-user-details">
-                                 <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
-                                 <div className="voice-user-tags">
-                                    {isSelf && <span className="voice-user-tag">Sen</span>}
-                                    {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
-                                    {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
-                                 </div>
-                               </div>
-                             </div>
-                           );
-                         })}
-                       </div>
-                     )}
-                   </div>
-               );
-            })}
+          <div className="server-title-text">
+            <h2 className="server-name">{activeServer.name}</h2>
+            <span className="server-subtitle">{serverMemberCount} Üye</span>
           </div>
         </div>
+      </header>
 
-        {contextMenu && (
-          <MemberContextMenu member={contextMenu.member} x={contextMenu.x} y={contextMenu.y} serverId={serverId} onClose={() => setContextMenu(null)} />
-        )}
+      {checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') && (
+        <div className="server-view-toolbar">
+          <Link
+            to={`/dashboard/server/${serverId}/settings`}
+            className="server-settings-button"
+          >
+            ⚙ Sunucu Ayarları
+          </Link>
+        </div>
+      )}
+
+      <div className="channels-list">
+        {/* Metin Kanalları */}
+        <div className="channel-group text-channels-group">
+          <h3># Metin Kanalları</h3>
+          {textChannels.map((channel) => {
+            const isActive = location.pathname.includes(
+              `/channel/${channel._id}`
+            );
+            return (
+              <Link
+                key={channel._id}
+                to={`/dashboard/server/${serverId}/channel/${channel._id}`}
+                className={`channel-item text-channel ${
+                  isActive ? 'active' : ''
+                }`}
+                onClick={() => setActiveChannel(channel)}
+              >
+                <div className="channel-main">
+                  <span className="channel-icon">#</span>
+                  <span className="channel-name">{channel.name}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Ses Kanalları */}
+        <div className="channel-group voice-channels-group">
+          <h3>🎤 Ses Kanalları</h3>
+          {voiceChannels.map((channel) => {
+            const isActiveVoice = currentVoiceChannelId === channel._id;
+            const isDropTarget =
+              draggedUser &&
+              canMoveMembers &&
+              draggedUser.fromChannelId !== channel._id;
+            const usersInThisChannel = voiceState[channel._id] || [];
+
+            return (
+              <div key={channel._id} className="channel-group-item">
+                <button
+                  className={`channel-item voice-channel ${
+                    isActiveVoice ? 'active' : ''
+                  } ${isDropTarget ? 'drop-target' : ''}`}
+                  onClick={() => handleJoinVoiceChannel(channel)}
+                  onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
+                  onDrop={(e) => handleVoiceChannelDrop(e, channel)}
+                >
+                  <div className="channel-main">
+                    <span className="channel-icon">🎤</span>
+                    <span className="channel-name">{channel.name}</span>
+                  </div>
+                  <div className="channel-meta">
+                    <span className="channel-occupancy">
+                      {usersInThisChannel.length} / {channel.maxUsers || '∞'}
+                    </span>
+                  </div>
+                </button>
+
+                {usersInThisChannel.length > 0 && (
+                  <div className="voice-channel-users">
+                    {usersInThisChannel.map((voiceUser) => {
+                      const member = activeServer.members.find(
+                        (m) =>
+                          m.user &&
+                          String(m.user._id) === String(voiceUser.userId)
+                      );
+
+                      const displayName =
+                        member?.user?.username ||
+                        voiceUser.username ||
+                        'Kullanıcı';
+
+                      const rawAvatar =
+                        member?.user?.avatarUrl ||
+                        member?.user?.avatar ||
+                        DEFAULT_AVATAR;
+
+                      const absoluteAvatarSrc = rawAvatar.startsWith('/uploads')
+                        ? `${API_URL_BASE}${rawAvatar}`
+                        : rawAvatar;
+
+                      const isMuted = member?.isMuted;
+                      const isDeafened = member?.isDeafened;
+                      const isSelf =
+                        String(voiceUser.userId) === String(user?.id);
+
+                      const statusClass = isDeafened
+                        ? 'status-deafened'
+                        : isMuted
+                        ? 'status-muted'
+                        : 'status-live';
+
+                      // 🔥 Konuşan kullanıcı bilgisi (Discord style)
+                      const isSpeaking =
+                        speakingUsers?.[voiceUser.userId] ||
+                        speakingUsers?.[voiceUser.socketId];
+
+                      return (
+                        <div
+                          key={voiceUser.userId}
+                          className={`voice-user-item 
+                            ${canMoveMembers ? 'draggable' : ''} 
+                            ${isSelf ? 'voice-user-item-self' : ''} 
+                            ${isSpeaking ? 'is-speaking' : ''}`}
+                          draggable={canMoveMembers}
+                          onDragStart={(e) =>
+                            handleVoiceUserDragStart(
+                              e,
+                              channel._id,
+                              voiceUser.userId
+                            )
+                          }
+                          onDragEnd={handleVoiceUserDragEnd}
+                          onContextMenu={(e) =>
+                            member && handleContextMenu(e, member)
+                          }
+                        >
+                          <div
+                            className={`voice-user-avatar ${statusClass} ${
+                              isSpeaking ? 'speaking' : ''
+                            }`}
+                          >
+                            <img
+                              src={absoluteAvatarSrc}
+                              alt={displayName}
+                              onError={handleAvatarError}
+                            />
+                            {isSpeaking && (
+                              <span className="voice-speaking-ring" />
+                            )}
+                          </div>
+                          <div className="voice-user-details">
+                            <span
+                              className={`voice-user-name ${
+                                isMuted ? 'text-muted' : ''
+                              }`}
+                            >
+                              {displayName}
+                            </span>
+                            <div className="voice-user-tags">
+                              {isSelf && (
+                                <span className="voice-user-tag">Sen</span>
+                              )}
+                              {isMuted && (
+                                <span className="voice-user-tag voice-user-tag-muted">
+                                  Mute
+                                </span>
+                              )}
+                              {isDeafened && (
+                                <span className="voice-user-tag voice-user-tag-deafened">
+                                  Deaf
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {contextMenu && (
+        <MemberContextMenu
+          member={contextMenu.member}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          serverId={serverId}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </div>
   );
 };
 
