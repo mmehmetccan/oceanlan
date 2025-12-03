@@ -7,21 +7,25 @@ import { AuthContext } from '../context/AuthContext';
 import { AudioSettingsContext } from '../context/AudioSettingsContext';
 import { ToastContext } from '../context/ToastContext';
 
-// 🛠️ POLYFILL
+// 🛠️ POLYFILL: WebRTC ve simple-peer için gerekli
 if (typeof process === 'undefined') {
   window.process = {
     nextTick: (cb, ...args) => setTimeout(() => cb(...args), 0),
     env: {},
-    browser: true
+    browser: true,
   };
 } else if (!process.nextTick) {
   process.nextTick = (cb, ...args) => setTimeout(() => cb(...args), 0);
 }
 
+// 🌍 GENİŞLETİLMİŞ STUN SUNUCULARI (Bağlantı başarısını artırır)
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -39,8 +43,8 @@ export const useVoiceChannel = () => {
     removeIncomingStream,
     setScreenPickerOpen,
     setScreenShareCallback,
-    speakingUsers,     // 👈 Context'ten al
-    setSpeakingUsers   // 👈 Context'ten al
+    speakingUsers,
+    setSpeakingUsers,
   } = useContext(VoiceContext);
 
   const {
@@ -58,27 +62,27 @@ export const useVoiceChannel = () => {
   const screenStreamRef = useRef(null);
   const audioElementsRef = useRef({});
   const connectionTimeoutRef = useRef(null);
-  
-  // 📢 SES ANALİZİ İÇİN REF'LER
-  const speakingMapRef = useRef({}); // { userId: true/false }
-  const audioAnalyzersRef = useRef({}); // { userId: { audioCtx, analyser } }
+
+  // Konuşan kullanıcı takibi için
+  const speakingMapRef = useRef({});
+  const audioAnalyzersRef = useRef({});
   const localAudioContextRef = useRef(null);
 
   const [isPTTPressed, setIsPTTPressed] = useState(false);
 
-  // -------------------- 0. KONUŞMA DURUMUNU GÜNCELLE --------------------
-  const updateSpeakingState = useCallback((id, isSpeaking) => {
+  // -------------------- 0. KONUŞAN KULLANICI STATE YARDIMCI FONKSİYONU --------------------
+  const updateSpeakingState = useCallback(
+    (id, isSpeaking) => {
       if (!id) return;
-      
-      // Performans için sadece değişim varsa state güncelle
+
       if (speakingMapRef.current[id] === isSpeaking) return;
 
       speakingMapRef.current[id] = isSpeaking;
-      
-      // State'i güncelle (Yeni obje referansı ile)
+      // Yeni bir obje oluşturarak React state tetikleyelim
       setSpeakingUsers({ ...speakingMapRef.current });
-  }, [setSpeakingUsers]);
-
+    },
+    [setSpeakingUsers]
+  );
 
   // -------------------- 1. MİKROFON DURUMU --------------------
   const updateMicrophoneState = useCallback(() => {
@@ -99,14 +103,19 @@ export const useVoiceChannel = () => {
     updateMicrophoneState();
   }, [updateMicrophoneState]);
 
-  // -------------------- 2. BAS-KONUŞ --------------------
+  // -------------------- 2. BAS-KONUŞ (PTT) --------------------
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') {
       if (isPTTPressed) setIsPTTPressed(false);
       return;
     }
-    const handleKeyDown = (e) => { if (!e.repeat && e.code === pttKeyCode) setIsPTTPressed(true); };
-    const handleKeyUp = (e) => { if (e.code === pttKeyCode) setIsPTTPressed(false); };
+
+    const handleKeyDown = (e) => {
+      if (!e.repeat && e.code === pttKeyCode) setIsPTTPressed(true);
+    };
+    const handleKeyUp = (e) => {
+      if (e.code === pttKeyCode) setIsPTTPressed(false);
+    };
     const handleBlur = () => setIsPTTPressed(false);
 
     window.addEventListener('keydown', handleKeyDown);
@@ -117,16 +126,23 @@ export const useVoiceChannel = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [inputMode, pttKeyCode]);
+  }, [inputMode, pttKeyCode, isPTTPressed]);
 
   // -------------------- 3. HOPARLÖR & SAĞIRLAŞTIRMA --------------------
   useEffect(() => {
     Object.keys(audioElementsRef.current).forEach((socketId) => {
       const audioEl = audioElementsRef.current[socketId];
+      if (!audioEl) return;
+
+      // Çıkış Cihazı
       if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
         audioEl.setSinkId(outputDeviceId).catch(() => {});
       }
+
+      // Sağırlaştırma
       audioEl.muted = isDeafened;
+
+      // Ses Seviyesi
       const uid = audioEl._userId;
       if (!isDeafened && uid && userVolumes[uid] !== undefined) {
         let vol = userVolumes[uid] / 100;
@@ -137,236 +153,355 @@ export const useVoiceChannel = () => {
 
   // -------------------- 4. EKRAN PAYLAŞIMI --------------------
   const startScreenShare = async (electronSourceId = null) => {
+    // A. APP (Electron) Modal Kontrolü
     if (window.electronAPI && !electronSourceId) {
-        setScreenShareCallback(() => (sourceId) => startScreenShare(sourceId));
-        setScreenPickerOpen(true);
-        return;
+      setScreenShareCallback(() => (sourceId) => startScreenShare(sourceId));
+      setScreenPickerOpen(true);
+      return;
     }
+
+    // B. WEB HTTPS Kontrolü
     if (!window.electronAPI && location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        addToast('Ekran paylaşımı için HTTPS gereklidir.', 'error');
-        return;
+      addToast('Ekran paylaşımı için HTTPS gereklidir.', 'error');
+      return;
     }
+
     try {
       let stream;
       if (window.electronAPI && electronSourceId) {
-          stream = await navigator.mediaDevices.getUserMedia({
-              audio: false,
-              video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: electronSourceId } }
-          });
+        // ELECTRON
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: electronSourceId,
+              minWidth: 1280,
+              maxWidth: 1920,
+            },
+          },
+        });
       } else {
-          stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: true });
+        // WEB
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: true,
+        });
       }
+
       screenStreamRef.current = stream;
       setMyScreenStream(stream);
-      Object.values(peersRef.current).forEach(p => { try { p.addStream(stream); } catch(e){} });
-      stream.getVideoTracks()[0].onended = stopScreenShare;
+
+      // Mevcut bağlantılara akışı ekle
+      Object.values(peersRef.current).forEach((peer) => {
+        try {
+          peer.addStream(stream);
+        } catch (e) {
+          console.warn(e);
+        }
+      });
+
+      stream.getVideoTracks()[0].onended = () => stopScreenShare();
       addToast('Ekran paylaşımı başlatıldı.', 'success');
     } catch (error) {
       console.error('Ekran paylaşımı hatası:', error);
-      if (error.name !== 'NotAllowedError') addToast('Ekran paylaşımı başlatılamadı.', 'error');
+      if (error.name !== 'NotAllowedError') {
+        addToast(`Hata: ${error.message}`, 'error');
+      }
     }
   };
 
   const stopScreenShare = () => {
     if (screenStreamRef.current) {
-      Object.values(peersRef.current).forEach(p => { try { p.removeStream(screenStreamRef.current); } catch(e){} });
-      screenStreamRef.current.getTracks().forEach(t => t.stop());
+      Object.values(peersRef.current).forEach((peer) => {
+        try {
+          peer.removeStream(screenStreamRef.current);
+        } catch (err) {}
+      });
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
       screenStreamRef.current = null;
       setMyScreenStream(null);
       addToast('Ekran paylaşımı durduruldu.', 'info');
     }
   };
 
-  // -------------------- 5. REMOTE STREAM (SES/VIDEO + ANALİZ) --------------------
+  // -------------------- 5. REMOTE STREAM (GELEN SES/VİDEO + SPEAKING) --------------------
   const handleRemoteStream = (remoteStream, socketId, userId) => {
+    // Video
     if (remoteStream.getVideoTracks().length > 0) {
-        addIncomingStream(socketId, remoteStream);
-    } else if (remoteStream.getAudioTracks().length > 0) {
-        if (audioElementsRef.current[socketId]) {
-            audioElementsRef.current[socketId].srcObject = null;
-            audioElementsRef.current[socketId].remove();
-        }
-        const audioEl = document.createElement('audio');
-        audioEl.srcObject = remoteStream;
-        audioEl.autoplay = true;
-        audioEl.playsInline = true;
-        audioEl.controls = false;
-        audioEl._userId = userId;
-        audioEl.muted = isDeafened; 
-        if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
-            audioEl.setSinkId(outputDeviceId).catch(() => {});
-        }
-        document.body.appendChild(audioEl);
-        audioEl.play().catch(() => {});
-        audioElementsRef.current[socketId] = audioEl;
+      addIncomingStream(socketId, remoteStream);
+    }
+    // Ses
+    else if (remoteStream.getAudioTracks().length > 0) {
+      if (audioElementsRef.current[socketId]) {
+        audioElementsRef.current[socketId].srcObject = null;
+        audioElementsRef.current[socketId].remove();
+      }
 
-        // 📢 SES ANALİZİ (Remote)
-        const id = userId || socketId; 
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaStreamSource(remoteStream);
-            const analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 512;
-            source.connect(analyser);
-            
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            audioAnalyzersRef.current[id] = { audioCtx, analyser };
+      const audioEl = document.createElement('audio');
+      audioEl.srcObject = remoteStream;
+      audioEl.autoplay = true;
+      audioEl.playsInline = true; // Mobil için önemli
+      audioEl.controls = false;
+      audioEl._userId = userId;
+      audioEl.muted = isDeafened;
 
-            const checkLevel = () => {
-                if (!audioAnalyzersRef.current[id]) return;
-                
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                const avg = sum / dataArray.length;
-                const normalized = avg / 255;
+      if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
+        audioEl.setSinkId(outputDeviceId).catch(() => {});
+      }
 
-                // Konuşuyor mu? (Eşik değeri 0.1)
-                const isSpeaking = normalized > 0.05;
-                updateSpeakingState(id, isSpeaking);
-                
-                requestAnimationFrame(checkLevel);
-            };
-            checkLevel();
-        } catch (e) {
-            console.warn('Remote speaking analyser oluşturulamadı:', e);
-        }
+      document.body.appendChild(audioEl);
+
+      // Otomatik oynatma hatasını yakala (Kullanıcı etkileşimi gerekebilir)
+      audioEl.play().catch((e) =>
+        console.warn('Ses oynatma hatası (Otomatik Oynatma İzni Gerekebilir):', e)
+      );
+
+      audioElementsRef.current[socketId] = audioEl;
+
+      // --- REMOTE SPEAKING DETECTION ---
+      const id = userId || socketId;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(remoteStream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        audioAnalyzersRef.current[id] = { audioCtx, analyser };
+
+        const checkLevel = () => {
+          const entry = audioAnalyzersRef.current[id];
+          if (!entry) return;
+
+          entry.analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / dataArray.length;
+          const normalized = avg / 255; // 0–1 arası
+
+          const isSpeaking = normalized > 0.05; // Eşiği istersen değiştir
+          updateSpeakingState(id, isSpeaking);
+
+          requestAnimationFrame(checkLevel);
+        };
+        checkLevel();
+      } catch (e) {
+        console.warn('Remote speaking analyser oluşturulamadı:', e);
+      }
     }
   };
 
-  // -------------------- 6. ANA BAĞLANTI --------------------
+  // -------------------- 6. ANA BAĞLANTI MANTIĞI (SOCKET CONNECT BEKLEYEN) --------------------
   useEffect(() => {
     if (!currentVoiceChannelId || !currentServerId || !user) return;
-    if (!socket || !socket.connected) return; // Bağlantı bekleniyor
+    if (!socket) return;
 
     let isMounted = true;
-    
+    let started = false;
+
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
-    connectionTimeoutRef.current = setTimeout(() => {
+
+    const startVoiceConnection = async () => {
+      if (started || !isMounted) return;
+      started = true;
+
+      // Zaman aşımı kontrolü (20 saniye)
+      connectionTimeoutRef.current = setTimeout(() => {
         if (isMounted && !localStreamRef.current) {
-            addToast('Ses kanalına bağlanmak uzun sürüyor...', 'warning');
+          addToast('Ses kanalına bağlanmak uzun sürüyor, lütfen bekleyin...', 'warning');
         }
-    }, 12000);
+      }, 20000);
 
-    const initVoiceConnection = async () => {
+      try {
+        // Mikrofonu al
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: false,
+        });
+
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStreamRef.current = stream;
+        updateMicrophoneState();
+
+        // --- LOCAL SPEAKING DETECTION ---
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: { 
-                    deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-                    echoCancellation: true, noiseSuppression: true, autoGainControl: true
-                },
-                video: false
-            });
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 512;
+          source.connect(analyser);
 
-            if (!isMounted) {
-                stream.getTracks().forEach(t => t.stop());
-                return;
-            }
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          localAudioContextRef.current = audioCtx;
 
-            localStreamRef.current = stream;
-            updateMicrophoneState();
+          const checkLevel = () => {
+            if (!localAudioContextRef.current) return;
 
-            // 📢 SES ANALİZİ (Local)
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioCtx.createMediaStreamSource(stream);
-                const analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 512;
-                source.connect(analyser);
-                
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                localAudioContextRef.current = audioCtx;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const avg = sum / dataArray.length;
+            const normalized = avg / 255;
+            const isSpeaking = normalized > 0.05; // Eşik
 
-                const checkLevel = () => {
-                    if (!localAudioContextRef.current) return;
-                    
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    const avg = sum / dataArray.length;
-                    
-                    // Kendi sesimiz kapalıysa konuşmuyor say
-                    const isTalking = (avg / 255) > 0.05;
-                    // isMicMuted kontrolü updateMicrophoneState'de track'i disable ediyor, 
-                    // o yüzden stream'den ses gelmez zaten.
-                    
-                    updateSpeakingState(user.id, isTalking);
-                    requestAnimationFrame(checkLevel);
-                };
-                checkLevel();
-            } catch (e) { console.warn('Local analyser error:', e); }
-
-            // --- Socket Events ---
-            const onUserJoinedVoice = ({ socketId, userId }) => {
-                const p = new Peer({ initiator: true, stream, config: rtcConfig });
-                if(screenStreamRef.current) p.addStream(screenStreamRef.current);
-                p.on('signal', d => socket.emit('webrtc-offer', { targetSocketId: socketId, sdp: d }));
-                p.on('stream', s => handleRemoteStream(s, socketId, userId));
-                peersRef.current[socketId] = p;
-            };
-            const onWebrtcOffer = ({ socketId, sdp }) => {
-                const p = new Peer({ initiator: false, stream, config: rtcConfig });
-                if(screenStreamRef.current) p.addStream(screenStreamRef.current);
-                p.signal(sdp);
-                p.on('signal', d => socket.emit('webrtc-answer', { targetSocketId: socketId, sdp: d }));
-                p.on('stream', s => handleRemoteStream(s, socketId, null));
-                peersRef.current[socketId] = p;
-            };
-            const onWebrtcAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
-            const onWebrtcIceCandidate = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
-            const onUserLeftVoice = ({ socketId }) => {
-                if(peersRef.current[socketId]) { peersRef.current[socketId].destroy(); delete peersRef.current[socketId]; }
-                if(audioElementsRef.current[socketId]) { audioElementsRef.current[socketId].remove(); delete audioElementsRef.current[socketId]; }
-                
-                // Remote analiz temizliği
-                // socketId'ye karşılık gelen userId'yi bulmamız zor olabilir, 
-                // ama genellikle userId key olarak kullanılır.
-                // Burada basitlik için tüm analyzerları temizlemiyoruz, sadece kapananları.
-                // Ancak userId mapping'i elimizde olmadığı için state'ten temizlenmesi yeterli olabilir.
-                
-                removeIncomingStream(socketId);
-            };
-
-            socket.on('user-joined-voice', onUserJoinedVoice);
-            socket.on('webrtc-offer', onWebrtcOffer);
-            socket.on('webrtc-answer', onWebrtcAnswer);
-            socket.on('webrtc-ice-candidate', onWebrtcIceCandidate);
-            socket.on('user-left-voice', onUserLeftVoice);
-
-            socket.emit('join-voice-channel', { channelId: currentVoiceChannelId, serverId: currentServerId, userId: user.id, username: user.username });
-            if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
-
-        } catch (err) {
-            console.error('Ses bağlantı hatası:', err);
-            addToast('Mikrofon hatası!', 'error');
-            leaveVoiceChannel();
+            updateSpeakingState(user.id, isSpeaking);
+            requestAnimationFrame(checkLevel);
+          };
+          checkLevel();
+        } catch (e) {
+          console.warn('Local speaking analyser oluşturulamadı:', e);
         }
+
+        // --- Socket Olayları ---
+        const onUserJoinedVoice = ({ socketId, userId }) => {
+          const peer = new Peer({ initiator: true, stream, config: rtcConfig });
+          if (screenStreamRef.current) peer.addStream(screenStreamRef.current);
+
+          peer.on('signal', (data) =>
+            socket.emit('webrtc-offer', { targetSocketId: socketId, sdp: data })
+          );
+          peer.on('stream', (rs) => handleRemoteStream(rs, socketId, userId));
+          peersRef.current[socketId] = peer;
+        };
+
+        const onWebrtcOffer = ({ socketId, sdp }) => {
+          const peer = new Peer({ initiator: false, stream, config: rtcConfig });
+          if (screenStreamRef.current) peer.addStream(screenStreamRef.current);
+
+          peer.signal(sdp);
+          peer.on('signal', (data) =>
+            socket.emit('webrtc-answer', { targetSocketId: socketId, sdp: data })
+          );
+          peer.on('stream', (rs) => handleRemoteStream(rs, socketId, null));
+          peersRef.current[socketId] = peer;
+        };
+
+        const onWebrtcAnswer = ({ socketId, sdp }) => {
+          peersRef.current[socketId]?.signal(sdp);
+        };
+
+        const onWebrtcIceCandidate = ({ socketId, candidate }) => {
+          peersRef.current[socketId]?.signal(candidate);
+        };
+
+        const onUserLeftVoice = ({ socketId }) => {
+          if (peersRef.current[socketId]) {
+            peersRef.current[socketId].destroy();
+            delete peersRef.current[socketId];
+          }
+          if (audioElementsRef.current[socketId]) {
+            audioElementsRef.current[socketId].srcObject = null;
+            audioElementsRef.current[socketId].remove();
+            delete audioElementsRef.current[socketId];
+          }
+
+          // Analyzer ve speaking state temizle
+          const id = socketId; // veya userId
+          if (audioAnalyzersRef.current[id]) {
+            audioAnalyzersRef.current[id].audioCtx.close();
+            delete audioAnalyzersRef.current[id];
+          }
+          updateSpeakingState(id, false);
+
+          removeIncomingStream(socketId);
+        };
+
+        socket.on('user-joined-voice', onUserJoinedVoice);
+        socket.on('webrtc-offer', onWebrtcOffer);
+        socket.on('webrtc-answer', onWebrtcAnswer);
+        socket.on('webrtc-ice-candidate', onWebrtcIceCandidate);
+        socket.on('user-left-voice', onUserLeftVoice);
+
+        // Odaya Katıl
+        socket.emit('join-voice-channel', {
+          channelId: currentVoiceChannelId,
+          serverId: currentServerId,
+          userId: user.id,
+          username: user.username,
+        });
+
+        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+      } catch (err) {
+        console.error('Ses bağlantı hatası:', err);
+        let msg = 'Ses kanalına bağlanılamadı.';
+        if (err.name === 'NotAllowedError') msg = 'Mikrofon izni verilmedi.';
+        else if (err.name === 'NotFoundError') msg = 'Mikrofon bulunamadı.';
+        else if (err.name === 'NotReadableError')
+          msg = 'Mikrofon başka uygulama tarafından kullanılıyor.';
+
+        addToast(msg, 'error');
+          setMicError(err.message);
+        leaveVoiceChannel();
+      }
     };
 
-    initVoiceConnection();
+    // Bağlantıyı başlat (Eğer socket bağlıysa hemen, değilse 'connect' olunca)
+    if (socket.connected) {
+      startVoiceConnection();
+    } else {
+      socket.once('connect', startVoiceConnection);
+    }
 
     // --- CLEANUP ---
     return () => {
-        isMounted = false;
-        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+      isMounted = false;
+      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
 
-        if (socket) {
-            socket.emit('leave-voice-channel');
-            socket.off('user-joined-voice'); socket.off('webrtc-offer'); socket.off('webrtc-answer'); socket.off('webrtc-ice-candidate'); socket.off('user-left-voice');
-        }
-        if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
-        if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; setMyScreenStream(null); }
-        
-        // Ses analiz temizliği
-        if (localAudioContextRef.current) { localAudioContextRef.current.close(); localAudioContextRef.current = null; }
-        Object.keys(audioAnalyzersRef.current).forEach(id => { try { audioAnalyzersRef.current[id].audioCtx.close(); } catch(e){} });
-        audioAnalyzersRef.current = {};
-        setSpeakingUsers({});
-        
-        Object.values(peersRef.current).forEach(p => p.destroy()); peersRef.current = {};
-        Object.values(audioElementsRef.current).forEach(e => e.remove()); audioElementsRef.current = {};
+      if (socket) {
+        socket.off('connect', startVoiceConnection);
+        socket.emit('leave-voice-channel');
+        socket.off('user-joined-voice');
+        socket.off('webrtc-offer');
+        socket.off('webrtc-answer');
+        socket.off('webrtc-ice-candidate');
+        socket.off('user-left-voice');
+      }
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+        setMyScreenStream(null);
+      }
+
+      if (localAudioContextRef.current) {
+        localAudioContextRef.current.close();
+        localAudioContextRef.current = null;
+      }
+
+      Object.values(peersRef.current).forEach((p) => p.destroy());
+      peersRef.current = {};
+
+      Object.values(audioElementsRef.current).forEach((el) => {
+        el.srcObject = null;
+        el.remove();
+      });
+      audioElementsRef.current = {};
+
+      Object.keys(audioAnalyzersRef.current).forEach((id) => {
+        try { audioAnalyzersRef.current[id].audioCtx.close(); } catch(e){}
+      });
+      audioAnalyzersRef.current = {};
+
+      // Konuşan kullanıcı map'ini sıfırla
+      speakingMapRef.current = {};
+      setSpeakingUsers({});
     };
-  }, [currentVoiceChannelId, currentServerId, socket, socket?.connected, user, inputDeviceId]);
+  }, [currentVoiceChannelId, currentServerId, socket, user, inputDeviceId, updateMicrophoneState, addToast, leaveVoiceChannel, setMyScreenStream, updateSpeakingState]); // Bağımlılıklar güncellendi
 
   return { startScreenShare, stopScreenShare };
 };

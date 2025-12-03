@@ -17,7 +17,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 720,
-    icon: path.join(__dirname, 'favicon.ico'),
+    icon: path.join(__dirname, 'ms-icon-310x310.png'),
     frame: false, // 👈 1. Çerçeveyi tamamen kaldırıyoruz (Kendi barımızı yapacağız)
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',

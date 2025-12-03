@@ -1,5 +1,16 @@
 /* src/styles/Layout.css */
 
+
+.voice-error-banner {
+  background: rgba(255, 0, 0, 0.1);
+  color: #a00;
+  padding: 1em;
+  border: 1px solid #f00;
+  border-radius: 5px;
+  margin-top: 1em;
+  font-size: 14px;
+}
+
 /* --- SES KONTROL PANELİ --- */
 .voice-room-controls {
   position: fixed;

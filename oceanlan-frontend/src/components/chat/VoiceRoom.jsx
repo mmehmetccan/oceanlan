@@ -30,7 +30,8 @@ const VoiceRoom = () => {
       myScreenStream,
       isLocalSpeaking,
       currentVoiceChannelName,
-      currentServerName
+      currentServerName,
+      micError,
   } = useContext(VoiceContext);
 
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
@@ -45,6 +46,13 @@ const VoiceRoom = () => {
 
   return (
     <div className="voice-room-controls">
+        {micError && (
+  <div className="voice-error-banner">
+    <strong>❗ Ses bağlantısı kurulamadı:</strong> {micError}
+    <br />
+    Lütfen mikrofon izninizin açık olduğundan ve tarayıcınızın desteklediğinden emin olun.
+  </div>
+)}
       <div className="voice-room-info">
         <div className={`voice-connection-status ${isLocalSpeaking ? 'speaking' : ''}`}>
             <SignalIcon className="voice-icon-signal" />
