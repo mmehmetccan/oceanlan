@@ -79,6 +79,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const canMute = checkUserPermission(activeServer, userId, 'MUTE_MEMBERS');
   const canDeafen = checkUserPermission(activeServer, userId, 'DEAFEN_MEMBERS');
   const canBan = checkUserPermission(activeServer, userId, 'BAN_MEMBERS');
+  const canDisconnect = checkUserPermission(activeServer, userId, 'MOVE_MEMBERS') || checkUserPermission(activeServer, userId, 'ADMINISTRATOR');
 
   const MEMBER_API_URL = `${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}`;
 
@@ -128,6 +129,16 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
     } catch (error) {
       alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
+  };
+
+  const handleDisconnect = () => {
+      if (!window.confirm(`${member.user.username} adlı üyeyi sesli kanaldan atmak istediğinizden emin misiniz?`)) return;
+
+      socket.emit('disconnect-voice-user', {
+          serverId,
+          targetUserId: member.user._id
+      });
+      onClose();
   };
 
   const displayRoles = member.roles?.filter(r => r.name !== '@everyone') || [];
@@ -207,18 +218,27 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
               </button>
             )}
 
+
             {canDeafen && (
               <button className="member-menu-btn" onClick={() => handleStatusUpdate('deafen')}>
                 {member.isDeafened ? 'Sağırlaştırmayı Kaldır' : 'Sağırlaştır'}
               </button>
             )}
 
+            {canDisconnect && (
+                <button className="member-menu-btn danger" onClick={handleDisconnect}>
+                    Bağlantıyı Kes
+                </button>
+            )}
+            {/* Ayraç */}
+            {(canKick || canBan) && <hr className="menu-divider" />}
+
             {canKick && (
-              <button className="member-menu-btn danger" onClick={handleKick}>Kullanıcıyı At</button>
+              <button className="member-menu-btn danger" onClick={handleKick}>Sunucudan At</button>
             )}
 
             {canBan && (
-              <button className="member-menu-btn danger" onClick={handleBan}>Kullanıcıyı Yasakla</button>
+              <button className="member-menu-btn danger" onClick={handleBan}>Sunucudan Yasakla</button>
             )}
           </div>
         </div>

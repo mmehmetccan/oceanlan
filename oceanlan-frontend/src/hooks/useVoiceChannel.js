@@ -211,6 +211,11 @@ export const useVoiceChannel = () => {
     if (!currentVoiceChannelId || !currentServerId || !user) return;
     if (!socket || !socket.connected) return;
 
+    const onVoiceDisconnected = () => {
+        addToast('Bir yetkili tarafından kanaldan çıkarıldınız.', 'info');
+        leaveVoiceChannel();
+    };
+
     let isMounted = true;
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
 
@@ -298,6 +303,7 @@ export const useVoiceChannel = () => {
             socket.on('webrtc-answer', onAnswer);
             socket.on('webrtc-ice-candidate', onIce);
             socket.on('user-left-voice', onLeft);
+            socket.on('voice-channel-disconnected', onVoiceDisconnected);
 
             socket.emit('join-voice-channel', { channelId: currentVoiceChannelId, serverId: currentServerId, userId: user.id, username: user.username });
             if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
@@ -323,7 +329,12 @@ export const useVoiceChannel = () => {
         if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
         if (socket) {
             socket.emit('leave-voice-channel');
-            socket.off('user-joined-voice'); socket.off('webrtc-offer'); socket.off('webrtc-answer'); socket.off('webrtc-ice-candidate'); socket.off('user-left-voice');
+            socket.off('user-joined-voice');
+            socket.off('webrtc-offer');
+            socket.off('webrtc-answer');
+            socket.off('webrtc-ice-candidate');
+            socket.off('user-left-voice');
+            socket.off('voice-channel-disconnected', onVoiceDisconnected);
         }
         if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
         if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; setMyScreenStream(null); }

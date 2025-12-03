@@ -261,7 +261,7 @@ const FeedPage = () => {
         <div className="rail-card">
           <div className="rail-card-header"><h4>Arkadaş Ekle</h4></div>
           <form className="rail-form" onSubmit={handleSendFriendRequest}>
-            <input type="text" className="rail-input" placeholder="Kullanıcı adını yazınız ..." value={recipientUsername} onChange={e => setRecipientUsername(e.target.value)} />
+            <input type="text" className="rail-input" placeholder="Kullanıcı adınızı yazınız ..." value={recipientUsername} onChange={e => setRecipientUsername(e.target.value)} />
             <button type="submit" className="rail-btn rail-btn-primary">İstek Gönder</button>
             {requestMessage && <p className="rail-feedback">{requestMessage}</p>}
           </form>

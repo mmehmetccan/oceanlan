@@ -416,6 +416,69 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('disconnect-voice-user', async (payload) => {
+      const { serverId, targetUserId } = payload || {};
+      if (!serverId || !targetUserId) return;
+
+      try {
+          // 1. Yetki Kontrolü (MOVE_MEMBERS yetkisine sahip olmalı)
+          const operatorMember = await Member.findOne({ user: socket.userId, server: serverId }).populate('roles');
+          if (!operatorMember) return;
+
+          let canDisconnect = false;
+          if (operatorMember.roles && operatorMember.roles.length > 0) {
+              canDisconnect = operatorMember.roles.some((role) =>
+                  role.permissions && (role.permissions.includes('ADMINISTRATOR') || role.permissions.includes('MOVE_MEMBERS'))
+              );
+          }
+
+          if (!canDisconnect) return; // Yetkisiz işlem
+
+          // 2. Hedef kullanıcıyı bul ve soketini al
+          // (voiceChannelState içinde tüm kanalları ara)
+          let targetSocketId = null;
+          let targetChannelId = null;
+
+          const serverState = voiceChannelState[serverId];
+          if (!serverState) return;
+
+          // Hangi kanalda olduğunu bul
+          Object.keys(serverState).forEach(channelId => {
+              const userEntry = serverState[channelId].find(u => String(u.userId) === String(targetUserId));
+              if (userEntry) {
+                  targetSocketId = userEntry.socketId;
+                  targetChannelId = channelId;
+              }
+          });
+
+          if (targetSocketId) {
+              const targetSocket = io.sockets.sockets.get(targetSocketId);
+              if (targetSocket) {
+                  // 3. Kullanıcıyı kanaldan çıkar (handleLeaveVoice)
+                  // Ancak handleLeaveVoice için 'currentVoiceChannel' dolu olmalı
+                  if(targetSocket.currentVoiceChannel) {
+                      // Fonksiyonu dışarıdan çağıramadığımız için manuel yapıyoruz:
+                      targetSocket.leave(targetChannelId);
+
+                      // State'den sil
+                      if (voiceChannelState[serverId][targetChannelId]) {
+                          voiceChannelState[serverId][targetChannelId] = voiceChannelState[serverId][targetChannelId].filter(u => u.socketId !== targetSocketId);
+                      }
+
+                      delete targetSocket.currentVoiceChannel;
+
+                      // 4. Bildirimler
+                      targetSocket.emit('voice-channel-disconnected'); // Kullanıcıya haber ver
+                      io.to(serverId).emit('voiceStateUpdate', voiceChannelState[serverId]); // Listeyi güncelle
+                  }
+              }
+          }
+
+      } catch (err) {
+          console.error('[disconnect-voice-user] hata:', err);
+      }
+  });
+
   // -------------------------------------
   // WebRTC Sinyalleşme
   // -------------------------------------

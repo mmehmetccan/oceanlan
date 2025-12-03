@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OceanLan Updater</title>
+    <style>
+        body {
+            background-color: #202225;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-app-region: drag; /* Pencere sürüklenebilir */
+        }
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #b9bbbe;
+        }
+        .progress-container {
+            width: 80%;
+            height: 6px;
+            background-color: #2f3136;
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+            display: none; /* Başta gizli */
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #5865f2, #3ba55c);
+            transition: width 0.2s ease;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <img src="ms-icon-310x310.png" class="logo" alt="Logo">
+    <h2>OceanLan</h2>
+    <div id="status">Başlatılıyor...</div>
+
+    <div class="progress-container" id="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        ipcRenderer.on('message', (event, text) => {
+            document.getElementById('status').innerText = text;
+        });
+
+        ipcRenderer.on('progress', (event, percent) => {
+            const container = document.getElementById('progress-container');
+            const bar = document.getElementById('progress-bar');
+            container.style.display = 'block';
+            bar.style.width = percent + '%';
+            document.getElementById('status').innerText = `İndiriliyor... %${Math.round(percent)}`;
+        });
+    </script>
+</body>
+</html>

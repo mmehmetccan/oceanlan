@@ -7,19 +7,16 @@
   gap: 18px;
   color: #f5f5f7;
 }
-.server-settings-icon-img {
-    width: 60px;
-    height: 60px;
-    border-radius: 16px;
-    object-fit: cover;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+
+.server-settings-loading {
+  padding: 24px;
+  color: #f5f5f7;
 }
 
-/* Yasaklı listesi stilleri */
-.ban-item:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
-}
+/* -------------------------------------------------- */
+/* HERO / HEADER                                      */
+/* -------------------------------------------------- */
+
 .server-settings-hero {
   display: flex;
   align-items: center;
@@ -66,6 +63,7 @@
 .server-quick-stats {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .stat-card {
@@ -88,6 +86,10 @@
   margin-top: 4px;
 }
 
+/* -------------------------------------------------- */
+/* TABS                                               */
+/* -------------------------------------------------- */
+
 .settings-tabs {
   display: flex;
   gap: 10px;
@@ -101,7 +103,12 @@
   background: rgba(255, 255, 255, 0.04);
   color: #fff;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.settings-tabs button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .settings-tabs button.active {
@@ -110,13 +117,106 @@
   box-shadow: 0 10px 24px rgba(88, 101, 242, 0.35);
 }
 
+/* -------------------------------------------------- */
+/* CONTENT WRAPPER                                    */
+/* -------------------------------------------------- */
+
 .settings-content {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 16px;
   padding: 18px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 12px 28px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 12px 28px rgba(0, 0, 0, 0.35);
 }
+
+/* -------------------------------------------------- */
+/* GENERIC BUTTONS / INPUTS                           */
+/* -------------------------------------------------- */
+
+.pill-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  font-size: 14px;
+}
+
+.pill-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+
+.pill-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pill-btn.primary {
+  background: linear-gradient(135deg, #5865f2, #7289da);
+  box-shadow: 0 12px 26px rgba(88, 101, 242, 0.35);
+}
+
+.pill-btn.danger {
+  background: linear-gradient(135deg, #f04747, #c03535);
+  border-color: rgba(240, 71, 71, 0.4);
+  box-shadow: 0 12px 26px rgba(192, 53, 53, 0.35);
+}
+
+.pill-btn.ghost {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pill-btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.pill-btn.active {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.full-width {
+  width: 100%;
+}
+
+.align-right {
+  margin-left: auto;
+}
+
+/* Inputs */
+
+.input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-row span {
+  font-size: 13px;
+  color: var(--color-text-dark);
+}
+
+.input-row input,
+.input-row select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 14px;
+}
+
+/* -------------------------------------------------- */
+/* GRID / PANELS                                      */
+/* -------------------------------------------------- */
 
 .manager-section {
   display: grid;
@@ -150,41 +250,7 @@
   color: #fff;
 }
 
-.pill-btn {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  border-radius: 12px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.pill-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
-}
-
-.pill-btn.primary {
-  background: linear-gradient(135deg, #5865f2, #7289da);
-  box-shadow: 0 12px 26px rgba(88, 101, 242, 0.35);
-}
-
-.pill-btn.danger {
-  background: linear-gradient(135deg, #f04747, #c03535);
-  border-color: rgba(240, 71, 71, 0.4);
-  box-shadow: 0 12px 26px rgba(192, 53, 53, 0.35);
-}
-
-.pill-btn.ghost {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.pill-btn.active {
-  border-color: rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.1);
-}
+/* Channel list */
 
 .channel-list,
 .role-list {
@@ -196,33 +262,16 @@
   padding-right: 4px;
 }
 
+.channel-pill {
+  font-size: 13px;
+}
+
+/* Form grid */
+
 .form-grid {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.input-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.input-row input,
-.input-row select {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
 }
 
 .form-actions {
@@ -231,13 +280,17 @@
   flex-wrap: wrap;
 }
 
+/* Permissions grid genel */
+
 .permissions-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px 12px;
 }
 
-.member-role-list {
+/* Üye rol listesi */
+
+.members-role-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -271,36 +324,68 @@
   color: var(--color-text-dark);
 }
 
-.member-role-item button {
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* -------------------------------------------------- */
+/* BANS                                               */
+/* -------------------------------------------------- */
+
+.bans-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bans-empty {
+  color: #b9bbbe;
+}
+
+.ban-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  margin-bottom: 0;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.ban-item:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.ban-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ban-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.ban-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ban-username {
+  font-weight: bold;
   color: #fff;
-  cursor: pointer;
 }
 
-.role-permissions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.ban-reason {
+  font-size: 12px;
+  color: #b9bbbe;
 }
 
-.role-create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 6px;
-}
+/* -------------------------------------------------- */
+/* SETTINGS CARDS / OVERVIEW                          */
+/* -------------------------------------------------- */
 
-.role-list h4 {
-  margin: 0;
-}
-
-/* Invites section quick styling */
-.settings-content button {
-  cursor: pointer;
-}
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -342,6 +427,8 @@
   color: #fff;
 }
 
+/* Tehlikeli bölge */
+
 .danger-zone {
   border: 1px solid rgba(240, 71, 71, 0.35);
   background: rgba(240, 71, 71, 0.08);
@@ -359,20 +446,283 @@
   border-radius: 10px;
   cursor: pointer;
   box-shadow: 0 10px 22px rgba(192, 53, 53, 0.35);
+  transition: transform 0.15s ease;
 }
 
 .danger-zone .danger:hover {
   transform: translateY(-1px);
 }
 
-.permissions-grid,
-.role-manager-layout,
-.members-role-list,
-.rail-actions,
-.rail-list,
-.rail-card {
-  /* keep existing styles from index.css or FeedPage.css if needed */
+/* -------------------------------------------------- */
+/* ICON UPLOAD                                        */
+/* -------------------------------------------------- */
+
+.icon-upload-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+.icon-upload-title {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin-bottom: 10px;
+}
+
+.icon-upload-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.icon-upload-row input[type="file"] {
+  font-size: 12px;
+}
+
+/* -------------------------------------------------- */
+/* ROLES SECTION                                      */
+/* -------------------------------------------------- */
+
+.roles-section {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.roles-sidebar {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roles-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.roles-sidebar-desc {
+  font-size: 12px;
+  color: var(--color-text-dark);
+}
+
+.roles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.role-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.role-pill:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.role-pill-active {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(88, 101, 242, 0.2);
+}
+
+.role-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4);
+}
+
+.role-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roles-new-role-btn {
+  margin-top: 8px;
+}
+
+/* MAIN */
+
+.roles-main {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.role-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.role-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.role-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-detail-color {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
+.role-detail-name {
+  margin: 0;
+}
+
+.role-detail-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-text-dark);
+}
+
+.role-id-chip {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e7eb;
+}
+
+.role-locked-text {
+  font-size: 13px;
+  color: #e5e7eb;
+}
+
+.role-permissions-title {
+  font-size: 14px;
+  margin: 4px 0 4px;
+}
+
+/* Permission chips */
+
+.role-permissions-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.permission-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.permission-chip input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+
+.permission-chip-label {
+  white-space: nowrap;
+}
+
+/* Yeni rol formu */
+
+.role-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.role-color-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-color-input-row input[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+}
+
+.role-color-preview-label {
+  font-size: 12px;
+  color: #e5e7eb;
+}
+
+/* MemberRoleManager chips */
+
+.member-role-manager-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.member-role-manager-username {
+  color: #fff;
+  font-weight: 600;
+}
+
+.role-checkbox-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+}
+
+.role-checkbox-chip input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+
+.role-checkbox-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4);
+}
+
+.role-checkbox-label {
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------- */
+/* RESPONSIVE                                         */
+/* -------------------------------------------------- */
 
 @media (max-width: 900px) {
   .server-settings-hero {
@@ -382,5 +732,9 @@
 
   .server-quick-stats {
     width: 100%;
+  }
+
+  .roles-section {
+    grid-template-columns: 1fr;
   }
 }

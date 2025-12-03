@@ -86,7 +86,7 @@ const isApp = isElectron();
                     Daha iyi bir deneyim için:
                 </p>
                 <a
-                  href="https://oceanlan.com/download/setup.exe" // 👈 İndirme Linki (Bunu aşağıda anlatacağım)
+                  href="https://oceanlan.com/uploads/installer/setup.exe" // 👈 İndirme Linki (Bunu aşağıda anlatacağım)
                     rel="noopener noreferrer"
                     className="auth-button"
                     target="_blank"
