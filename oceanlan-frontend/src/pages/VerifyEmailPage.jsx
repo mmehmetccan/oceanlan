@@ -1,64 +1,104 @@
-// src/pages/VerifyEmailPage.jsx
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
-
-const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import '../styles/Auth.css'; // Auth stillerini kullan
 
 const VerifyEmailPage = () => {
-  const { token } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [status, setStatus] = useState('Doğrulanıyor...');
-  const [isSuccess, setIsSuccess] = useState(false);
+  // Register sayfasından gelen email bilgisini al
+  const [email, setEmail] = useState(location.state?.email || '');
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState({ text: '', type: '' });
+  const [loading, setLoading] = useState(false);
 
-  // URL'e göre hangi endpoint'e gideceğimizi anla
-  // Eğer route "/verify-email/:token" ise -> Auth doğrulaması
-  // Eğer route "/verify-change-email/:token" ise -> Profil değişikliği doğrulaması
-  const isChangeEmail = location.pathname.includes('verify-change-email');
+  // Eğer email yoksa (direkt linkle gelindiyse) manuel girmesini isteyebiliriz
+  // veya Register'a geri atabiliriz. Şimdilik input açık kalsın.
 
-  useEffect(() => {
-    const verify = async () => {
-      try {
-        let url;
-        if (isChangeEmail) {
-            url = `/users/verify-new-email/${token}`;
-        } else {
-            url = `/auth/verifyemail/${token}`;
-        }
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMsg({ text: '', type: '' });
 
-        const res = await axios.put(url);
+    try {
+      const res = await axiosInstance.post('/auth/verify-email', { email, code });
+      setMsg({ text: res.data.message, type: 'success' });
 
-        setStatus(res.data.message);
-        setIsSuccess(true);
+      setTimeout(() => navigate('/login'), 2000); // Başarılıysa login'e at
+    } catch (err) {
+      setMsg({ text: err.response?.data?.message || 'Hata oluştu', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // 3 Saniye sonra login'e at
-        setTimeout(() => {
-            navigate('/login');
-        }, 3000);
+  const handleResend = async () => {
+    if(!email) return setMsg({ text: 'E-posta adresi gerekli', type: 'error' });
 
-      } catch (error) {
-        setStatus(error.response?.data?.message || 'Doğrulama başarısız.');
-        setIsSuccess(false);
-      }
-    };
-
-    if (token) verify();
-  }, [token, isChangeEmail, navigate]);
+    try {
+        await axiosInstance.post('/auth/resend-code', { email });
+        setMsg({ text: 'Yeni kod gönderildi.', type: 'success' });
+    } catch (err) {
+        setMsg({ text: err.response?.data?.message || 'Gönderilemedi', type: 'error' });
+    }
+  };
 
   return (
-    <div className="auth-container">
-      <div style={{ textAlign: 'center', color: 'white' }}>
-        <h2>{isSuccess ? '✅ Başarılı!' : '⏳ İşlem Yapılıyor...'}</h2>
-        <p>{status}</p>
-        {isSuccess && <p>Giriş sayfasına yönlendiriliyorsunuz...</p>}
-        {!isSuccess && status !== 'Doğrulanıyor...' && (
-            <button onClick={() => navigate('/login')} style={{marginTop: '20px'}}>
-                Giriş'e Dön
-            </button>
+    <div className="auth-wrapper">
+      <div className="auth-box">
+        <div className="auth-header">
+          <h2>Hesabı Doğrula</h2>
+          <p>E-posta adresine gelen 6 haneli kodu gir.</p>
+        </div>
+
+        {msg.text && (
+          <div className={`auth-alert ${msg.type}`}>
+            {msg.type === 'success' ? '✅' : '⚠️'} {msg.text}
+          </div>
         )}
+
+        <form onSubmit={handleVerify} className="auth-form">
+          <div className="input-group">
+             {/* Email otomatik geldiyse readonly yapabilirsin veya düzenlenebilir bırakabilirsin */}
+             <input
+                type="email"
+                className="auth-input"
+                placeholder="E-posta Adresi"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+             />
+          </div>
+
+          <div className="input-group">
+             <input
+                type="text"
+                className="auth-input"
+                placeholder="Doğrulama Kodu (örn: 123456)"
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                maxLength={6}
+                style={{letterSpacing: '5px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold'}}
+                required
+             />
+          </div>
+
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? 'Doğrulanıyor...' : 'Doğrula'}
+          </button>
+        </form>
+
+        <div style={{textAlign: 'center', marginTop: '15px'}}>
+            <button
+                type="button"
+                onClick={handleResend}
+                style={{background: 'none', border: 'none', color: '#00a8fc', cursor: 'pointer', fontSize: '14px'}}
+            >
+                Kod gelmedi mi? Tekrar Gönder
+            </button>
+        </div>
+
       </div>
     </div>
   );

@@ -45,8 +45,8 @@ const RegisterPage = () => {
       setPassword('');
 
       setTimeout(() => {
-          navigate('/login');
-      }, 4000);
+          navigate('/verify-email', { state: { email: email } });
+      }, 2000);
 
     } catch (err) {
       setError(err.response?.data?.message || 'Bir hata oluştu.');

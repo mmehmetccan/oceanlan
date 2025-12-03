@@ -4,8 +4,7 @@ const router = express.Router();
 // Controller'ları içe aktar
 const { protect } = require('../../middleware/authMiddleware');
 
-const { registerUser, loginUser ,getStreamKey,forgotPassword,
-    resetPassword,verifyEmail} = require('../../controllers/authController');
+const { registerUser, loginUser, verifyEmail, resendCode, getStreamKey, forgotPassword, resetPassword } = require('../../controllers/authController');
 
 // POST /api/v1/auth/register
 router.post('/register', registerUser);
@@ -16,5 +15,9 @@ router.post('/login', loginUser);
 router.get('/stream-key', protect, getStreamKey);
 router.post('/forgotpassword', forgotPassword);
 router.put('/resetpassword/:resetToken', resetPassword);
-router.put('/verifyemail/:token', verifyEmail);
+
+router.post('/verify-email', verifyEmail);       // Kod doğrulama (POST)
+router.post('/resend-code', resendCode);
+
+
 module.exports = router;

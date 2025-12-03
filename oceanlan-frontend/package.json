@@ -68,7 +68,7 @@
           ]
         }
       ],
-      "icon": "public/oceanlanlogo.png",
+      "icon": "public/favicon.ico",
       "artifactName": "OceanLan-Setup-${version}.exe"
     },
     "nsis": {

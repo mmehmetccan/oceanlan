@@ -106,24 +106,23 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
-UserSchema.methods.getVerificationToken = function (type = 'register') {
-  const token = crypto.randomBytes(20).toString('hex');
 
-  // Token'ı hashle
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-  const expireTime = Date.now() + 24 * 60 * 60 * 1000; // 24 Saat geçerli
+// 📢 YENİ: 6 Haneli Kod Oluşturucu
+UserSchema.methods.createVerificationCode = function () {
+  // 100000 ile 999999 arasında rastgele sayı
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-  if (type === 'register') {
-    this.verificationToken = hashedToken;
-    this.verificationExpire = expireTime;
-  } else if (type === 'emailChange') {
-    this.newEmailToken = hashedToken;
-    this.newEmailExpire = expireTime;
-  }
+  // Kodu hashleyerek sakla (Güvenlik için)
+  this.verificationToken = crypto.createHash('sha256').update(code).digest('hex');
 
-  return token; // Hashlenmemiş halini kullanıcıya yolluyoruz
+  // 10 dakika geçerli olsun
+  this.verificationExpire = Date.now() + 10 * 60 * 1000;
+
+  return code; // Hashlenmemiş halini kullanıcıya mail atacağız
 };
+
+module.exports = mongoose.model('User', UserSchema);
 
 // Şifre Sıfırlama Token Oluşturucu Metot
 UserSchema.methods.getResetPasswordToken = function () {

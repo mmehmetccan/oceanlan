@@ -7,7 +7,7 @@ import { AuthContext } from '../context/AuthContext';
 import { AudioSettingsContext } from '../context/AudioSettingsContext';
 import { ToastContext } from '../context/ToastContext';
 
-// 🛠️ POLYFILL
+// 🛠️ POLYFILL: WebRTC ve simple-peer için gerekli
 if (typeof process === 'undefined') {
   window.process = {
     nextTick: (cb, ...args) => setTimeout(() => cb(...args), 0),
@@ -18,10 +18,14 @@ if (typeof process === 'undefined') {
   process.nextTick = (cb, ...args) => setTimeout(() => cb(...args), 0);
 }
 
+// 🌍 GENİŞLETİLMİŞ STUN SUNUCULARI (Bağlantı başarısını artırır)
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -45,7 +49,7 @@ export const useVoiceChannel = () => {
     inputMode,
     pttKeyCode,
     isMicMuted,
-    isDeafened, // Sağırlaştırma
+    isDeafened,
     userVolumes,
     outputDeviceId,
     inputDeviceId,
@@ -74,9 +78,11 @@ export const useVoiceChannel = () => {
     }
   }, [isMicMuted, inputMode, isPTTPressed]);
 
-  useEffect(() => { updateMicrophoneState(); }, [updateMicrophoneState]);
+  useEffect(() => {
+    updateMicrophoneState();
+  }, [updateMicrophoneState]);
 
-  // -------------------- 2. BAS-KONUŞ --------------------
+  // -------------------- 2. BAS-KONUŞ (PTT) --------------------
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') {
       if (isPTTPressed) setIsPTTPressed(false);
@@ -97,76 +103,69 @@ export const useVoiceChannel = () => {
     };
   }, [inputMode, pttKeyCode]);
 
-  // -------------------- 3. SES ÇIKIŞI & SAĞIRLAŞTIRMA --------------------
+  // -------------------- 3. HOPARLÖR & SAĞIRLAŞTIRMA --------------------
   useEffect(() => {
     Object.keys(audioElementsRef.current).forEach((socketId) => {
-        const audioEl = audioElementsRef.current[socketId];
+      const audioEl = audioElementsRef.current[socketId];
 
-        // A. Çıkış Cihazı (Hoparlör)
-        if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
-            audioEl.setSinkId(outputDeviceId).catch((err) => console.warn('Hoparlör hatası:', err));
-        }
+      // Çıkış Cihazı
+      if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
+        audioEl.setSinkId(outputDeviceId).catch(() => {});
+      }
 
-        // B. Sağırlaştırma (Deafen)
-        // Electron'da da bu özellik HTML Audio elementinin 'muted' özelliği ile çalışır.
-        // isDeafened true ise sesi kapatır.
-        audioEl.muted = isDeafened;
+      // Sağırlaştırma
+      audioEl.muted = isDeafened;
 
-        // C. Ses Seviyesi (Eğer sağır değilse)
-        const uid = audioEl._userId;
-        if (!isDeafened && uid && userVolumes[uid] !== undefined) {
-            const vol = Math.max(0, Math.min(1, userVolumes[uid] / 100));
-            audioEl.volume = vol;
-        }
+      // Ses Seviyesi
+      const uid = audioEl._userId;
+      if (!isDeafened && uid && userVolumes[uid] !== undefined) {
+        let vol = userVolumes[uid] / 100;
+        audioEl.volume = Math.max(0, Math.min(1, vol));
+      }
     });
-  }, [outputDeviceId, isDeafened, userVolumes]); // 👈 isDeafened değişince tetiklenir
+  }, [outputDeviceId, isDeafened, userVolumes]);
 
   // -------------------- 4. EKRAN PAYLAŞIMI --------------------
   const startScreenShare = async (electronSourceId = null) => {
-
-    // 1. Electron Modal Kontrolü
-    // Eğer Electron ise VE kaynak ID henüz seçilmediyse Modalı aç
+    // A. APP (Electron) Modal Kontrolü
     if (window.electronAPI && !electronSourceId) {
         setScreenShareCallback(() => (sourceId) => startScreenShare(sourceId));
         setScreenPickerOpen(true);
         return;
     }
 
+    // B. WEB HTTPS Kontrolü
+    if (!window.electronAPI && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        addToast('Ekran paylaşımı için HTTPS gereklidir.', 'error');
+        return;
+    }
+
     try {
       let stream;
-
       if (window.electronAPI && electronSourceId) {
-          // --- ELECTRON (APP) ---
-          try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                  audio: false, // Electron'da sistem sesi zordur, false yapıyoruz (şimdilik)
-                  video: {
-                      mandatory: {
-                          chromeMediaSource: 'desktop',
-                          chromeMediaSourceId: electronSourceId,
-                          minWidth: 1280,
-                          maxWidth: 1920,
-                          minHeight: 720,
-                          maxHeight: 1080
-                      }
+          // ELECTRON
+          stream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: {
+                  mandatory: {
+                      chromeMediaSource: 'desktop',
+                      chromeMediaSourceId: electronSourceId,
+                      minWidth: 1280, maxWidth: 1920
                   }
-              });
-          } catch (e) {
-              console.error("Electron getUserMedia hatası:", e);
-              addToast(`Yayın başlatılamadı: ${e.message}`, 'error');
-              return;
-          }
+              }
+          });
       } else {
-          // --- WEB (Tarayıcı) ---
+          // WEB
           stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: 'always' },
-            audio: true
+              video: { cursor: 'always' },
+              audio: true
           });
       }
 
       screenStreamRef.current = stream;
       setMyScreenStream(stream);
 
+      // Mevcut bağlantılara akışı ekle
       Object.values(peersRef.current).forEach((peer) => {
         try { peer.addStream(stream); } catch (e) { console.warn(e); }
       });
@@ -175,78 +174,81 @@ export const useVoiceChannel = () => {
       addToast('Ekran paylaşımı başlatıldı.', 'success');
 
     } catch (error) {
-      console.error('Ekran paylaşımı genel hatası:', error);
+      console.error('Ekran paylaşımı hatası:', error);
       if (error.name !== 'NotAllowedError') {
-          addToast('Ekran paylaşımı başlatılamadı.', 'error');
+          addToast(`Hata: ${error.message}`, 'error');
       }
     }
   };
 
   const stopScreenShare = () => {
     if (screenStreamRef.current) {
-      Object.values(peersRef.current).forEach((peer) => {
-        try { peer.removeStream(screenStreamRef.current); } catch (err) {}
-      });
-      screenStreamRef.current.getTracks().forEach((track) => track.stop());
-      screenStreamRef.current = null;
-      setMyScreenStream(null);
-      addToast('Ekran paylaşımı durduruldu.', 'info');
+        Object.values(peersRef.current).forEach((peer) => {
+            try { peer.removeStream(screenStreamRef.current); } catch (err) {}
+        });
+        screenStreamRef.current.getTracks().forEach((track) => track.stop());
+        screenStreamRef.current = null;
+        setMyScreenStream(null);
+        addToast('Ekran paylaşımı durduruldu.', 'info');
     }
   };
 
-  // -------------------- 5. REMOTE STREAM (SES/VIDEO İZLEME) --------------------
+  // -------------------- 5. REMOTE STREAM (GELEN SES/VİDEO) --------------------
   const handleRemoteStream = (remoteStream, socketId, userId) => {
-    // Video (Ekran Paylaşımı)
+    // Video
     if (remoteStream.getVideoTracks().length > 0) {
-      console.log(`[Stream] Video akışı alındı: ${userId}`);
-      addIncomingStream(socketId, remoteStream);
+        addIncomingStream(socketId, remoteStream);
     }
-    // Ses (Mikrofon)
+    // Ses
     else if (remoteStream.getAudioTracks().length > 0) {
-      if (audioElementsRef.current[socketId]) {
-          audioElementsRef.current[socketId].srcObject = null;
-          audioElementsRef.current[socketId].remove();
-      }
+        if (audioElementsRef.current[socketId]) {
+            audioElementsRef.current[socketId].srcObject = null;
+            audioElementsRef.current[socketId].remove();
+        }
 
-      const audioEl = document.createElement('audio');
-      audioEl.srcObject = remoteStream;
-      audioEl.autoplay = true;
-      audioEl.playsInline = true;
-      audioEl.controls = false;
-      audioEl._userId = userId;
+        const audioEl = document.createElement('audio');
+        audioEl.srcObject = remoteStream;
+        audioEl.autoplay = true;
+        audioEl.playsInline = true; // Mobil için önemli
+        audioEl.controls = false;
+        audioEl._userId = userId;
+        audioEl.muted = isDeafened;
 
-      // İlk açılışta sağırlaştırma durumunu uygula
-      audioEl.muted = isDeafened;
+        if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
+            audioEl.setSinkId(outputDeviceId).catch(() => {});
+        }
 
-      if (typeof audioEl.setSinkId === 'function' && outputDeviceId) {
-        audioEl.setSinkId(outputDeviceId).catch(() => {});
-      }
+        document.body.appendChild(audioEl);
 
-      document.body.appendChild(audioEl);
-      audioEl.play().catch((e) => console.error('Ses oynatma hatası:', e));
-      audioElementsRef.current[socketId] = audioEl;
+        // Otomatik oynatma hatasını yakala (Kullanıcı etkileşimi gerekebilir)
+        audioEl.play().catch((e) => console.warn('Ses oynatma hatası (Otomatik Oynatma İzni Gerekebilir):', e));
+
+        audioElementsRef.current[socketId] = audioEl;
     }
   };
 
-  // -------------------- 6. BAĞLANTI MANTIĞI --------------------
+  // -------------------- 6. ANA BAĞLANTI MANTIĞI --------------------
   useEffect(() => {
     if (!currentVoiceChannelId || !currentServerId || !user) return;
+
+    // Socket yoksa bekle (Hata verme, reconnect olabilir)
     if (!socket || !socket.connected) {
-        addToast('Sunucu bağlantısı bekleniyor...', 'warning');
         return;
     }
 
     let isMounted = true;
 
+    // Zaman aşımı kontrolü (20 saniye)
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
     connectionTimeoutRef.current = setTimeout(() => {
         if (isMounted && !localStreamRef.current) {
-            addToast('Ses kanalına bağlanmak uzun sürüyor...', 'warning');
+            addToast('Ses kanalına bağlanmak uzun sürüyor, lütfen bekleyin...', 'warning');
         }
-    }, 12000);
+    }, 20000);
 
     const initVoiceConnection = async () => {
         try {
+            // Mikrofonu al
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -265,7 +267,7 @@ export const useVoiceChannel = () => {
             localStreamRef.current = stream;
             updateMicrophoneState();
 
-            // --- Socket Eventleri ---
+            // --- Socket Olayları ---
             const onUserJoinedVoice = ({ socketId, userId }) => {
                 const peer = new Peer({ initiator: true, stream, config: rtcConfig });
                 if (screenStreamRef.current) peer.addStream(screenStreamRef.current);
@@ -290,11 +292,7 @@ export const useVoiceChannel = () => {
 
             const onUserLeftVoice = ({ socketId }) => {
                 if (peersRef.current[socketId]) { peersRef.current[socketId].destroy(); delete peersRef.current[socketId]; }
-                if (audioElementsRef.current[socketId]) {
-                    audioElementsRef.current[socketId].srcObject = null;
-                    audioElementsRef.current[socketId].remove();
-                    delete audioElementsRef.current[socketId];
-                }
+                if (audioElementsRef.current[socketId]) { audioElementsRef.current[socketId].srcObject = null; audioElementsRef.current[socketId].remove(); delete audioElementsRef.current[socketId]; }
                 removeIncomingStream(socketId);
             };
 
@@ -304,6 +302,7 @@ export const useVoiceChannel = () => {
             socket.on('webrtc-ice-candidate', onWebrtcIceCandidate);
             socket.on('user-left-voice', onUserLeftVoice);
 
+            // Odaya Katıl
             socket.emit('join-voice-channel', {
                 channelId: currentVoiceChannelId,
                 serverId: currentServerId,
@@ -317,7 +316,9 @@ export const useVoiceChannel = () => {
             console.error('Ses bağlantı hatası:', err);
             let msg = 'Ses kanalına bağlanılamadı.';
             if (err.name === 'NotAllowedError') msg = 'Mikrofon izni verilmedi.';
-            else if (err.name === 'NotFoundError') msg = 'Mikrofon cihazı bulunamadı.';
+            else if (err.name === 'NotFoundError') msg = 'Mikrofon bulunamadı.';
+            else if (err.name === 'NotReadableError') msg = 'Mikrofon başka uygulama tarafından kullanılıyor.';
+
             addToast(msg, 'error');
             leaveVoiceChannel();
         }
@@ -325,6 +326,7 @@ export const useVoiceChannel = () => {
 
     initVoiceConnection();
 
+    // --- CLEANUP ---
     return () => {
         isMounted = false;
         if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
@@ -347,6 +349,7 @@ export const useVoiceChannel = () => {
         Object.values(audioElementsRef.current).forEach((el) => { el.srcObject = null; el.remove(); });
         audioElementsRef.current = {};
     };
+  // 🔥 socket.connected değişince de yeniden bağlanmayı dene
   }, [currentVoiceChannelId, currentServerId, socket, socket?.connected, user, inputDeviceId]);
 
   return { startScreenShare, stopScreenShare };

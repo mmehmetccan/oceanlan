@@ -42,7 +42,7 @@ function App() {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
-                <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
 
                 {/* 👇 SADECE BU KALSIN, DİĞER settings/audio ROTASINI BURADAN SİLİN */}

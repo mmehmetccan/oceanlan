@@ -14,73 +14,44 @@ const generateToken = (id) => {
 // @desc    Kullanıcı Kaydı
 const registerUser = async (req, res) => {
   let user = null;
-
   try {
     const { username, email, password, firstName, lastName, phoneNumber } = req.body;
 
-    // 1. Kullanıcı var mı kontrolü
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
       return res.status(400).json({ success: false, message: 'Bu e-posta veya kullanıcı adı zaten kullanımda.' });
     }
 
-    // 2. Kullanıcıyı oluştur
-    // 🛑 DÜZELTME: isVerified: false olduğunu BURADA GARANTİ EDİYORUZ
     user = await User.create({
-      firstName,
-      lastName,
-      phoneNumber,
-      username,
-      email,
-      password,
-      isVerified: false // <--- KESİN KURAL
+      firstName, lastName, phoneNumber, username, email, password, isVerified: false
     });
 
-    // 3. Token oluştur ve kaydet
-    const verificationToken = user.getVerificationToken('register');
+    // 👇 YENİ: Kod oluştur
+    const verificationCode = user.createVerificationCode();
     await user.save({ validateBeforeSave: false });
 
-    // 4. URL Oluştur
-    const verifyUrl = `http://oceanlan.com/verify-email/${verificationToken}`;
-
-    // HTML Mesaj (Daha şık görünmesi için)
+    // 👇 YENİ: Link yerine Kod gönder
     const message = `
       <h1>Hoş Geldiniz, ${firstName}!</h1>
-      <p>OceanLan hesabınızı doğrulamak için lütfen aşağıdaki bağlantıya tıklayın:</p>
-      <a href="${verifyUrl}" clicktracking=off>${verifyUrl}</a>
-      <p>Bu işlemi siz yapmadıysanız, bu e-postayı görmezden gelebilirsiniz.</p>
+      <p>OceanLan hesap doğrulama kodunuz:</p>
+      <h2 style="color: #5865f2; letter-spacing: 5px;">${verificationCode}</h2>
+      <p>Bu kodu doğrulama ekranına giriniz. Kod 10 dakika geçerlidir.</p>
     `;
 
     try {
-      await sendEmail({
-        email: user.email,
-        subject: 'OceanLan Hesap Doğrulama',
-        message,
-      });
+      await sendEmail({ email: user.email, subject: 'Doğrulama Kodunuz', message });
 
-      // 🛑 KRİTİK: Burada ASLA 'token' göndermiyoruz. Sadece mesaj dönüyoruz.
-      // Kullanıcı token almadığı için giriş yapmış sayılmaz.
       return res.status(200).json({
         success: true,
-        message: `Kayıt başarılı! Lütfen ${user.email} adresine gönderilen linke tıklayarak hesabınızı onaylayın.`,
+        message: 'Doğrulama kodu gönderildi.',
+        email: user.email // Frontend'e email'i geri dön ki sayfaya taşıyabilelim
       });
 
     } catch (emailError) {
-      console.error("E-posta gönderilemedi:", emailError);
-
-      // E-posta gidemezse kullanıcıyı sil (Tekrar deneyebilsin)
-      if (user) {
-        await User.findByIdAndDelete(user._id);
-      }
-
-      return res.status(500).json({
-        success: false,
-        message: 'E-posta gönderilemediği için kayıt iptal edildi. Lütfen e-posta adresinizi kontrol edin.'
-      });
+      if (user) await User.findByIdAndDelete(user._id);
+      return res.status(500).json({ success: false, message: 'E-posta gönderilemedi.' });
     }
-
   } catch (error) {
-    console.error("Kayıt hatası:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -88,34 +59,59 @@ const registerUser = async (req, res) => {
 // @desc    E-posta Doğrulama (Linke tıklanınca çalışır)
 const verifyEmail = async (req, res) => {
   try {
-    const verificationToken = crypto
-      .createHash('sha256')
-      .update(req.params.token)
-      .digest('hex');
+    const { email, code } = req.body;
+
+    if(!email || !code) {
+        return res.status(400).json({ success: false, message: 'E-posta ve kod gereklidir.' });
+    }
+
+    // Gelen kodu hashle ve veritabanındakiyle karşılaştır
+    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
 
     const user = await User.findOne({
-      verificationToken,
-      verificationExpire: { $gt: Date.now() },
+      email: email,
+      verificationToken: hashedCode,
+      verificationExpire: { $gt: Date.now() }, // Süresi dolmamış olmalı
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Geçersiz veya süresi dolmuş doğrulama linki.' });
+      return res.status(400).json({ success: false, message: 'Geçersiz veya süresi dolmuş kod.' });
     }
 
-    // Hesabı doğrula
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationExpire = undefined;
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'E-posta başarıyla doğrulandı! Şimdi giriş yapabilirsiniz.',
-    });
+    res.status(200).json({ success: true, message: 'Hesap başarıyla doğrulandı!' });
 
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+const resendCode = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
+        if (user.isVerified) return res.status(400).json({ success: false, message: 'Hesap zaten doğrulanmış.' });
+
+        const verificationCode = user.createVerificationCode();
+        await user.save({ validateBeforeSave: false });
+
+        const message = `
+          <h1>Yeni Doğrulama Kodunuz</h1>
+          <h2 style="color: #5865f2; letter-spacing: 5px;">${verificationCode}</h2>
+        `;
+
+        await sendEmail({ email: user.email, subject: 'Yeni Doğrulama Kodu', message });
+
+        res.status(200).json({ success: true, message: 'Yeni kod gönderildi.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
 // @desc    Giriş Yapma
@@ -305,6 +301,7 @@ module.exports = {
   registerUser,
   loginUser,
   verifyEmail,
+  resendCode,
   getStreamKey,
   forgotPassword,
   resetPassword,
