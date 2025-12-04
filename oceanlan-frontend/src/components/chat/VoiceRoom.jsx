@@ -4,7 +4,6 @@ import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
-import { getFullImageUrl } from '../../utils/urlHelper';
 import '../../styles/VoiceRoom.css'
 import {
     MicrophoneIcon,
@@ -24,8 +23,6 @@ const toAbsolute = (src) => {
 const VoiceRoom = () => {
   const { startScreenShare, stopScreenShare } = useVoiceChannel();
 
-
-  const userAvatar = getFullImageUrl(user?.avatarUrl || user?.avatar);
   // 📢 GÜNCELLENDİ: İsimleri context'ten alıyoruz
   const {
       currentVoiceChannelId,
@@ -85,11 +82,9 @@ const VoiceRoom = () => {
 
       <div className="voice-user-section">
           <img
-
-        src={userAvatar}
-        alt="Profil"
-        className={`voice-user-img ${isLocalSpeaking && !isMicMuted ? 'speaking' : ''}`}
-        onError={(e) => e.target.src = '/default-avatar.png'}
+            src={toAbsolute(user?.avatarUrl || user?.avatar)}
+            alt="Profil"
+            className={`voice-user-img ${isLocalSpeaking && !isMicMuted ? 'speaking' : ''}`}
           />
       </div>
     </div>

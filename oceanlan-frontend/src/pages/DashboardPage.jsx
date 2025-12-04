@@ -6,6 +6,7 @@ import Sidebar from '../components/layout/Sidebar';
 import ServerView from '../components/views/ServerView';
 import DMView from '../components/views/DMView';
 import ChatArea from '../components/chat/ChatArea';
+import VoiceRoom from '../components/chat/VoiceRoom.jsx';
 import StreamSettingsPage from './StreamSettingsPage';
 import ServerSettingsPage from './ServerSettingsPage';
 import UserProfilePage from './UserProfilePage';
@@ -25,8 +26,6 @@ import { VoiceContext } from '../context/VoiceContext';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
-
-const VoiceRoom = React.lazy(() => import('../components/chat/VoiceRoom.jsx'));
 
 const DashboardPage = () => {
   const { socket } = useSocket();
@@ -146,20 +145,18 @@ const DashboardPage = () => {
       </div>
 
       {currentVoiceChannelId && (
-          <div style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 72,
-              width: 240,
-              zIndex: 9999,
-              backgroundColor: '#292b2f',
-              borderTop: '1px solid #3f4147'
-          }}>
-              <Suspense fallback={<div style={{padding: 10, color: '#fff'}}>Yükleniyor...</div>}>
-                  <VoiceRoom/>
-                  </Suspense>
-          </div>
-          )}
+        <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 72,
+            width: 240,
+            zIndex: 9999,
+            backgroundColor: '#292b2f',
+            borderTop: '1px solid #3f4147'
+        }}>
+            <VoiceRoom />
+        </div>
+      )}
     </div>
   );
 };
