@@ -1,7 +1,7 @@
 // src/utils/urlHelper.js
 
 // .env dosyasındaki adresi al (yoksa varsayılan)
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 // API adresinin sonunda /api veya /api/v1 varsa onu temizleyip
 // saf kök adresi (http://localhost:3000, https://oceanlan.com) buluyoruz.

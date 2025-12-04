@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
+import { ToastContext } from '../context/ToastContext';
 import '../styles/Auth.css'; // Auth stillerini kullan
 
 const VerifyEmailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { addToast } = useContext(ToastContext);
 
   // Register sayfasından gelen email bilgisini al
   const [email, setEmail] = useState(location.state?.email || '');
@@ -23,11 +25,11 @@ const VerifyEmailPage = () => {
 
     try {
       const res = await axiosInstance.post('/auth/verify-email', { email, code });
-      setMsg({ text: res.data.message, type: 'success' });
+      addToast(res.data.message || 'E-posta doğrulandı!', 'success');
 
       setTimeout(() => navigate('/login'), 2000); // Başarılıysa login'e at
     } catch (err) {
-      setMsg({ text: err.response?.data?.message || 'Hata oluştu', type: 'error' });
+      addToast(err.response?.data?.message || 'Doğrulama başarısız.', 'error');
     } finally {
       setLoading(false);
     }
@@ -38,9 +40,9 @@ const VerifyEmailPage = () => {
 
     try {
         await axiosInstance.post('/auth/resend-code', { email });
-        setMsg({ text: 'Yeni kod gönderildi.', type: 'success' });
+        addToast('Yeni doğrulama kodu gönderildi.', 'success');
     } catch (err) {
-        setMsg({ text: err.response?.data?.message || 'Gönderilemedi', type: 'error' });
+        addToast(err.response?.data?.message || 'Kod gönderilemedi.', 'error');
     }
   };
 

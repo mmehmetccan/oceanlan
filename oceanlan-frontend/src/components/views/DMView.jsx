@@ -5,6 +5,7 @@ import axiosInstance from '../../utils/axiosInstance';
 import { useSocket } from '../../hooks/useSocket';
 import { AuthContext } from '../../context/AuthContext';
 import { getFullImageUrl } from '../../utils/urlHelper';
+import { ToastContext } from '../../context/ToastContext';
 import '../../styles/DMView.css';
 
 const DMView = () => {
@@ -13,6 +14,8 @@ const DMView = () => {
 
   // 👇 dispatch eklendi (Okundu bilgisi için)
   const { user, dispatch } = useContext(AuthContext);
+const { addToast } = useContext(ToastContext);
+
 
   const [messages, setMessages] = useState([]);
   const [inputContent, setInputContent] = useState('');
@@ -116,7 +119,7 @@ const DMView = () => {
             setFile(null);
             fileInputRef.current.value = null;
         } catch (error) {
-            alert(error.response?.data?.message || 'Dosya gönderilemedi.');
+            addToast(error.response?.data?.message || 'Dosya gönderilemedi.', 'error');
         } finally {
             setIsUploading(false);
         }

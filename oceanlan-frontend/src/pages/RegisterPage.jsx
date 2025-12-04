@@ -1,11 +1,13 @@
 // src/pages/RegisterPage.jsx
-import React, { useState } from 'react';
+import React, { useState ,useContext} from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
+import { ToastContext } from '../context/ToastContext';
 import { UserIcon, EnvelopeIcon, PhoneIcon, LockClosedIcon, FingerPrintIcon } from '@heroicons/react/24/outline';
 import '../styles/Auth.css';
 
 const RegisterPage = () => {
+  const { addToast } = useContext(ToastContext);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -35,7 +37,7 @@ const RegisterPage = () => {
           password
       });
 
-      setSuccessMsg(res.data.message);
+      addToast(res.data.message || 'Kayıt başarılı! Yönlendiriliyorsunuz...', 'success');
 
       setFirstName('');
       setLastName('');
@@ -49,7 +51,7 @@ const RegisterPage = () => {
       }, 2000);
 
     } catch (err) {
-      setError(err.response?.data?.message || 'Bir hata oluştu.');
+      addToast(err.response?.data?.message || 'Kayıt başarısız oldu.', 'error');
     } finally {
       setLoading(false);
     }
@@ -63,11 +65,7 @@ const RegisterPage = () => {
           <p>Hemen aramıza katıl ve topluluğun bir parçası ol!</p>
         </div>
 
-        {error && (
-          <div className="auth-alert error">
-            <span>⚠️</span> {error}
-          </div>
-        )}
+
 
         {successMsg && (
           <div className="auth-alert success">

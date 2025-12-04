@@ -1,10 +1,12 @@
 // src/components/modals/ScreenSharePickerModal.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState,useContext } from 'react';
+import { ToastContext } from '../../context/ToastContext';
 import '../../styles/ScreenSharePicker.css';
 
 const ScreenSharePickerModal = ({ onClose, onSelect }) => {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
+const { addToast } = useContext(ToastContext);
 
   useEffect(() => {
     const getSources = async () => {
@@ -15,13 +17,14 @@ const ScreenSharePickerModal = ({ onClose, onSelect }) => {
           setSources(_sources);
         } catch (e) {
           console.error("Kaynaklar alınamadı:", e);
+          addToast("Ekran kaynakları alınamadı.", 'error');
         } finally {
           setLoading(false);
         }
       }
     };
     getSources();
-  }, []);
+  }, [addToast]);
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{zIndex: 99999}}>

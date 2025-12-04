@@ -3,14 +3,14 @@ import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
 import { useNavigate } from 'react-router-dom';
-
+import { ToastContext } from '../../context/ToastContext';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const API_URL = `${API_BASE}/api/v1/invites`;
 
 const JoinServerModal = ({ onClose }) => {
     const [inviteCode, setInviteCode] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+const { addToast } = useContext(ToastContext);
 
     // 👇 fetchUserServers fonksiyonunu context'ten alıyoruz
     const { fetchServerDetails, fetchUserServers } = useContext(ServerContext);
@@ -18,10 +18,9 @@ const JoinServerModal = ({ onClose }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
 
         if (!inviteCode) {
-            setError('Lütfen bir davet kodu girin.');
+            addToast('Lütfen bir davet kodu girin.', 'warning');
             return;
         }
 
@@ -45,17 +44,20 @@ const JoinServerModal = ({ onClose }) => {
             }
 
             navigate(`/dashboard/server/${newServerId}`);
-            alert(res.data.message);
+            addToast(res.data.message || 'Sunucuya katıldınız!', 'success');
             onClose();
 
         } catch (err) {
             const errorMsg = err.response?.data?.message || 'Sunucuya katılım başarısız oldu.';
-            setError(errorMsg);
-
             const serverId = err.response?.data?.serverId;
+
             if (serverId && errorMsg.includes('zaten üyesiniz')) {
+                addToast('Bu sunucuya zaten üyesiniz.', 'info');
                 navigate(`/dashboard/server/${serverId}`);
                 onClose();
+            }
+            else {
+                addToast(errorMsg, 'error'); // 🔔
             }
 
         } finally {

@@ -1,22 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState,useContext } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
 import '../../styles/ContactModal.css';
+import { ToastContext } from '../../context/ToastContext';
 
 const ContactModal = ({ onClose }) => {
+    const { addToast } = useContext(ToastContext);
     const [subject, setSubject] = useState('');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null); // 'success' | 'error'
+const [success, setSuccess] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
             await axiosInstance.post('/contact', { subject, message });
-            setResult('success');
+            setSuccess(true);
             setTimeout(onClose, 2500);
         } catch (err) {
-            setResult('error');
+            addToast('Mesaj gönderilemedi. Lütfen tekrar deneyin.', 'error');
+            setSuccess(false);
         } finally {
             setLoading(false);
         }
