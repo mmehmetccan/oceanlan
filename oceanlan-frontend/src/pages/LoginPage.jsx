@@ -1,7 +1,6 @@
 // src/pages/LoginPage.jsx
 import React, { useState, useContext,useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { ToastContext } from '../context/ToastContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline'; // İkonlar
 import { isElectron } from '../utils/platformHelper'; // 👈 IMPORT
@@ -12,11 +11,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
 
   const { login, loading } = useContext(AuthContext);
-  const { addToast } = useContext(ToastContext);
   const navigate = useNavigate();
 
 
@@ -44,12 +43,12 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       await login(email, password);
-      addToast('Giriş başarılı!', 'success');
       navigate('/dashboard');
     } catch (err) {
-      addToast(err.message || 'Giriş yapılamadı.', 'error');
+      setError(err.message);
     }
   };
 
@@ -61,7 +60,11 @@ const LoginPage = () => {
 
         </div>
 
-
+        {error && (
+          <div className="auth-alert error">
+            <span>⚠️</span> {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="input-group">

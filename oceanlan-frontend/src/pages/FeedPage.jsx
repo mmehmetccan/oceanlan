@@ -10,7 +10,6 @@ import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { useSocket } from '../hooks/useSocket';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
-import { getFullImageUrl } from '../utils/urlHelper'; // 👈 YENİ: Merkezi helper
 
 import '../styles/FeedPage.css';
 
@@ -219,11 +218,7 @@ const FeedPage = () => {
   const onPostUpdated = (upd) => setPosts(prev => prev.map(p => p._id === upd._id ? upd : p));
 
   // --- LİSTELER ---
-const friendSuggestions = useMemo(() => friends.filter(f => f?._id && f._id !== user?.id).map(f => ({
-      ...f,
-      avatar: getFullImageUrl(getAvatarUrl(f)) // 👈 YENİ: Merkezi helper
-  })).slice(0, 7), [friends, user]);
-
+  const friendSuggestions = useMemo(() => friends.filter(f => f?._id && f._id !== user?.id).map(f => ({ ...f, avatar: toAbsolute(getAvatarUrl(f)) })).slice(0, 7), [friends, user]);
 
   // DM Listesi: Backend'den "lastMessageAt" sıralı geliyor, biz de burada koruyoruz
   const dmShortlist = useMemo(() => friends.slice(0, 7), [friends]);
@@ -297,8 +292,6 @@ const friendSuggestions = useMemo(() => friends.filter(f => f?._id && f._id !== 
                 // Okunmamış mı?
                 const hasUnread = unreadDmConversations.some(id => String(id) === String(dmUser.conversationId));
 
-                const avatarUrl = getFullImageUrl(getAvatarUrl(dmUser));
-
                 return (
                   <div key={dmUser._id} className="rail-user dm-user">
                     <div className="rail-user-avatar" style={{position:'relative'}}>
@@ -341,60 +334,40 @@ const friendSuggestions = useMemo(() => friends.filter(f => f?._id && f._id !== 
                const isOutgoing = String(requesterId) === String(user?.id);
                const otherUser = isOutgoing ? req.recipient : req.requester;
 
-               const reqAvatar = getFullImageUrl(getAvatarUrl(otherUser));
-
                return (
-                   <div key={req._id} className="rail-user"
-                        onContextMenu={(e) => handleContextMenu(e, otherUser, isOutgoing ? 'pending_outgoing' : 'pending_incoming')}>
-                       <div className="rail-user-avatar"><img src={reqAvatar} onError={handleAvatarError} alt="Avatar"/>
-                       </div>
-                       <div className="rail-user-meta">
-                           <span className="rail-user-name">{otherUser?.username}</span>
-                           <span className="rail-user-status"
-                                 style={{color: isOutgoing ? '#faa61a' : '#3ba55c', fontWeight: '600'}}>
+                 <div key={req._id} className="rail-user" onContextMenu={(e) => handleContextMenu(e, otherUser, isOutgoing ? 'pending_outgoing' : 'pending_incoming')}>
+                   <div className="rail-user-avatar"><img src={toAbsolute(getAvatarUrl(otherUser))} onError={handleAvatarError} alt="Avatar" /></div>
+                   <div className="rail-user-meta">
+                     <span className="rail-user-name">{otherUser?.username}</span>
+                     <span className="rail-user-status" style={{color: isOutgoing ? '#faa61a' : '#3ba55c', fontWeight:'600'}}>
                         {isOutgoing ? 'İstek gönderildi' : 'Sana istek gönderdi'}
                      </span>
-                       </div>
-                       <div className="rail-actions">
-                           {isOutgoing ? (
-                               <span
-                                   style={{
-                                       fontSize: '11px',
-                                       color: '#b9bbbe',
-                                       fontStyle: 'italic'
-                                   }}>Bekleniyor...</span>
-                           ) : (
-                               <>
-                                   <button className="rail-btn rail-btn-primary"
-                                           style={{padding: '4px 8px', background: '#3ba55c'}}
-                                           onClick={() => handleFriendResponse(req._id, 'accepted')}>✓
-                                   </button>
-                                   <button className="rail-btn" style={{padding: '4px 8px', background: '#ed4245'}}
-                                           onClick={() => {
-                                               setConfirmModal({
-                                                   isOpen: true,
-                                                   title: 'İsteği Reddet',
-                                                   message: 'Bu isteği reddetmek istediğine emin misin?',
-                                                   isDanger: true,
-                                                   confirmText: 'Reddet',
-                                                   onConfirm: () => handleFriendResponse(req._id, 'rejected')
-                                               });
-                                           }}>✕
-                                   </button>
-                               </>
-                           )}
-                       </div>
                    </div>
+                   <div className="rail-actions">
+                      {isOutgoing ? (
+                        <span style={{ fontSize: '11px', color: '#b9bbbe', fontStyle: 'italic' }}>Bekleniyor...</span>
+                      ) : (
+                        <>
+                          <button className="rail-btn rail-btn-primary" style={{padding:'4px 8px', background:'#3ba55c'}} onClick={() => handleFriendResponse(req._id, 'accepted')}>✓</button>
+                          <button className="rail-btn" style={{padding:'4px 8px', background:'#ed4245'}} onClick={() => {
+                              setConfirmModal({
+                                  isOpen: true, title: 'İsteği Reddet', message: 'Bu isteği reddetmek istediğine emin misin?',
+                                  isDanger: true, confirmText: 'Reddet', onConfirm: () => handleFriendResponse(req._id, 'rejected')
+                              });
+                          }}>✕</button>
+                        </>
+                      )}
+                   </div>
+                 </div>
                );
             })}
           </div>
         </div>
       </aside>
 
-        {contextMenu &&
-            <FeedContextMenu {...contextMenu} onClose={() => setContextMenu(null)} onAction={handleMenuAction}/>}
-        {showProfileModal && <UserProfileModal userId={showProfileModal} onClose={() => setShowProfileModal(null)}/>}
-        <ConfirmationModal
+      {contextMenu && <FeedContextMenu {...contextMenu} onClose={() => setContextMenu(null)} onAction={handleMenuAction} />}
+      {showProfileModal && <UserProfileModal userId={showProfileModal} onClose={() => setShowProfileModal(null)} />}
+      <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal(p => ({...p, isOpen: false}))}
         title={confirmModal.title}

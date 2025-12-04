@@ -1,12 +1,10 @@
-import React, { useState,useContext } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance'; // 👈 Import et
-import { ToastContext } from '../context/ToastContext';
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ForgotPasswordPage = () => {
-  const { addToast } = useContext(ToastContext);
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -19,10 +17,9 @@ const ForgotPasswordPage = () => {
     setError('');
 
     try {
-    const res = await axiosInstance.post('/auth/forgotpassword', { email });
-    addToast(res.data.message || 'Sıfırlama bağlantısı gönderildi.', 'success'); // 🔔
+    const res = await axiosInstance.post('/auth/forgotpassword', { email });      setMessage(res.data.message);
     } catch (err) {
-      addToast(err.response?.data?.message || 'Bir hata oluştu.', 'error'); // 🔔
+      setError(err.response?.data?.message || 'Bir hata oluştu');
     } finally {
       setLoading(false);
     }

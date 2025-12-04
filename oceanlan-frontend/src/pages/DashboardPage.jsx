@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.jsx
-import React, { useContext, useEffect ,Suspense} from 'react';
+import React, { useContext, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
 import Sidebar from '../components/layout/Sidebar';

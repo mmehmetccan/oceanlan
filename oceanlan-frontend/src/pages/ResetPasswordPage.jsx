@@ -1,14 +1,11 @@
-import React, { useState ,useContext} from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { ToastContext } from '../context/ToastContext';
 import { useNavigate, useParams } from 'react-router-dom';
 
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ResetPasswordPage = () => {
-  const { addToast } = useContext(ToastContext); // 🔔
-
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,7 +17,7 @@ const ResetPasswordPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-        return addToast('Şifreler eşleşmiyor.', 'warning'); // 🔔
+        return setError('Şifreler eşleşmiyor');
     }
 
     setLoading(true);
@@ -28,10 +25,10 @@ const ResetPasswordPage = () => {
 
     try {
       await axios.put(`${API_URL_BASE}/api/v1/auth/resetpassword/${resetToken}`, { password });
-      addToast('Şifreniz başarıyla değiştirildi! Giriş yapılıyor...', 'success'); // 🔔
-      setTimeout(() => navigate('/login'), 2000);
+      alert('Şifreniz başarıyla değiştirildi! Giriş yapılıyor...');
+      navigate('/login');
     } catch (err) {
-      addToast(err.response?.data?.message || 'Bağlantı geçersiz veya süresi dolmuş.', 'error'); // 🔔
+      setError(err.response?.data?.message || 'Bağlantı geçersiz veya süresi dolmuş');
     } finally {
       setLoading(false);
     }

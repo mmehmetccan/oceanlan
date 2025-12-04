@@ -45,7 +45,6 @@ const UserProfileViewPage = () => {
           err.response?.data?.message ||
           'Profil bilgileri alınırken bir hata oluştu.';
         setError(msg);
-        addToast(msg, 'error'); // 🔔 Toast eklendi
       } finally {
         setLoading(false);
       }

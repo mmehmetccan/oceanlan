@@ -33,7 +33,7 @@ const CreatePost = ({ onPostCreated }) => {
             fileInputRef.current.value = null;
 
         } catch (error) {
-                alert(error.response?.data?.message || 'Gönderi oluşturulamadı');
+            alert(error.response?.data?.message || 'G?nderi olu?turulamad?');
         } finally {
             setIsSubmitting(false);
         }
