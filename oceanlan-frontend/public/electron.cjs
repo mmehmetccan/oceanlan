@@ -147,6 +147,26 @@ autoUpdater.on('update-downloaded', (info) => {
 app.whenReady().then(() => {
   createWindow();
 
+session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'audioCapture', 'videoCapture', 'mediaKeySystem'];
+
+    if (allowedPermissions.includes(permission)) {
+      // Otomatik olarak izin ver
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  // 👇 BU DA EK GÜVENLİK AYARI (Bazı Electron sürümleri için) 👇
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    if (permission === 'media' || permission === 'audioCapture') {
+      return true;
+    }
+    return false;
+  });
+
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
