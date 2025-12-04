@@ -1,17 +1,17 @@
 // src/components/modals/DeleteServerModal.jsx
-import React, { useState ,useContext} from 'react';
-import { ToastContext } from '../../context/ToastContext';
+import React, { useState } from 'react';
 
 const DeleteServerModal = ({ serverName, onClose, onConfirm }) => {
   const [confirmText, setConfirmText] = useState('');
-  const { addToast } = useContext(ToastContext);
+  const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (confirmText.trim() !== serverName) {
-      addToast('Sunucu adı eşleşmiyor. Lütfen doğru yazın.', 'error');
+      setError('Sunucu adını doğru yazın.');
       return;
     }
+    setError('');
     if (onConfirm) onConfirm();
   };
 

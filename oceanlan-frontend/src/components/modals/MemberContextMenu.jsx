@@ -3,7 +3,6 @@ import React, { useContext, useState, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
-import { ToastContext } from '../../context/ToastContext';
 import { checkUserPermission } from '../../utils/permissionChecker';
 import { useSocket } from '../../hooks/useSocket';
 import UserProfileModal from '../profile/UserProfileModal';
@@ -34,7 +33,6 @@ const getDisplayAvatarUrl = (rawUrl) => {
 const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const { activeServer, fetchServerDetails } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
-  const { addToast } = useContext(ToastContext);
   const { socket } = useSocket();
   const [showProfile, setShowProfile] = useState(false);
   const { userVolumes, setUserVolume } = useContext(AudioSettingsContext);
@@ -72,8 +70,8 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
 
   const currentVolume = userVolumes[member.user._id] !== undefined ? userVolumes[member.user._id] : 100;
   const isSelf = user?.id === member.user._id;
-const rawAvatarSrc = getAvatarUrl(member);
-const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
+  const rawAvatarSrc = getAvatarUrl(member);
+  const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
 
   // İzinler
   const userId = user?.id || user?._id;
@@ -89,11 +87,11 @@ const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
     if (!window.confirm(`${member.user.username} adlı üyeyi atmak istediğinizden emin misiniz?`)) return;
     try {
       await axios.delete(MEMBER_API_URL);
-      addToast('Üye atıldı.', 'success');
+      alert('Üye atıldı.');
       fetchServerDetails(serverId);
       onClose();
     } catch (error) {
-      addToast(`Hata: ${error.response?.data?.message || error.message}`, 'error');
+      alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -102,12 +100,12 @@ const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
     if (reason === null) return;
     try {
       await axios.post(`${MEMBER_API_URL}/ban`, { reason });
-      addToast('Üye kalıcı olarak yasaklandı.', 'success');
+      alert('Üye kalıcı olarak yasaklandı.');
       socket.emit('memberBanned', { serverId, memberId: member._id });
       fetchServerDetails(serverId);
       onClose();
     } catch (error) {
-      addToast(`Hata: ${error.response?.data?.message || error.message}`, 'error');
+      alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -125,11 +123,11 @@ const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
     try {
       const res = await axios.put(`${MEMBER_API_URL}/status`, payload);
       socket.emit('memberUpdated', { serverId, memberId: member._id, ...payload });
-      addToast(res.data.message, 'success');
+      alert(res.data.message);
       fetchServerDetails(serverId);
       onClose();
     } catch (error) {
-      addToast(`Hata: ${error.response?.data?.message || error.message}`, 'error');
+      alert(`Hata: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -140,7 +138,6 @@ const displayAvatarSrc = getDisplayAvatarUrl(rawAvatarSrc);
           serverId,
           targetUserId: member.user._id
       });
-      addToast('Kullanıcı kanaldan atıldı.', 'info');
       onClose();
   };
 

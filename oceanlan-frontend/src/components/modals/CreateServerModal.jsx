@@ -1,11 +1,10 @@
 // src/components/modals/CreateServerModal.jsx
-import React, { useState, useRef, useEffect ,useContext} from 'react';
-import { ToastContext } from '../../context/ToastContext';
+import React, { useState, useRef, useEffect } from 'react';
 
 const CreateServerModal = ({ onClose, createServer, onCreated }) => {
-  const { addToast } = useContext(ToastContext); // 👈 Toast fonksiyonunu çekiyoruz
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const fileInputRef = useRef(null);
@@ -32,9 +31,10 @@ const CreateServerModal = ({ onClose, createServer, onCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
 
     if (!name.trim()) {
-        addToast('Lütfen bir sunucu adı girin.', 'warning'); // 👈 Uyarı Toast'u
+      setError('Lütfen bir sunucu adı girin.');
       return;
     }
 
@@ -50,14 +50,12 @@ const CreateServerModal = ({ onClose, createServer, onCreated }) => {
       // createServer fonksiyonu (Context'ten gelen)
       const newServer = await createServer(formData);
 
-      addToast('Sunucu başarıyla oluşturuldu!', 'success');
-
       if (onCreated) onCreated(newServer);
       onClose();
 
     } catch (err) {
       console.error(err);
-      addToast(err?.message || 'Sunucu oluşturulamadı', 'error');
+      setError(err?.message || 'Sunucu oluşturulamadı');
     } finally {
       setLoading(false);
     }
@@ -72,14 +70,29 @@ const CreateServerModal = ({ onClose, createServer, onCreated }) => {
           <div
             onClick={() => fileInputRef.current.click()}
             style={{
-              width: '100px', height: '100px', borderRadius: '50%',
-              backgroundColor: '#36393f', border: '2px dashed #4f545c',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', overflow: 'hidden', position: 'relative'
+              width: '100px', // Boyutu biraz büyüttük
+              height: '100px',
+              borderRadius: '50%',
+              backgroundColor: '#36393f',
+              border: '2px dashed #4f545c',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              overflow: 'hidden',
+              position: 'relative' // İkon ortalamak için
             }}
           >
             {preview ? (
-              <img src={preview} alt="Sunucu Önizleme" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img
+                src={preview}
+                alt="Sunucu Önizleme"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover' // Resmin çerçeveye sığmasını sağlar
+                }}
+              />
             ) : (
               <div style={{ textAlign: 'center' }}>
                 <span style={{ fontSize: '24px', display: 'block' }}>📷</span>
@@ -87,7 +100,13 @@ const CreateServerModal = ({ onClose, createServer, onCreated }) => {
               </div>
             )}
           </div>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            accept="image/*"
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="create-server-form">
@@ -95,13 +114,20 @@ const CreateServerModal = ({ onClose, createServer, onCreated }) => {
             Sunucu Adı
           </label>
           <input
-            type="text" placeholder="Sunucunun adı ne olsun?"
-            value={name} onChange={(e) => setName(e.target.value)}
-            disabled={loading} autoFocus
+            type="text"
+            placeholder="Sunucunun adı ne olsun?"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={loading}
+            autoFocus
           />
 
+          {error && <p className="error-message" style={{ color: '#f04747', fontSize: '14px', marginTop: '10px' }}>{error}</p>}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-            <button type="button" onClick={onClose} className="pill-btn ghost" disabled={loading} style={{ marginRight: '10px' }}>Geri</button>
+            <button type="button" onClick={onClose} className="pill-btn ghost" disabled={loading} style={{ marginRight: '10px' }}>
+              Geri
+            </button>
             <button type="submit" disabled={loading} className="pill-btn primary">
               {loading ? 'Oluşturuluyor...' : 'Oluştur'}
             </button>
