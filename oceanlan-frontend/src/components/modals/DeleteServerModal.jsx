@@ -1,5 +1,5 @@
 // src/components/modals/DeleteServerModal.jsx
-import React, { useState } from 'react';
+import React, { useState ,useContext} from 'react';
 import { ToastContext } from '../../context/ToastContext';
 
 const DeleteServerModal = ({ serverName, onClose, onConfirm }) => {

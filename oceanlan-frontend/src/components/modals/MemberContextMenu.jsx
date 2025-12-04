@@ -7,7 +7,6 @@ import { ToastContext } from '../../context/ToastContext';
 import { checkUserPermission } from '../../utils/permissionChecker';
 import { useSocket } from '../../hooks/useSocket';
 import UserProfileModal from '../profile/UserProfileModal';
-import { getFullImageUrl } from '../../utils/urlHelper';
 import "../../styles/MemberContextMenu.css"
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 
