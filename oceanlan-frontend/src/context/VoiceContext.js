@@ -21,12 +21,10 @@ export const VoiceProvider = ({ children }) => {
 
   const [micError, setMicError] = useState(null);
 
-const [screenShareMethods, setScreenShareMethods] = useState({
-      startScreenShare: () => console.warn("Henüz hazır değil"),
-      stopScreenShare: () => console.warn("Henüz hazır değil")
-  });
 
   const [speakingUsers, setSpeakingUsers] = useState({});
+
+  const [stayConnected, setStayConnected] = useState(false); // YENİ: Kalıcılık kontrolü
 
 
   const { socket } = useSocket();
@@ -49,30 +47,53 @@ const [screenShareMethods, setScreenShareMethods] = useState({
       };
   }, [socket]);
 
+
+  useEffect(() => {
+  return () => {
+    if (!stayConnected) {
+      leaveVoiceChannel();
+    }
+  };
+}, [stayConnected]);
+
+
+
   // 📢 GÜNCELLENDİ: Artık obje (isimli) veya sadece ID kabul ediyor
   const joinVoiceChannel = (server, channel) => {
-    const sId = server._id || server;
-    const cId = channel._id || channel;
-    if (currentVoiceChannelId === cId) return;
-    setCurrentVoiceChannelId(cId);
-    setCurrentServerId(sId);
-    if (server.name) setCurrentServerName(server.name);
-    if (channel.name) setCurrentVoiceChannelName(channel.name);
-  };
+  const sId = server._id || server;
+  const cId = channel._id || channel;
+
+  if (currentVoiceChannelId === cId) return;
+
+  setCurrentVoiceChannelId(cId);
+  setCurrentServerId(sId);
+  setStayConnected(true); // YENİ: Katılınca kalıcı hale getir
+
+  if (server.name) setCurrentServerName(server.name);
+  if (channel.name) setCurrentVoiceChannelName(channel.name);
+};
+
 
   const leaveVoiceChannel = () => {
-    setCurrentVoiceChannelId(null);
-    setCurrentServerId(null);
-    setCurrentVoiceChannelName(null);
-    setCurrentServerName(null);
-    if (myScreenStream) {
-        myScreenStream.getTracks().forEach(track => track.stop());
-        setMyScreenStream(null);
-    }
-    setIncomingStreams({});
+  setStayConnected(false); // YENİ: Manuel çıkışta artık bağlantı koparılabilir
+
+  setCurrentVoiceChannelId(null);
+  setCurrentServerId(null);
+  setCurrentVoiceChannelName(null);
+  setCurrentServerName(null);
+
+  if (myScreenStream) {
+    myScreenStream.getTracks().forEach(track => track.stop());
+    setMyScreenStream(null);
+  }
+  setIncomingStreams({});
+};
+
+
+  const addIncomingStream = (socketId, stream) => {
+      setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
   };
 
-  const addIncomingStream = (socketId, stream) => setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
   const removeIncomingStream = (socketId) => {
       setIncomingStreams(prev => {
           const newStreams = { ...prev };
@@ -85,8 +106,8 @@ const [screenShareMethods, setScreenShareMethods] = useState({
     <VoiceContext.Provider value={{
         currentVoiceChannelId,
         currentServerId,
-        currentVoiceChannelName,
-        currentServerName,
+        currentVoiceChannelName, // 👈
+        currentServerName,       // 👈
         joinVoiceChannel,
         leaveVoiceChannel,
         myScreenStream,
@@ -96,17 +117,15 @@ const [screenShareMethods, setScreenShareMethods] = useState({
         removeIncomingStream,
         isLocalSpeaking,
         setIsLocalSpeaking,
-        speakingUsers,
+         speakingUsers,
         setSpeakingUsers,
+
         micError, setMicError,
+
         isScreenPickerOpen,
         setScreenPickerOpen,
         screenShareCallback,
-        setScreenShareCallback,
-
-        // 👇 YENİ: Context'e ekledik
-        screenShareMethods,
-        setScreenShareMethods
+        setScreenShareCallback
     }}>
       {children}
     </VoiceContext.Provider>

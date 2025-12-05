@@ -1,5 +1,6 @@
 // src/components/chat/VoiceRoom.jsx
 import React, { useContext, useEffect, useState } from 'react';
+import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
@@ -21,18 +22,18 @@ const toAbsolute = (src) => {
 };
 
 const VoiceRoom = () => {
+  const { startScreenShare, stopScreenShare } = useVoiceChannel();
+
   const {
       currentVoiceChannelId,
       leaveVoiceChannel,
       myScreenStream,
-      isLocalSpeaking,
+      isLocalSpeaking, // Bu artık useVoiceChannel'daki analizden doğru gelecek
       currentVoiceChannelName,
       currentServerName,
       micError,
-      speakingUsers,
-      screenShareMethods // 👈 Context'e eklediğimiz metodlar
+      speakingUsers
   } = useContext(VoiceContext);
-  const { startScreenShare, stopScreenShare } = screenShareMethods;
 
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
@@ -42,7 +43,7 @@ const VoiceRoom = () => {
 
   useEffect(() => {
     if (currentVoiceChannelId) {
-        setConnectionStatus('connected');
+        setConnectionStatus('connected'); // Basitçe bağlandı varsayıyoruz
     }
   }, [currentVoiceChannelId]);
 

@@ -26,8 +26,6 @@ import { VoiceContext } from '../context/VoiceContext';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
-import VoiceConnectionManager from '../components/chat/VoiceConnectionManager';
-
 
 const DashboardPage = () => {
   const { socket } = useSocket();
@@ -96,7 +94,6 @@ const DashboardPage = () => {
         paddingTop: isApp ? '32px' : '0' // App ise üstten boşluk bırak
       }}
     >
-        <VoiceConnectionManager />
       {/* 📢 TitleBar: Butona basınca sayfaya git */}
       <TitleBar onContactClick={() => navigate('/dashboard/contact')} />
 
