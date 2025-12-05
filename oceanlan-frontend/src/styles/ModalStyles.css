@@ -1,0 +1,129 @@
+/* src/styles/ModalStyles.css */
+
+/* Arka Plan Karartması */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.75);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Modal Kutusu */
+.modal-content {
+    background-color: #36393f;
+    border-radius: 8px;
+    padding: 20px;
+    width: 90%;
+    max-width: 440px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    position: relative;
+    animation: scaleIn 0.2s ease-out;
+    color: #dcddde;
+}
+
+/* Header */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: #b9bbbe;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 0;
+}
+
+.close-btn:hover {
+    color: #fff;
+}
+
+/* Body */
+.invite-desc {
+    font-size: 14px;
+    color: #b9bbbe;
+    margin-bottom: 12px;
+}
+
+.invite-input-wrapper {
+    display: flex;
+    gap: 8px;
+    background-color: #202225;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #202225;
+}
+
+.invite-code-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #dcddde;
+    font-family: 'Consolas', monospace;
+    font-size: 16px;
+    padding: 8px;
+    outline: none;
+}
+
+/* Kopyala Butonu */
+.copy-btn {
+    background-color: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 0 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.copy-btn:hover {
+    background-color: #4752c4;
+}
+
+.copy-btn.copied {
+    background-color: #3ba55c; /* Başarılı yeşili */
+}
+
+/* Footer Bilgisi */
+.invite-footer-info {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #72767d;
+}
+
+/* Animasyonlar */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}

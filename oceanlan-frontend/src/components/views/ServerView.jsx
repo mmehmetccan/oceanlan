@@ -10,7 +10,7 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
-import { UserPlusIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'; // İkonlar
+import { UserPlusIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -36,7 +36,6 @@ const ServerView = () => {
   const { addToast } = useContext(ToastContext);
 
   const { joinVoiceChannel, currentVoiceChannelId, speakingUsers } = useContext(VoiceContext);
-const [showInviteModal, setShowInviteModal] = useState(false);
 
   useServerSocket(serverId);
 
@@ -44,21 +43,26 @@ const [showInviteModal, setShowInviteModal] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedUser, setDraggedUser] = useState(null);
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // 🛠️ YETKİ KONTROLLERİ (DÜZELTİLDİ)
-  const isOwner = activeServer && user && activeServer.owner === user.id;
-
-  const canMoveMembers = activeServer && (
-      isOwner || // Sunucu sahibi her şeyi yapar
-      checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
-      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
-      checkUserPermission(activeServer, user?.id, 'MOVE_MEMBERS')
+  // 🛠️ GÜÇLENDİRİLMİŞ SAHİPLİK KONTROLÜ
+  // Owner bazen obje { _id: "...", username: "..." } bazen string "..." gelebilir.
+  const isOwner = activeServer && user && (
+      (activeServer.owner?._id?.toString() === user.id?.toString()) || // Eğer obje ise _id'ye bak
+      (activeServer.owner?.toString() === user.id?.toString())         // Eğer string ise direkt bak
   );
 
   const canManageServer = activeServer && (
       isOwner ||
       checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
       checkUserPermission(activeServer, user?.id, 'MANAGE_SERVER')
+  );
+
+  const canMoveMembers = activeServer && (
+      isOwner || // Sahip her şeyi yapar
+      checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
+      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
+      checkUserPermission(activeServer, user?.id, 'MOVE_MEMBERS')
   );
 
   const handleJoinVoiceChannel = (channel) => {
@@ -86,30 +90,26 @@ const [showInviteModal, setShowInviteModal] = useState(false);
   useEffect(() => {
     if (!socket || !serverId) return;
 
-    const handleVoiceStateUpdate = (newServerVoiceState) => {
-      setVoiceState({ ...(newServerVoiceState || {}) });
-    };
-
-    const handleMemberUpdate = () => fetchServerDetails(serverId);
-    const refetchServer = () => fetchServerDetails(serverId);
-    const handleJoinVoiceError = (error) => addToast(error.message, 'error');
+    const handleVoiceStateUpdate = (newServerVoiceState) => setVoiceState({ ...(newServerVoiceState || {}) });
+    const refetch = () => fetchServerDetails(serverId);
+    const handleError = (error) => addToast(error.message, 'error');
 
     socket.on('voiceStateUpdate', handleVoiceStateUpdate);
-    socket.on('memberUpdated', handleMemberUpdate);
-    socket.on('channelCreated', refetchServer);
-    socket.on('channelUpdated', refetchServer);
-    socket.on('channelDeleted', refetchServer);
-    socket.on('join-voice-error', handleJoinVoiceError);
+    socket.on('memberUpdated', refetch);
+    socket.on('channelCreated', refetch);
+    socket.on('channelUpdated', refetch);
+    socket.on('channelDeleted', refetch);
+    socket.on('join-voice-error', handleError);
 
     socket.emit('get-server-voice-state', serverId);
 
     return () => {
       socket.off('voiceStateUpdate', handleVoiceStateUpdate);
-      socket.off('memberUpdated', handleMemberUpdate);
-      socket.off('channelCreated', refetchServer);
-      socket.off('channelUpdated', refetchServer);
-      socket.off('channelDeleted', refetchServer);
-      socket.off('join-voice-error', handleJoinVoiceError);
+      socket.off('memberUpdated', refetch);
+      socket.off('channelCreated', refetch);
+      socket.off('channelUpdated', refetch);
+      socket.off('channelDeleted', refetch);
+      socket.off('join-voice-error', handleError);
     };
   }, [socket, serverId, fetchServerDetails, addToast]);
 
@@ -162,6 +162,9 @@ const [showInviteModal, setShowInviteModal] = useState(false);
   const serverIconUrl = activeServer?.iconUrl ? (activeServer.iconUrl.startsWith('http') ? activeServer.iconUrl : `${BASE_URL}${activeServer.iconUrl}`) : null;
   const serverInitial = activeServer?.name?.charAt(0)?.toUpperCase() || '#';
 
+  // Sahip adı güvenli okuma
+  const ownerName = activeServer.owner?.username || 'Sunucu Sahibi';
+
   return (
     <div className="server-view" onClick={() => setContextMenu(null)}>
       <header className="server-view-header">
@@ -175,10 +178,11 @@ const [showInviteModal, setShowInviteModal] = useState(false);
             <h2 className="server-name">{activeServer.name}</h2>
           </div>
         </div>
-        {/* 👇 HEADER SAĞ TARAFI: DAVET VE AYARLAR */}
+
+        {/* ⚙️ HEADER AKSİYONLARI */}
         <div className="server-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
 
-            {/* 🟢 DAVET ET BUTONU (HERKESE AÇIK) */}
+            {/* Davet Butonu (Herkes Görür) */}
             <button
                 className="header-icon-btn invite-btn"
                 onClick={() => setShowInviteModal(true)}
@@ -188,7 +192,7 @@ const [showInviteModal, setShowInviteModal] = useState(false);
                 <UserPlusIcon style={{ width: 24 }} />
             </button>
 
-            {/* ⚙️ AYARLAR BUTONU (SADECE YETKİLİYE) */}
+            {/* Ayarlar Butonu (Sadece Yetkili ve SAHİP Görür) */}
             {canManageServer && (
                 <Link to={`/dashboard/server/${serverId}/settings`} className="header-icon-btn settings-btn" title="Sunucu Ayarları">
                     <Cog6ToothIcon style={{ width: 24, color: '#b9bbbe' }} />
@@ -196,18 +200,6 @@ const [showInviteModal, setShowInviteModal] = useState(false);
             )}
         </div>
       </header>
-
-      {/* 🔴 DÜZELTİLEN KISIM: SUNUCU AYARLARI BUTONU */}
-      {canManageServer && (
-        <div className="server-view-toolbar">
-          <Link
-            to={`/dashboard/server/${serverId}/settings`}
-            className="server-settings-button"
-          >
-            ⚙ Sunucu Ayarları
-          </Link>
-        </div>
-      )}
 
       <div className="channels-list">
         <div className="channel-group text-channels-group">
@@ -231,6 +223,7 @@ const [showInviteModal, setShowInviteModal] = useState(false);
             const isActiveVoice = currentVoiceChannelId === channel._id;
             const isDragOver = dragOverChannelId === channel._id;
 
+            // DUPLICATE & OPTIMISTIC UI
             let usersInThisChannel = [...(voiceState[channel._id] || [])];
             const myId = user?._id || user?.id;
 
@@ -280,9 +273,9 @@ const [showInviteModal, setShowInviteModal] = useState(false);
                       if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
-                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
+                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
 
                       return (
                         <div
@@ -304,12 +297,8 @@ const [showInviteModal, setShowInviteModal] = useState(false);
                             {isSpeaking && <span className="voice-speaking-ring" />}
                           </div>
                           <div className="voice-user-details">
-                            <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
-                            <div className="voice-user-tags">
-                              {isSelf && <span className="voice-user-tag">Sen</span>}
-                              {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
-                              {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
-                            </div>
+                            <span className="voice-user-name">{displayName}</span>
+                            {isSelf && <span className="voice-user-tag">Sen</span>}
                           </div>
                         </div>
                       );
@@ -322,13 +311,7 @@ const [showInviteModal, setShowInviteModal] = useState(false);
         </div>
       </div>
 
-      {/* 👇 DAVET MODALI */}
-      {showInviteModal && (
-        <ServerInviteModal
-            serverId={serverId}
-            onClose={() => setShowInviteModal(false)}
-        />
-      )}
+      {showInviteModal && <ServerInviteModal serverId={serverId} onClose={() => setShowInviteModal(false)} />}
 
       {contextMenu && (
         <MemberContextMenu member={contextMenu.member} x={contextMenu.x} y={contextMenu.y} serverId={serverId} onClose={() => setContextMenu(null)} />
