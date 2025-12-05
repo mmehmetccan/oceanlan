@@ -1,6 +1,7 @@
 // src/context/VoiceContext.js
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect ,useContext} from 'react';
 import { useSocket } from '../hooks/useSocket';
+import { AuthContext } from './AuthContext'; // yolun doğru olduğundan emin ol
 
 export const VoiceContext = createContext();
 
@@ -20,6 +21,7 @@ export const VoiceProvider = ({ children }) => {
   const [screenShareCallback, setScreenShareCallback] = useState(null);
 
   const [micError, setMicError] = useState(null);
+const { user } = useContext(AuthContext);
 
 
   const [speakingUsers, setSpeakingUsers] = useState({});
@@ -56,6 +58,17 @@ export const VoiceProvider = ({ children }) => {
   };
 }, [stayConnected]);
 
+  useEffect(() => {
+  if (stayConnected && currentVoiceChannelId && currentServerId && socket?.connected) {
+    socket.emit('join-voice-channel', {
+      serverId: currentServerId,
+      channelId: currentVoiceChannelId
+    });
+    console.log('[SOCKET] Re-joined voice channel after reconnect:', currentVoiceChannelId);
+  }
+}, [stayConnected, currentVoiceChannelId, currentServerId, socket?.connected]);
+
+
 
 
   // 📢 GÜNCELLENDİ: Artık obje (isimli) veya sadece ID kabul ediyor
@@ -67,10 +80,21 @@ export const VoiceProvider = ({ children }) => {
 
   setCurrentVoiceChannelId(cId);
   setCurrentServerId(sId);
-  setStayConnected(true); // YENİ: Katılınca kalıcı hale getir
+  setStayConnected(true);
 
   if (server.name) setCurrentServerName(server.name);
   if (channel.name) setCurrentVoiceChannelName(channel.name);
+
+  // ✅ BACKEND'E SÖYLE: Bu kanala katıl
+  if (socket) {
+    socket.emit('join-voice-channel', {
+    serverId: sId,
+    channelId: cId,
+    userId: user?._id || user?.id,
+    username: user?.username,
+    });
+    console.log('[SOCKET] join-voice-channel emit edildi:', sId, cId);
+  }
 };
 
 
