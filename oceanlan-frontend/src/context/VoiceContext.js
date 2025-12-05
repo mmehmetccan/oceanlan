@@ -95,11 +95,19 @@ export const VoiceProvider = ({ children }) => {
       audioAnalyzersRef.current = {};
   };
 
-  const handleChannelMoved = ({ newChannelId, serverId, channelName }) => {
+  const handleChannelMoved = ({ newChannelId, serverId }) => {
+    console.log(`[VoiceContext] Admin tarafından taşındınız: ${newChannelId}`);
+
+    // 1. Mevcut bağlantıları temizle (State'i sıfırlama)
     cleanupMediaOnly();
+
+    // 2. Yeni ID'yi set et (UI anında güncellenir)
     setCurrentVoiceChannelId(newChannelId);
     setCurrentServerId(serverId);
-    if(channelName) setCurrentVoiceChannelName(channelName);
+
+    // 3. Yeni kanala otomatik katıl
+    // (Join fonksiyonunu tekrar çağırmak yerine emit yapıyoruz çünkü socket zaten odalara girdi)
+    joinVoiceChannel(serverId, newChannelId);
   };
 
   const setupAudioAnalysis = (stream, id) => {

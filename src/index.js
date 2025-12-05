@@ -367,26 +367,26 @@ io.on('connection', (socket) => {
   // -------------------------------------
   // Moderatörün sesli kullanıcı taşıması
   // -------------------------------------
+  // -------------------------------------
+  // KULLANICI TAŞIMA (Backend)
+  // -------------------------------------
   socket.on('move-voice-user', async (payload) => {
     const { serverId, fromChannelId, toChannelId, targetUserId } = payload || {};
 
     if (!serverId || !fromChannelId || !toChannelId || !targetUserId) return;
-    if (fromChannelId === toChannelId) return;
+    if (fromChannelId === toChannelId) return; // Aynı kanala taşıma yapma
 
     try {
-      // 1) Yetki Kontrolü (Aynı kalsın)
+      // 1) Yetki Kontrolü
       const operatorMember = await Member.findOne({ user: socket.userId, server: serverId }).populate('roles');
       if (!operatorMember) return;
 
-      let canMove = false;
-      if (operatorMember.roles && operatorMember.roles.length > 0) {
-        canMove = operatorMember.roles.some((role) =>
-          role.permissions && (role.permissions.includes('ADMINISTRATOR') || role.permissions.includes('MANAGE_CHANNELS'))
-        );
-      }
+      const canMove = operatorMember.roles.some((role) =>
+          role.permissions && (role.permissions.includes('ADMINISTRATOR') || role.permissions.includes('MOVE_MEMBERS'))
+      );
 
       if (!canMove) {
-        console.log('[move-voice-user]: yetki yok');
+        console.log('[move-voice-user]: Yetki yok.');
         return;
       }
 
@@ -395,60 +395,56 @@ io.on('connection', (socket) => {
       const fromList = serverState[fromChannelId] || [];
       const targetEntry = fromList.find((u) => String(u.userId) === String(targetUserId));
 
-      if (!targetEntry) return;
+      if (!targetEntry) {
+          console.log('[move-voice-user]: Kullanıcı eski kanalda bulunamadı.');
+          return;
+      }
 
       const targetSocketId = targetEntry.socketId;
       const targetSocket = io.sockets.sockets.get(targetSocketId);
 
-      // 3) STATE GÜNCELLEMESİ (Kritik Kısım)
+      // 3) STATE GÜNCELLEMESİ (Listeyi Backend tarafında güncelle)
 
-      // A. Eski kanaldan sil
-      if (voiceChannelState[serverId] && voiceChannelState[serverId][fromChannelId]) {
+      // A. Eskiden Sil
+      if (voiceChannelState[serverId][fromChannelId]) {
           voiceChannelState[serverId][fromChannelId] = voiceChannelState[serverId][fromChannelId].filter(
               u => String(u.userId) !== String(targetUserId)
           );
-          // Kanal boşaldıysa sil
-          if (voiceChannelState[serverId][fromChannelId].length === 0) {
-              delete voiceChannelState[serverId][fromChannelId];
-          }
+          if (voiceChannelState[serverId][fromChannelId].length === 0) delete voiceChannelState[serverId][fromChannelId];
       }
 
-      // B. Yeni kanala ekle
-      if (!voiceChannelState[serverId]) voiceChannelState[serverId] = {};
+      // B. Yeniye Ekle
       if (!voiceChannelState[serverId][toChannelId]) voiceChannelState[serverId][toChannelId] = [];
+      voiceChannelState[serverId][toChannelId].push(targetEntry); // Kullanıcı objesini taşı
 
-      // Mükerrer eklemeyi önle
-      if (!voiceChannelState[serverId][toChannelId].find(u => String(u.userId) === String(targetUserId))) {
-           voiceChannelState[serverId][toChannelId].push(targetEntry);
-      }
-
-      // 4) Socket Odalarını Güncelle (Hedef kullanıcı için)
+      // 4) HEDEF KULLANICIYA BİLDİRİM & SOKET GÜNCELLEMESİ
       if (targetSocket) {
-          targetSocket.leave(fromChannelId); // Eskiden çık
-          targetSocket.join(toChannelId);    // Yeniye gir
+          // Soket odalarını değiştir (Backend tarafı)
+          targetSocket.leave(fromChannelId);
+          targetSocket.join(toChannelId);
 
-          // Frontend'deki "currentVoiceChannel" bilgisini güncelle
+          // Socket verisini güncelle
           targetSocket.currentVoiceChannel = {
-              channelId: toChannelId,
-              serverId,
-              userId: targetUserId,
-              username: targetEntry.username
+              ...targetSocket.currentVoiceChannel,
+              channelId: toChannelId
           };
 
-          // Hedef kullanıcıya "Taşındın" sinyali gönder (İsteğe bağlı, UI'ı zorlamak için)
+          // 🔥 EN ÖNEMLİ KISIM: Hedef kullanıcıya "Taşındın" sinyali gönder
+          // Frontend (VoiceContext) bunu dinleyip joinVoiceChannel tetikleyecek
           targetSocket.emit('voice-channel-moved', {
               newChannelId: toChannelId,
-              serverId
+              serverId,
+              channelName: 'Taşınan Kanal' // İsteğe bağlı ad bulup gönderebilirsin
           });
       }
 
-      // 5) HERKESE GÜNCEL LİSTEYİ GÖNDER (Kartların görünmesi için en önemlisi bu)
+      // 5) HERKESE GÜNCEL LİSTEYİ GÖNDER
       io.to(serverId).emit('voiceStateUpdate', voiceChannelState[serverId]);
 
-      console.log(`[move-voice-user]: ${targetUserId} taşındı: ${fromChannelId} -> ${toChannelId}`);
+      console.log(`[MOVE] ${targetUserId} taşındı: ${fromChannelId} -> ${toChannelId}`);
 
     } catch (err) {
-      console.error('[move-voice-user] hata:', err);
+      console.error('[move-voice-user] Hata:', err);
     }
   });
 
