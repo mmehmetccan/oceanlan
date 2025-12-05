@@ -3,62 +3,36 @@ import { useContext } from 'react';
 import { VoiceContext } from '../context/VoiceContext';
 import { AudioSettingsContext } from '../context/AudioSettingsContext';
 
-// Bu hook artık sadece verileri çekmek ve arayüzü güncellemek için kullanılıyor.
-// Tüm karmaşık bağlantı ve ses mantığı VoiceContext içinde "ölümsüz" hale geldi.
 export const useVoiceChannel = () => {
-  // VoiceContext'ten gelen veriler
-  const {
-    joinVoiceChannel,
-    leaveVoiceChannel,
-    currentVoiceChannelId,
-    speakingUsers,
-    micError,
-    isConnected,
-    myScreenStream,        // Ekran paylaşımı için
-    startScreenShare,      // Ekran paylaşımı başlatma (VoiceContext'te tanımlıysa)
-    stopScreenShare        // Ekran paylaşımı durdurma (VoiceContext'te tanımlıysa)
-  } = useContext(VoiceContext);
+  // 1. VoiceContext'ten verileri çek
+  const voiceData = useContext(VoiceContext);
 
-  // AudioSettingsContext'ten gelen ses ayarları
-  const {
-      isMicMuted,
-      toggleMic,
-      isDeafened,
-      toggleDeafen,
-      inputDeviceId,
-      setInputDeviceId,
-      outputDeviceId,
-      setOutputDeviceId,
-      userVolumes,
-      setUserVolume
-  } = useContext(AudioSettingsContext);
+  // 2. AudioSettingsContext'ten verileri çek
+  const audioData = useContext(AudioSettingsContext);
 
+  // 3. Hepsini tek bir pakette bileşene sun
   return {
-    // Bağlantı Fonksiyonları
-    joinVoiceChannel,
-    leaveVoiceChannel,
+    // --- VoiceContext Verileri ---
+    joinVoiceChannel: voiceData?.joinVoiceChannel,
+    leaveVoiceChannel: voiceData?.leaveVoiceChannel,
+    currentVoiceChannelId: voiceData?.currentVoiceChannelId,
+    speakingUsers: voiceData?.speakingUsers || {},
+    micError: voiceData?.micError,
+    isConnected: voiceData?.isConnected,
+    myScreenStream: voiceData?.myScreenStream,
+    startScreenShare: voiceData?.startScreenShare,
+    stopScreenShare: voiceData?.stopScreenShare,
 
-    // Durum Verileri
-    currentVoiceChannelId,
-    speakingUsers,
-    micError,
-    isConnected,
-
-    // Ses Kontrolleri
-    isMicMuted,
-    toggleMic,
-    isDeafened,
-    toggleDeafen,
-    inputDeviceId,
-    setInputDeviceId,
-    outputDeviceId,
-    setOutputDeviceId,
-    userVolumes,
-    setUserVolume,
-
-    // Ekran Paylaşımı (Opsiyonel)
-    myScreenStream,
-    startScreenShare,
-    stopScreenShare
+    // --- AudioSettings Verileri ---
+    isMicMuted: audioData?.isMicMuted,
+    toggleMic: audioData?.toggleMic,
+    isDeafened: audioData?.isDeafened,
+    toggleDeafen: audioData?.toggleDeafen,
+    inputDeviceId: audioData?.inputDeviceId,
+    setInputDeviceId: audioData?.setInputDeviceId,
+    outputDeviceId: audioData?.outputDeviceId,
+    setOutputDeviceId: audioData?.setOutputDeviceId,
+    userVolumes: audioData?.userVolumes || {},
+    setUserVolume: audioData?.setUserVolume
   };
 };
