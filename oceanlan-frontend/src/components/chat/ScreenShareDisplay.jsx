@@ -1,7 +1,7 @@
 // src/components/chat/ScreenShareDisplay.jsx
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { VoiceContext } from '../../context/VoiceContext';
-import { XMarkIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, SpeakerXMarkIcon, SpeakerWaveIcon } from '@heroicons/react/24/outline'; // İkonlar
+import { XMarkIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, SpeakerXMarkIcon, SpeakerWaveIcon } from '@heroicons/react/24/outline';
 import '../../styles/ScreenShareDisplay.css';
 
 // Video Oynatıcı Bileşeni
@@ -9,7 +9,7 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
     const videoRef = useRef(null);
     const wrapperRef = useRef(null);
 
-    const [isMuted, setIsMuted] = useState(isLocal);
+    const [isMuted, setIsMuted] = useState(true); // Videolar varsayılan sessiz başlasın (Ses zaten audio'dan geliyor)
     const [volume, setVolume] = useState(100);
     const [isHovered, setIsHovered] = useState(false);
     const [viewMode, setViewMode] = useState('contain');
@@ -54,6 +54,7 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted={true} // Yankıyı önlemek için video elementi sessiz olmalı
                 style={{ objectFit: viewMode }}
                 className="main-video"
             />
@@ -65,24 +66,13 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
             {/* Kontrol Barı */}
             <div className={`video-controls ${isHovered || isFullscreen ? 'visible' : ''}`}>
                 <div className="controls-left">
-                    <button onClick={() => setIsMuted(!isMuted)} className="control-btn">
-                        {isMuted ? <SpeakerXMarkIcon style={{width:20}}/> : <SpeakerWaveIcon style={{width:20}}/>}
-                    </button>
-                    <input
-                        type="range"
-                        min="0" max="100"
-                        value={isMuted ? 0 : volume}
-                        onChange={(e) => { setVolume(Number(e.target.value)); if(Number(e.target.value)>0) setIsMuted(false); }}
-                        className="volume-slider-mini"
-                    />
-                </div>
-
-                <div className="controls-right">
+                    {/* Ses kontrollerini burada opsiyonel yapabiliriz çünkü ses kanaldan geliyor */}
                     <button onClick={() => setViewMode(p => p === 'contain' ? 'cover' : 'contain')} className="control-btn text-btn">
                         {viewMode === 'contain' ? 'Doldur' : 'Sığdır'}
                     </button>
+                </div>
 
-                    {/* 🔴 YAYINI DURDUR BUTONU (Sadece Kendi Yayınımızsa Görünür) */}
+                <div className="controls-right">
                     {isLocal && (
                         <button
                             onClick={onStop}
@@ -104,13 +94,22 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
 };
 
 const ScreenShareDisplay = () => {
-    const { myScreenStream, incomingStreams, stopScreenShareFn } = useContext(VoiceContext);
+    // 1. Context'ten verileri çekiyoruz
+    const {
+        myScreenStream,
+        peersWithVideo, // 👈 ARTIK incomingStreams YERİNE BUNU KULLANIYORUZ
+        stopScreenShare
+    } = useContext(VoiceContext);
 
-    if (!myScreenStream && Object.keys(incomingStreams).length === 0) {
+    // 2. GÜVENLİK KONTROLÜ (Crash olmaması için varsayılan değer atıyoruz)
+    const videos = peersWithVideo || {};
+
+    // Eğer ne benim yayınım ne de başkasının yayını varsa hiç gösterme
+    if (!myScreenStream && Object.keys(videos).length === 0) {
         return null;
     }
 
-    const streamCount = (myScreenStream ? 1 : 0) + Object.keys(incomingStreams).length;
+    const streamCount = (myScreenStream ? 1 : 0) + Object.keys(videos).length;
 
     return (
         <div className="screen-share-grid-container" style={{ gridTemplateColumns: `repeat(${streamCount > 1 ? 2 : 1}, 1fr)` }}>
@@ -119,17 +118,17 @@ const ScreenShareDisplay = () => {
                 <VideoPlayer
                     stream={myScreenStream}
                     isLocal={true}
-                    onStop={() => { if(stopScreenShareFn) stopScreenShareFn(); }}
+                    onStop={stopScreenShare}
                 />
             )}
 
-            {/* Diğer Ekranlar */}
-            {Object.entries(incomingStreams).map(([socketId, stream]) => (
+            {/* Diğer Ekranlar (peersWithVideo kullanıyoruz) */}
+            {Object.entries(videos).map(([socketId, stream]) => (
                 <VideoPlayer
                     key={socketId}
                     stream={stream}
                     isLocal={false}
-                    username={`Kullanıcı (${socketId.substr(0,4)})`}
+                    username={`Kullanıcı (${socketId.substring(0,4)})`}
                 />
             ))}
         </div>

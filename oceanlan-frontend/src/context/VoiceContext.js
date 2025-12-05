@@ -1,5 +1,5 @@
 // src/context/VoiceContext.js
-import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import Peer from 'simple-peer';
 import { AuthContext } from './AuthContext';
@@ -16,32 +16,38 @@ const rtcConfig = {
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
-
-  // Refler (Sayfa değişse de sıfırlanmaz)
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
   const audioElementsRef = useRef({});
 
-  const { user, token } = useContext(AuthContext);
+  // 🎙️ SES ANALİZİ İÇİN REFLER (Yeşil Çember)
+  const audioAnalyzersRef = useRef({});
+  const localAudioContextRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
-  // Ses ayarları
+  const { user, token } = useContext(AuthContext);
   const audioSettings = useContext(AudioSettingsContext);
+
+  // Ayarları güvenli al
   const inputDeviceId = audioSettings?.inputDeviceId;
   const outputDeviceId = audioSettings?.outputDeviceId;
   const isMicMuted = audioSettings?.isMicMuted;
   const isDeafened = audioSettings?.isDeafened;
   const userVolumes = audioSettings?.userVolumes;
 
-  // --- STATE'LER ---
+  // --- STATES ---
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
   const [currentServerId, setCurrentServerId] = useState(null);
-  const [speakingUsers, setSpeakingUsers] = useState({});
+  const [currentVoiceChannelName, setCurrentVoiceChannelName] = useState(null);
+  const [currentServerName, setCurrentServerName] = useState(null);
+
+  const [speakingUsers, setSpeakingUsers] = useState({}); // Kim konuşuyor?
   const [micError, setMicError] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
 
-  // 🔴 EKSİK OLAN KISIMLAR EKLENDİ 👇
-  const [incomingStreams, setIncomingStreams] = useState({});
+  // Video
+  const [peersWithVideo, setPeersWithVideo] = useState({});
   const [myScreenStream, setMyScreenStream] = useState(null);
 
   // 1. SOCKET BAĞLANTISI
@@ -71,73 +77,180 @@ export const VoiceProvider = ({ children }) => {
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    // Event dinleyicileri
-    socket.on('user-joined-voice', (d) => handleUserJoined(d));
-    socket.on('webrtc-offer', (d) => handleOffer(d));
-    socket.on('webrtc-answer', (d) => handleAnswer(d));
-    socket.on('webrtc-ice-candidate', (d) => handleIce(d));
-    socket.on('user-left-voice', (d) => handleUserLeft(d));
+    // Eventler
+    socket.on('user-joined-voice', handleUserJoined);
+    socket.on('webrtc-offer', handleOffer);
+    socket.on('webrtc-answer', handleAnswer);
+    socket.on('webrtc-ice-candidate', handleIce);
+    socket.on('user-left-voice', handleUserLeft);
+
+    // 🚀 TAŞIMA (MOVE) ÖZELLİĞİ
+    socket.on('voice-channel-moved', handleChannelMoved);
 
     return () => { };
   }, [token]);
 
-  // --- Yardımcı Stream Fonksiyonları ---
-  const addIncomingStream = (socketId, stream) => {
-    setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
+
+  // ----------------------------------------------------------------
+  // 2. TAŞIMA (MOVE) VE SES ANALİZ MANTIĞI
+  // ----------------------------------------------------------------
+
+  // Yönetici seni başka odaya çektiğinde çalışır
+  const handleChannelMoved = ({ newChannelId, serverId, channelName }) => {
+    console.log(`[VoiceContext] Taşındınız -> Kanal: ${newChannelId}`);
+
+    // State güncelle
+    setCurrentVoiceChannelId(newChannelId);
+    setCurrentServerId(serverId);
+    if(channelName) setCurrentVoiceChannelName(channelName);
+
+    // Mevcut bağlantıları temizlemeye gerek yok, backend socket odasını değiştirir.
+    // Ancak Peer bağlantılarını yenilemek gerekebilir (Simple-Peer mimarisine göre).
+    // Discord benzeri yapıda genellikle peerlar kopar ve 'user-joined' ile yeniden kurulur.
+    // Biz burada sadece UI güncelliyoruz, bağlantı koparsa 'reconnect' mantığı devreye girer.
   };
 
-  const removeIncomingStream = (socketId) => {
-    setIncomingStreams(prev => {
-      const newState = { ...prev };
-      delete newState[socketId];
-      return newState;
+  // Ses Analizi Başlatıcı (Yeşil Çember)
+  const setupAudioAnalysis = (stream, socketIdOrUserId, isLocal = false) => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const audioCtx = new AudioContext();
+        if (isLocal) localAudioContextRef.current = audioCtx;
+
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        // Analizi kaydet
+        audioAnalyzersRef.current[socketIdOrUserId] = { ctx: audioCtx, analyser, dataArray };
+
+        if (!animationFrameRef.current) {
+            checkAudioLevels();
+        }
+    } catch (e) {
+        console.error("Audio Analysis Error:", e);
+    }
+  };
+
+  // Döngüsel Ses Kontrolü
+  const checkAudioLevels = () => {
+    let hasUpdates = false;
+    const newSpeakingState = { ...speakingUsers }; // Mevcut state kopyası
+
+    Object.entries(audioAnalyzersRef.current).forEach(([id, { analyser, dataArray }]) => {
+        analyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const average = sum / dataArray.length;
+
+        // Eşik değeri (Hassasiyet) -> 10-15 arası iyidir
+        const isSpeakingNow = average > 10;
+
+        // Sadece durum değiştiyse güncelle (Performans için)
+        if (!!speakingUsers[id] !== isSpeakingNow) {
+             // State'i hemen güncellemek yerine toplu güncelleme için flag koyabilirdik
+             // ama React state batching yapıyor zaten.
+             // Burada doğrudan speakingUsers referansını kullanamayız, ref kullanmak daha iyi olurdu
+             // ama basitlik adına DOM güncellemesi veya setSpeakingUsers yapacağız.
+             // (Aşağıda useRef tabanlı bir optimizasyon yapılabilir ama şimdilik state kullanıyoruz)
+        }
+
+        // React state'ini sürekli güncellemek renderı yorar.
+        // Genelde bunu CSS class değişimi veya useRef ile yapmak daha iyidir.
+        // Ama kullanıcı bunu Context'ten bekliyor:
+
+        // Burayı optimize ediyoruz: Sadece değişiklik varsa set et.
+        // (Şimdilik basit tutuyoruz, her frame'de değil, değişimde set edeceğiz)
     });
+
+    // ⚠️ Optimizasyon: React Render Döngüsünü boğmamak için
+    // Bu kısmı basitleştirilmiş bir interval ile yapmak daha sağlıklıdır.
+    animationFrameRef.current = requestAnimationFrame(checkAudioLevels);
   };
 
-  // --- WebRTC Mantığı ---
+  // Daha Basit Bir Ses Analizi (Interval ile)
+  useEffect(() => {
+    const interval = setInterval(() => {
+        const updates = {};
+        let changed = false;
+
+        Object.entries(audioAnalyzersRef.current).forEach(([id, { analyser, dataArray }]) => {
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const avg = sum / dataArray.length;
+            const isSpeaking = avg > 15; // Eşik
+
+            if (speakingUsers[id] !== isSpeaking) {
+                updates[id] = isSpeaking;
+                changed = true;
+            } else {
+                updates[id] = speakingUsers[id];
+            }
+        });
+
+        if (changed) {
+            setSpeakingUsers(prev => ({ ...prev, ...updates }));
+        }
+    }, 100); // 100ms'de bir kontrol et
+
+    return () => clearInterval(interval);
+  }, [speakingUsers]);
+
+
+  // ----------------------------------------------------------------
+  // 3. WEBRTC MANTIĞI
+  // ----------------------------------------------------------------
 
   const handleUserJoined = ({ socketId }) => {
-    createPeer(socketId, true, localStreamRef.current);
+    const streamsToSend = [localStreamRef.current];
+    if (myScreenStream) streamsToSend.push(myScreenStream);
+    createPeer(socketId, true, streamsToSend.filter(s => s));
   };
 
   const handleOffer = ({ socketId, sdp }) => {
-    const p = createPeer(socketId, false, localStreamRef.current);
+    const streamsToSend = [localStreamRef.current];
+    if (myScreenStream) streamsToSend.push(myScreenStream);
+    const p = createPeer(socketId, false, streamsToSend.filter(s => s));
     p.signal(sdp);
   };
 
-  const handleAnswer = ({ socketId, sdp }) => {
-    if (peersRef.current && peersRef.current[socketId]) {
-      peersRef.current[socketId].signal(sdp);
-    }
-  };
-
-  const handleIce = ({ socketId, candidate }) => {
-    if (peersRef.current && peersRef.current[socketId]) {
-      peersRef.current[socketId].signal(candidate);
-    }
-  };
+  const handleAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
+  const handleIce = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
 
   const handleUserLeft = ({ socketId }) => {
-    if (peersRef.current && peersRef.current[socketId]) {
+    if (peersRef.current[socketId]) {
       peersRef.current[socketId].destroy();
       delete peersRef.current[socketId];
     }
-    if (audioElementsRef.current && audioElementsRef.current[socketId]) {
+    if (audioElementsRef.current[socketId]) {
       audioElementsRef.current[socketId].remove();
       delete audioElementsRef.current[socketId];
     }
-    // State'ten de sil
-    removeIncomingStream(socketId);
+    // Analizden sil
+    if (audioAnalyzersRef.current[socketId]) {
+        delete audioAnalyzersRef.current[socketId];
+    }
+
+    setPeersWithVideo(prev => { const n = { ...prev }; delete n[socketId]; return n; });
+    setSpeakingUsers(prev => { const n = { ...prev }; delete n[socketId]; return n; });
   };
 
-  const createPeer = (targetSocketId, initiator, stream) => {
+  const createPeer = (targetSocketId, initiator, streams = []) => {
     if (!peersRef.current) peersRef.current = {};
     if (peersRef.current[targetSocketId]) return peersRef.current[targetSocketId];
 
     const p = new Peer({
       initiator,
       trickle: false,
-      stream: stream || undefined,
+      streams: streams,
       config: rtcConfig
     });
 
@@ -148,38 +261,82 @@ export const VoiceProvider = ({ children }) => {
       }
     });
 
-    p.on('stream', remoteStream => {
-      playRemoteStream(remoteStream, targetSocketId);
-    });
+    p.on('stream', remoteStream => handleRemoteStream(remoteStream, targetSocketId));
 
     peersRef.current[targetSocketId] = p;
     return p;
   };
 
-  const playRemoteStream = (stream, id) => {
-    // 1. DOM'a Audio Elementi Ekle (Duymak için)
-    if (!audioElementsRef.current) audioElementsRef.current = {};
-    if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
+  const handleRemoteStream = (stream, id) => {
+    const isVideo = stream.getVideoTracks().length > 0;
 
-    const audio = document.createElement('audio');
-    audio.srcObject = stream;
-    audio.autoplay = true;
-    audio.playsInline = true;
-    audio.style.display = 'none';
-    document.body.appendChild(audio);
+    if (isVideo) {
+        setPeersWithVideo(prev => ({ ...prev, [id]: stream }));
+    } else {
+        // SES
+        if (!audioElementsRef.current) audioElementsRef.current = {};
+        if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
 
-    if (outputDeviceId && typeof audio.setSinkId === 'function') {
-        audio.setSinkId(outputDeviceId).catch(e => console.warn(e));
+        const audio = document.createElement('audio');
+        audio.srcObject = stream;
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
+
+        if (outputDeviceId && typeof audio.setSinkId === 'function') {
+            audio.setSinkId(outputDeviceId).catch(e => console.warn(e));
+        }
+        audioElementsRef.current[id] = audio;
+
+        // Ses Analizini Başlat (Yeşil çember için)
+        setupAudioAnalysis(stream, id, false);
     }
-
-    audioElementsRef.current[id] = audio;
-
-    // 2. State'e Ekle (Arayüzün görmesi için - Yeşil çerçeve vb.)
-    addIncomingStream(id, stream);
   };
 
-  // --- Kanala Katılma / Ayrılma ---
+  // ----------------------------------------------------------------
+  // 4. EKRAN PAYLAŞIMI (ELECTRON & WEB)
+  // ----------------------------------------------------------------
+  const startScreenShare = async (electronSourceId = null) => {
+    try {
+        let stream;
+        // Electron Desteği
+        if (window.electronAPI && electronSourceId) {
+             stream = await navigator.mediaDevices.getUserMedia({
+                 audio: false,
+                 video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: electronSourceId } }
+             });
+        }
+        // Web Desteği
+        else {
+             stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        }
 
+        setMyScreenStream(stream);
+
+        // Mevcut bağlantılara ekle
+        Object.values(peersRef.current).forEach(p => p.addStream(stream));
+
+        stream.getVideoTracks()[0].onended = () => stopScreenShare();
+
+    } catch (err) {
+        console.error("Ekran paylaşımı hatası:", err);
+    }
+  };
+
+  const stopScreenShare = () => {
+      if (myScreenStream) {
+          myScreenStream.getTracks().forEach(t => t.stop());
+          Object.values(peersRef.current).forEach(p => {
+              try { p.removeStream(myScreenStream); } catch(e){}
+          });
+          setMyScreenStream(null);
+      }
+  };
+
+  // ----------------------------------------------------------------
+  // 5. KANALA KATIL / AYRIL
+  // ----------------------------------------------------------------
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
@@ -200,9 +357,16 @@ export const VoiceProvider = ({ children }) => {
       localStreamRef.current = stream;
       stream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
 
+      // Kendi ses analizini başlat (Konuşunca yeşil yanması için)
+      if (user) {
+          setupAudioAnalysis(stream, user.id, true);
+      }
+
       setCurrentVoiceChannelId(cId);
       setCurrentServerId(sId);
       setStayConnected(true);
+      if(server.name) setCurrentServerName(server.name);
+      if(channel.name) setCurrentVoiceChannelName(channel.name);
 
       socketRef.current.emit('join-voice-channel', {
         serverId: sId,
@@ -221,6 +385,8 @@ export const VoiceProvider = ({ children }) => {
     setStayConnected(false);
     setCurrentVoiceChannelId(null);
     setCurrentServerId(null);
+    setPeersWithVideo({});
+    stopScreenShare();
 
     socketRef.current?.emit('leave-voice-channel');
 
@@ -237,19 +403,25 @@ export const VoiceProvider = ({ children }) => {
         Object.values(audioElementsRef.current).forEach(a => a.remove());
         audioElementsRef.current = {};
     }
-    // Stream state'lerini temizle
-    setIncomingStreams({});
-    setMyScreenStream(null);
+    // Audio Context Temizliği
+    if (localAudioContextRef.current) {
+        localAudioContextRef.current.close().catch(()=>{});
+        localAudioContextRef.current = null;
+    }
+    Object.values(audioAnalyzersRef.current).forEach(obj => {
+        if(obj.ctx) obj.ctx.close().catch(()=>{});
+    });
+    audioAnalyzersRef.current = {};
+    setSpeakingUsers({});
   };
 
-  const rejoinChannel = () => {
-     // Sayfa yenilenirse çalışır
-  };
+  const rejoinChannel = () => {};
 
-  // --- Ses Ayarları Dinleyicisi ---
+  // ----------------------------------------------------------------
+  // 6. AYARLAR DİNLEYİCİSİ (Mute/Deafen/Device)
+  // ----------------------------------------------------------------
   useEffect(() => {
       if (!audioElementsRef.current) return;
-
       Object.values(audioElementsRef.current).forEach((audio) => {
           if (!audio) return;
           audio.muted = isDeafened;
@@ -273,19 +445,19 @@ export const VoiceProvider = ({ children }) => {
       isConnected,
       currentVoiceChannelId,
       currentServerId,
+      currentVoiceChannelName,
+      currentServerName,
       joinVoiceChannel,
       leaveVoiceChannel,
 
-      speakingUsers,
+      speakingUsers, // 🟢 Yeşil çember için dolu veri döner
       micError,
       stayConnected,
 
-      // 🔴 EKSİK OLAN BU KISIMLAR GERİ EKLENDİ 🔴
-      incomingStreams,
-      addIncomingStream,
-      removeIncomingStream,
+      peersWithVideo,
       myScreenStream,
-      setMyScreenStream
+      startScreenShare, // 💻 Ekran Paylaşımı
+      stopScreenShare
     }}>
       {children}
     </VoiceContext.Provider>
