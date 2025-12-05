@@ -22,7 +22,7 @@ const PERMISSIONS_LIST = [
   'MANAGE_MESSAGES', 'VOICE_SPEAK', 'MUTE_MEMBERS', 'DEAFEN_MEMBERS'
 ];
 
-// Üye rol yöneticisi Bileşeni
+// Üye rol yöneticisi
 const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate }) => {
   const [memberRoles, setMemberRoles] = useState(new Set(member.roles.map(r => r._id)));
   const { addToast } = useContext(ToastContext);
@@ -56,7 +56,10 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate }) => {
         {serverRoles
           .filter(role => role.name !== '@everyone')
           .map(role => (
-            <label key={role._id} className="role-checkbox-chip">
+            <label
+              key={role._id}
+              className="role-checkbox-chip"
+            >
               <input
                 type="checkbox"
                 checked={memberRoles.has(role._id)}
@@ -117,27 +120,32 @@ const ServerSettingsPage = () => {
 
   useServerSocket(serverId);
 
-  // 🛠️ YETKİ KONTROLÜ GÜNCELLENDİ
-  // Sahibin, Yöneticinin veya 'MANAGE_SERVER' yetkisi olanın girmesine izin ver
+  // =======================================================
+  // 🛠️ YETKİ KONTROLÜ (DÜZELTİLDİ)
+  // =======================================================
+
+  // Sahiplik kontrolünü hem String hem Object ID için güvenli yapıyoruz
+  const isOwner = useMemo(() => {
+    if (!activeServer || !user) return false;
+    const ownerId = activeServer.owner?._id || activeServer.owner;
+    const myId = user._id || user.id;
+    return String(ownerId) === String(myId);
+  }, [activeServer, user]);
+
   const hasSettingsAccess = useMemo(() => {
     if (!activeServer || !user) return false;
 
-    // 1. Sunucu Sahibi mi?
-    if (activeServer.owner._id === user.id || activeServer.owner === user.id) return true;
+    // 1. Sahip mi?
+    if (isOwner) return true;
 
-    // 2. Administrator yetkisi var mı?
+    // 2. Yönetici mi?
     if (checkUserPermission(activeServer, user.id, 'ADMINISTRATOR')) return true;
 
-    // 3. Sunucu Yönetme yetkisi var mı?
+    // 3. Sunucu Yönetme Yetkisi Var mı?
     if (checkUserPermission(activeServer, user.id, 'MANAGE_SERVER')) return true;
 
     return false;
-  }, [activeServer, user]);
-
-  const isOwner = useMemo(() => {
-    if (!activeServer || !user) return false;
-    return activeServer.owner._id === user.id;
-  }, [activeServer, user]);
+  }, [activeServer, user, isOwner]);
 
   // Yasaklı kullanıcıları çek
   useEffect(() => {
@@ -313,15 +321,22 @@ const ServerSettingsPage = () => {
     return <div className="server-settings-loading">Sunucu Ayarları Yükleniyor...</div>;
   }
 
-  // 🛑 ERİŞİM ENGELİ (Eğer yetkisi yoksa)
   if (!hasSettingsAccess) {
+    // Debug bilgisi
+    const ownerId = activeServer.owner?._id || activeServer.owner;
     return (
-      <div className="no-permission" style={{ padding: '20px', color: '#fff', textAlign: 'center' }}>
+      <div className="no-permission" style={{padding:'50px', textAlign:'center', color:'white'}}>
         <h2>Erişim Reddedildi</h2>
-        <p>Bu sayfayı görme yetkiniz yok. (Sadece Yönetici veya Sunucu Sahibi)</p>
+        <p>Bu sayfayı görme yetkiniz yok.</p>
+        <p style={{fontSize:'12px', color:'#999'}}>
+           (Debug: Sahip={String(ownerId)}, Sen={String(user?.id)})
+        </p>
       </div>
     );
   }
+
+  // Sahip adını güvenli al
+  const ownerName = activeServer.owner?.username || 'Sunucu Sahibi';
 
   return (
     <div className="server-settings-area fancy">
@@ -332,7 +347,7 @@ const ServerSettingsPage = () => {
           </div>
           <div className="server-meta">
             <h1>{activeServer.name} Ayarları</h1>
-            <p>Sunucu Sahibi: {activeServer.owner.username}</p>
+            <p>Sunucu Sahibi: {ownerName}</p>
           </div>
         </div>
         <div className="server-quick-stats">
@@ -352,12 +367,37 @@ const ServerSettingsPage = () => {
       </div>
 
       <div className="settings-tabs">
-        <button onClick={() => setActiveTab('overview')} className={activeTab === 'overview' ? 'active' : ''}>Genel Bakış</button>
-        <button onClick={() => setActiveTab('channels')} className={activeTab === 'channels' ? 'active' : ''}>Kanallar</button>
-        <button onClick={() => setActiveTab('roles')} className={activeTab === 'roles' ? 'active' : ''}>Roller</button>
-        <button onClick={() => setActiveTab('members')} className={activeTab === 'members' ? 'active' : ''}>Üyeler</button>
-        <button onClick={() => setActiveTab('bans')} className={activeTab === 'bans' ? 'active' : ''}>Yasaklamalar</button>
-        {/* ❌ Davetler sekmesi buradan kaldırıldı (Ana sayfada olduğu için) */}
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={activeTab === 'overview' ? 'active' : ''}
+        >
+          Genel Bakış
+        </button>
+        <button
+          onClick={() => setActiveTab('channels')}
+          className={activeTab === 'channels' ? 'active' : ''}
+        >
+          Kanallar
+        </button>
+        <button
+          onClick={() => setActiveTab('roles')}
+          className={activeTab === 'roles' ? 'active' : ''}
+        >
+          Roller
+        </button>
+        <button
+          onClick={() => setActiveTab('members')}
+          className={activeTab === 'members' ? 'active' : ''}
+        >
+          Üyeler
+        </button>
+        <button
+          onClick={() => setActiveTab('bans')}
+          className={activeTab === 'bans' ? 'active' : ''}
+        >
+          Yasaklamalar
+        </button>
+        {/* Davetler sekmesini buradan kaldırdık çünkü artık ana sayfada */}
       </div>
 
       <div className="settings-content">
@@ -372,7 +412,7 @@ const ServerSettingsPage = () => {
               </div>
               <div className="info-row">
                 <span className="label">Sunucu Sahibi</span>
-                <span className="value">{activeServer.owner.username}</span>
+                <span className="value">{ownerName}</span>
               </div>
 
               <div className="icon-upload-section">

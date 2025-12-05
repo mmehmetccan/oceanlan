@@ -10,7 +10,7 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
-import { UserPlusIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/outline'; // İkonlar güncellendi
 import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -45,21 +45,11 @@ const ServerView = () => {
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // 🔍 DEBUG VE SAHİPLİK KONTROLÜ
-  // user ve activeServer değiştiğinde konsola basar, hatayı görmeni sağlar.
-  useEffect(() => {
-      if(activeServer && user) {
-          const ownerId = activeServer.owner?._id || activeServer.owner;
-          const myId = user._id || user.id;
-          console.log(`[YETKİ KONTROLÜ] Server Sahibi: ${ownerId} | Ben: ${myId} | Eşleşiyor mu: ${String(ownerId) === String(myId)}`);
-      }
-  }, [activeServer, user]);
-
-  const isOwner = activeServer && user && (() => {
-      const ownerId = activeServer.owner?._id || activeServer.owner;
-      const myId = user._id || user.id;
-      return String(ownerId) === String(myId);
-  })();
+  // YETKİLER
+  const isOwner = activeServer && user && (
+      (activeServer.owner?._id?.toString() === user.id?.toString()) ||
+      (activeServer.owner?.toString() === user.id?.toString())
+  );
 
   const canManageServer = activeServer && (
       isOwner ||
@@ -122,6 +112,7 @@ const ServerView = () => {
     };
   }, [socket, serverId, fetchServerDetails, addToast]);
 
+  // DRAG & DROP
   const handleVoiceUserDragStart = (e, fromChannelId, userId) => {
     if (!canMoveMembers) return;
     e.dataTransfer.effectAllowed = 'move';
@@ -169,42 +160,85 @@ const ServerView = () => {
   const voiceChannels = activeServer.channels.filter((c) => c.type === 'voice');
   const serverIconUrl = activeServer?.iconUrl ? (activeServer.iconUrl.startsWith('http') ? activeServer.iconUrl : `${BASE_URL}${activeServer.iconUrl}`) : null;
   const serverInitial = activeServer?.name?.charAt(0)?.toUpperCase() || '#';
+  const serverMemberCount = activeServer.members?.length || 0;
 
   return (
     <div className="server-view" onClick={() => setContextMenu(null)}>
-      <header className="server-view-header">
-        <div className="server-title-block">
-          <div className="server-avatar-chip" style={{ overflow: 'hidden', padding: 0, background: serverIconUrl ? 'transparent' : '' }}>
-            {serverIconUrl ? (
-              <img src={serverIconUrl} alt={activeServer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerText = serverInitial; }} />
-            ) : (serverInitial)}
-          </div>
-          <div className="server-title-text">
-            <h2 className="server-name">{activeServer.name}</h2>
-          </div>
+
+      {/* 🎨 YENİ HEADER TASARIMI */}
+      <header className="server-view-header" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'auto', // Yüksekliği otomatik yap
+          padding: '0',
+          backgroundColor: '#2f3136'
+      }}>
+        {/* Üst Kısım: Resim ve İsim */}
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '16px 16px 12px 16px',
+            borderBottom: '1px solid #202225'
+        }}>
+            <div className="server-avatar-chip" style={{ overflow: 'hidden', padding: 0, background: serverIconUrl ? 'transparent' : '', width: '48px', height: '48px', marginRight: '12px' }}>
+                {serverIconUrl ? (
+                <img src={serverIconUrl} alt={activeServer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerText = serverInitial; }} />
+                ) : (serverInitial)}
+            </div>
+            <h2 className="server-name" style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: 'white' }}>
+                {activeServer.name}
+            </h2>
         </div>
 
-        {/* HEADER ACTIONS */}
-        <div className="server-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-            <button
-                className="header-icon-btn invite-btn"
-                onClick={() => setShowInviteModal(true)}
-                title="İnsanları Davet Et"
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b9bbbe' }}
-            >
-                <UserPlusIcon style={{ width: 24 }} />
-            </button>
+        {/* Alt Kısım: Toolbar (İstatistikler ve Butonlar) */}
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 16px',
+            backgroundColor: 'rgba(32, 34, 37, 0.6)',
+            fontSize: '13px',
+            color: '#b9bbbe'
+        }}>
+            {/* Sol: Üye Sayısı */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <UsersIcon style={{ width: 16 }} />
+                <span>{serverMemberCount} Üye</span>
+            </div>
 
-            {/* AYARLAR BUTONU KONTROLÜ */}
-            {canManageServer && (
-                <Link to={`/dashboard/server/${serverId}/settings`} className="header-icon-btn settings-btn" title="Sunucu Ayarları">
-                    <Cog6ToothIcon style={{ width: 24, color: '#b9bbbe' }} />
-                </Link>
-            )}
+            {/* Sağ: Aksiyon Butonları (Yazının altına alındı) */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                    onClick={() => setShowInviteModal(true)}
+                    title="İnsanları Davet Et"
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        background: '#5865F2', border: 'none', borderRadius: '4px',
+                        color: 'white', padding: '4px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'
+                    }}
+                >
+                    <UserPlusIcon style={{ width: 14 }} /> Davet
+                </button>
+
+                {canManageServer && (
+                    <Link
+                        to={`/dashboard/server/${serverId}/settings`}
+                        title="Sunucu Ayarları"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            background: '#4f545c', border: 'none', borderRadius: '4px',
+                            color: 'white', padding: '4px 8px', cursor: 'pointer', textDecoration: 'none', fontSize: '12px', fontWeight: '600'
+                        }}
+                    >
+                        <Cog6ToothIcon style={{ width: 14 }} /> Ayarlar
+                    </Link>
+                )}
+            </div>
         </div>
       </header>
 
       <div className="channels-list">
+        {/* Metin Kanalları */}
         <div className="channel-group text-channels-group">
           <h3># Metin Kanalları</h3>
           {textChannels.map((channel) => {
@@ -220,12 +254,14 @@ const ServerView = () => {
           })}
         </div>
 
+        {/* Ses Kanalları */}
         <div className="channel-group voice-channels-group">
           <h3>🎤 Ses Kanalları</h3>
           {voiceChannels.map((channel) => {
             const isActiveVoice = currentVoiceChannelId === channel._id;
             const isDragOver = dragOverChannelId === channel._id;
 
+            // DUPLICATE & OPTIMISTIC UI
             let usersInThisChannel = [...(voiceState[channel._id] || [])];
             const myId = user?._id || user?.id;
 
@@ -269,12 +305,15 @@ const ServerView = () => {
                       const isSelf = String(voiceUser.userId) === String(user?.id);
 
                       const displayName = member?.user?.username || (isSelf ? user.username : voiceUser.username);
-                      let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar || (isSelf ? user.avatarUrl : null) || DEFAULT_AVATAR;
+
+                      let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
+                      if (!rawAvatar && isSelf) rawAvatar = user.avatarUrl;
+                      if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
-                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
+                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
 
                       return (
                         <div
