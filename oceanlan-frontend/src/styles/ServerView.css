@@ -2,29 +2,21 @@
 
 /* ServerView.css EN ALTINA EKLE */
 
-/* Konuşurken yanan yeşil çerçeve */
-.voice-user-avatar.speaking {
-    box-shadow: 0 0 0 2px #43b581; /* Discord Yeşili */
-    border-color: #43b581;
+/* Konuşan Kullanıcı Çerçevesi (Discord Yeşili) */
+.voice-user-item.is-speaking .voice-user-avatar img {
+    box-shadow: 0 0 0 2px #43b581 !important; /* Yeşil Çerçeve */
+    border-color: #43b581 !important;
 }
 
-/* Sürükleme sırasında kanalın yeşil yanması */
-.channel-group-item.drag-over-active {
-    transition: all 0.2s ease;
-}
-
-/* Sürüklenen öğe */
-.voice-user-item.draggable {
-    cursor: grab;
-}
-.voice-user-item.draggable:active {
-    cursor: grabbing;
-}
-.voice-user-avatar.speaking {
-    box-shadow: 0 0 0 2px #3ba55d, 0 0 10px rgba(59, 165, 93, 0.6);
-    border-color: #3ba55d;
-    transform: scale(1.05);
-    transition: all 0.1s ease;
+/* Konuşma Halkası (Opsiyonel Animasyonlu Halka) */
+.voice-speaking-ring {
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    border-radius: 50%;
+    border: 2px solid #43b581;
+    animation: pulse-green 1.5s infinite;
+    pointer-events: none;
+    z-index: 10;
 }
 /* ===========================
    HEADER
@@ -460,4 +452,23 @@
 .voice-user-tag.voice-user-tag-deafened {
   background: rgba(250, 174, 43, 0.25);
   color: #f9d486;
+}
+@keyframes pulse-green {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.1); opacity: 0; }
+}
+
+/* Sürükleme Efekti (Move için) */
+.channel-group-item.drag-over-active {
+    border: 2px dashed #43b581 !important;
+    background-color: rgba(67, 181, 129, 0.1) !important;
+    transition: all 0.2s ease;
+}
+
+/* Sürüklenebilir Öğe İmleci */
+.voice-user-item.draggable {
+    cursor: grab;
+}
+.voice-user-item.draggable:active {
+    cursor: grabbing;
 }

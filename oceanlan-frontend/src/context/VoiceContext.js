@@ -96,16 +96,18 @@ export const VoiceProvider = ({ children }) => {
 
           const audioCtx = new AudioContext();
           const analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 512;
+          analyser.fftSize = 512; // Hassasiyet
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
 
+          // Reflere kaydet
           audioContextRef.current = audioCtx;
           analyserRef.current = analyser;
 
           if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
 
           checkIntervalRef.current = setInterval(() => {
+              // Mute ise konuşmuyor say
               if (isMicMuted || !analyserRef.current) {
                   updateSpeakingStatus(false);
                   return;
@@ -118,11 +120,14 @@ export const VoiceProvider = ({ children }) => {
               for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
               const average = sum / dataArray.length;
 
-              // EŞİK DEĞERİ (Hassasiyet 15)
-              const isNowSpeaking = average > 15;
+              // 🔥 EŞİK DEĞERİ: 10 (Çok hassas) - 20 (Normal) - 30 (Bağırmak lazım)
+              // Eğer yeşil ışık hiç yanmıyorsa bu değeri DÜŞÜR (örn: 5 yap)
+              const threshold = 10;
+
+              const isNowSpeaking = average > threshold;
               updateSpeakingStatus(isNowSpeaking);
 
-          }, 100); // 100ms'de bir kontrol et
+          }, 100); // 100ms gecikme ile kontrol
 
       } catch (e) {
           console.error("Analiz hatası:", e);
