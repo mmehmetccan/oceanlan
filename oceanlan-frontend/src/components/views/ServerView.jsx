@@ -13,12 +13,7 @@ import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const BASE_URL = getBaseUrl();
-
-function getBaseUrl() {
-  const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  return url.replace(/\/api\/v1\/?$/, '');
-}
+const BASE_URL = API_URL_BASE.replace(/\/api\/v1\/?$/, '');
 
 const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
@@ -37,8 +32,6 @@ const ServerView = () => {
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
   const { addToast } = useContext(ToastContext);
-
-  // VoiceContext verileri
   const { joinVoiceChannel, currentVoiceChannelId, speakingUsers } = useContext(VoiceContext);
 
   useServerSocket(serverId);
@@ -47,10 +40,12 @@ const ServerView = () => {
   const [contextMenu, setContextMenu] = useState(null);
   const [draggedUser, setDraggedUser] = useState(null);
 
+  // Yetki Kontrolü
   const canMoveMembers = activeServer && (
       checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
       checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
-      checkUserPermission(activeServer, user?.id, 'MOVE_MEMBERS')
+      checkUserPermission(activeServer, user?.id, 'MOVE_MEMBERS') ||
+      activeServer.owner === user?.id
   );
 
   const handleJoinVoiceChannel = (channel) => {
@@ -66,17 +61,15 @@ const ServerView = () => {
       fetchServerDetails(serverId);
       return;
     }
-    // Varsayılan kanal yönlendirmesi
-    if (activeServer && activeServer._id === serverId && activeServer.channels.length > 0 && !location.pathname.includes('/channel/') && !location.pathname.includes('/settings')) {
+    if (activeServer && activeServer._id === serverId && activeServer.channels.length > 0 && !location.pathname.includes('/channel/') && !location.pathname.includes('/settings') && !currentVoiceChannelId) {
       const defaultChannel = activeServer.channels.find((c) => c.type === 'text') || activeServer.channels[0];
       if (defaultChannel) {
         navigate(`/dashboard/server/${serverId}/channel/${defaultChannel._id}`, { replace: true });
         setActiveChannel(defaultChannel);
       }
     }
-  }, [serverId, activeServer, navigate, location.pathname, fetchServerDetails, setActiveChannel]);
+  }, [serverId, activeServer, navigate, location.pathname, fetchServerDetails, currentVoiceChannelId, setActiveChannel]);
 
-  // Socket Dinleyicileri
   useEffect(() => {
     if (!socket || !serverId) return;
 
@@ -107,35 +100,57 @@ const ServerView = () => {
     };
   }, [socket, serverId, fetchServerDetails, addToast]);
 
-  // --- DRAG & DROP ---
+  // =======================================================
+  // 🔥 DRAG & DROP DÜZELTMESİ 🔥
+  // =======================================================
+
   const handleVoiceUserDragStart = (e, fromChannelId, userId) => {
     if (!canMoveMembers) return;
-    e.stopPropagation();
+
+    console.log('[DRAG] Başladı:', userId);
     setDraggedUser({ fromChannelId, userId });
+
+    // Firefox ve bazı tarayıcılar için veri seti şarttır
+    e.dataTransfer.setData("text/plain", userId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleVoiceUserDragEnd = () => setDraggedUser(null);
+  const handleVoiceUserDragEnd = () => {
+      setDraggedUser(null);
+  };
 
   const handleVoiceChannelDragOver = (e, channel) => {
+    // 🔴 KRİTİK DÜZELTME: preventDefault() EN BAŞTA OLMALI
+    // Bunu yapmazsan tarayıcı drop işlemini engeller!
     e.preventDefault();
-    if (!draggedUser || !canMoveMembers || channel.type !== 'voice' || draggedUser.fromChannelId === channel._id) return;
+    e.stopPropagation();
+
+    if (!draggedUser || !canMoveMembers) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+    }
+
+    // Aynı kanala taşımaya çalışma
+    if (draggedUser.fromChannelId === channel._id) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+    }
+
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleVoiceChannelDrop = (e, channel) => {
     e.preventDefault();
-    e.stopPropagation(); // Event'in karışmasını önle
+    e.stopPropagation();
+
+    console.log('[DROP] Bırakıldı:', channel.name);
 
     if (!draggedUser || !canMoveMembers) return;
-
-    // Kullanıcı zaten o kanaldaysa işlem yapma
     if (draggedUser.fromChannelId === channel._id) return;
 
-    console.log(`[DRAG-DROP] ${draggedUser.userId} kullanıcısı ${channel.name} kanalına atılıyor.`);
-
+    // Backend'e emit et
     socket.emit('move-voice-user', {
-      serverId: serverId, // Şu anki sunucu ID'si
+      serverId,
       fromChannelId: draggedUser.fromChannelId,
       toChannelId: channel._id,
       targetUserId: draggedUser.userId,
@@ -175,7 +190,6 @@ const ServerView = () => {
       </header>
 
       <div className="channels-list">
-        {/* TEXT KANALLARI */}
         <div className="channel-group text-channels-group">
           <h3># Metin Kanalları</h3>
           {textChannels.map((channel) => {
@@ -191,43 +205,46 @@ const ServerView = () => {
           })}
         </div>
 
-        {/* VOICE KANALLARI */}
         <div className="channel-group voice-channels-group">
           <h3>🎤 Ses Kanalları</h3>
           {voiceChannels.map((channel) => {
             const isActiveVoice = currentVoiceChannelId === channel._id;
-            const isDropTarget = draggedUser && canMoveMembers && draggedUser.fromChannelId !== channel._id;
 
-            // 🚀 OPTIMISTIC UI: Anında Güncelleme Mantığı
-            // 1. Backend'den gelen listeyi kopyala
+            // 🛠️ DUPLICATE USER FİX (Kopya Kullanıcı Çözümü)
+
+            // 1. Backend listesini al
             let usersInThisChannel = [...(voiceState[channel._id] || [])];
 
-            // 2. Eğer BEN bu kanaldaysam ve listede yoksam, EKLİYORUM
-            if (currentVoiceChannelId === channel._id && user) {
-                const amIHere = usersInThisChannel.find(u => String(u.userId) === String(user.id));
-                if (!amIHere) {
+            // 2. Kendi ID'ni güvenli al
+            const myId = user?._id || user?.id;
+
+            if (myId) {
+                // 3. Backend listesinden BENİ SİL (Böylece kopya oluşamaz)
+                usersInThisChannel = usersInThisChannel.filter(u => String(u.userId) !== String(myId));
+
+                // 4. Eğer gerçekten bu kanaldaysam, BENİ GERİ EKLE (Optimistic Update)
+                if (currentVoiceChannelId === channel._id) {
+                    // (Opsiyonel: Backend'den gelen mute/deaf durumunu korumak istersen find yapabilirsin, şimdilik temiz ekliyoruz)
                     usersInThisChannel.push({
-                        userId: user.id,
+                        userId: myId,
                         username: user.username,
                         socketId: socket?.id || 'temp',
-                        // Kendi avatarımı AuthContext'ten alabilirim ama burada id yeterli, aşağıda eşleşecek
+                        isMuted: false, // Local state'den de çekilebilir
+                        isDeafened: false
                     });
                 }
-            }
-            // 3. Eğer BEN başka kanaldaysam ama listede varsam, SİLİYORUM (Hayaleti temizle)
-            if (currentVoiceChannelId && currentVoiceChannelId !== channel._id && user) {
-                usersInThisChannel = usersInThisChannel.filter(u => String(u.userId) !== String(user.id));
             }
 
             return (
               <div
                 key={channel._id}
                 className="channel-group-item"
+                // 🔥 Eventleri buraya koyduk ki tüm alan tutulabilir olsun
                 onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
                 onDrop={(e) => handleVoiceChannelDrop(e, channel)}
               >
                 <button
-                  className={`channel-item voice-channel ${isActiveVoice ? 'active' : ''} ${isDropTarget ? 'drop-target' : ''}`}
+                  className={`channel-item voice-channel ${isActiveVoice ? 'active' : ''}`}
                   onClick={() => handleJoinVoiceChannel(channel)}
                 >
                   <div className="channel-main">
@@ -238,52 +255,42 @@ const ServerView = () => {
                 </button>
 
                 {usersInThisChannel.length > 0 && (
-                 <div className="voice-channel-users">
+                  <div className="voice-channel-users">
                     {usersInThisChannel.map((voiceUser) => {
                       const member = activeServer.members.find(m => m.user && String(m.user._id) === String(voiceUser.userId));
                       const isSelf = String(voiceUser.userId) === String(user?.id);
-
                       const displayName = member?.user?.username || (isSelf ? user.username : voiceUser.username);
 
-                      // Avatar Çözümleme
                       let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
                       if (!rawAvatar && isSelf) rawAvatar = user.avatarUrl;
                       if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
-                      const isSpeaking = speakingUsers?.[voiceUser.userId] || false;
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
+                      const isSpeaking = speakingUsers?.[voiceUser.userId] || false;
 
-                     return (
+                      return (
                         <div
                           key={voiceUser.userId}
-                          // Yetki varsa sürüklenebilir yap
                           className={`voice-user-item ${canMoveMembers ? 'draggable' : ''} ${isSpeaking ? 'is-speaking' : ''}`}
-                          draggable={canMoveMembers}
+                          draggable={canMoveMembers} // Sürüklenebilirlik burada
                           onDragStart={(e) => handleVoiceUserDragStart(e, channel._id, voiceUser.userId)}
                           onDragEnd={handleVoiceUserDragEnd}
                           onContextMenu={(e) => member && handleContextMenu(e, member)}
                         >
-                          {/* 🛑 "sadasd" YAZISI SİLİNDİ */}
                           <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`}>
                             <img src={absoluteAvatarSrc} alt={displayName} onError={handleAvatarError} />
                             {isSpeaking && <span className="voice-speaking-ring" />}
                           </div>
-
                           <div className="voice-user-details">
                             <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
-                            <div className="voice-user-tags">
-                              {isSelf && <span className="voice-user-tag">Sen</span>}
-                              {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
-                              {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
-                            </div>
+                            {isSelf && <span className="voice-user-tag">Sen</span>}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                
                 )}
               </div>
             );
