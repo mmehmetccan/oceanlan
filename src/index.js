@@ -258,75 +258,111 @@ io.on('connection', (socket) => {
   // Ses kanalına katılma (izin + limit kontrolü)
   // -------------------------------------
   socket.on('join-voice-channel', async (data) => {
-    const { channelId, serverId, userId, username } = data || {};
-    if (!channelId || !serverId || !userId || socket.userId !== userId) return;
+  const { channelId, serverId, userId, username } = data || {};
 
-    if (socket.currentVoiceChannel) {
-      if (socket.currentVoiceChannel.channelId === channelId) {
-        return;
-      }
-      handleLeaveVoice(socket);
+  // Veri eksikse işlem yapma
+  if (!channelId || !serverId || !userId) return;
+
+  try {
+    // 1. GÜVENLİK KONTROLLERİ (Veritabanı)
+    const channel = await Channel.findById(channelId).populate('allowedRoles');
+    const member = await Member.findOne({ user: userId, server: serverId });
+
+    if (!channel || !member) {
+      return socket.emit('join-voice-error', { message: 'Erişim reddedildi.' });
     }
 
-    try {
-      const channel = await Channel.findById(channelId).populate('allowedRoles');
-      const member = await Member.findOne({ user: userId, server: serverId });
-
-      if (!channel || !member) {
-        return socket.emit('join-voice-error', { message: 'Kanal veya üyelik bulunamadı.' });
-      }
-
-      // Rol bazlı izin
-      if (channel.allowedRoles && channel.allowedRoles.length > 0) {
-        const hasPermission = member.roles.some((memberRole) =>
-          channel.allowedRoles.some((allowedRole) => allowedRole._id.equals(memberRole))
-        );
-        if (!hasPermission) {
-          return socket.emit('join-voice-error', {
-            message: 'Bu sesli kanala girme izniniz yok.',
-          });
-        }
-      }
-
-      const usersInChannel = voiceChannelState[serverId]?.[channelId]?.length || 0;
-      if (channel.maxUsers > 0 && usersInChannel >= channel.maxUsers) {
-        return socket.emit('join-voice-error', { message: 'Bu sesli kanal dolu.' });
-      }
-
-      socket.join(channelId);
-      console.log(
-        `[SOCKET-SES]: Kullanıcı ${username} (${socket.id}), ${channelId} SES odasına katıldı.`
+    // Rol İzin Kontrolü
+    if (channel.allowedRoles && channel.allowedRoles.length > 0) {
+      const hasPermission = member.roles.some((memberRole) =>
+        channel.allowedRoles.some((allowedRole) => allowedRole._id.equals(memberRole))
       );
-
-      socket.currentVoiceChannel = { channelId, serverId, userId, username };
-
-      if (!voiceChannelState[serverId]) voiceChannelState[serverId] = {};
-      if (!voiceChannelState[serverId][channelId]) voiceChannelState[serverId][channelId] = [];
-
-      if (!voiceChannelState[serverId][channelId].find((u) => u.userId === userId)) {
-        voiceChannelState[serverId][channelId].push({
-          userId,
-          username,
-          socketId: socket.id,
-        });
+      if (!hasPermission) {
+        return socket.emit('join-voice-error', { message: 'Bu odaya girme izniniz yok.' });
       }
-
-      if (!socket.rooms.has(serverId)) {
-        socket.join(serverId);
-      }
-
-      socket.to(channelId).emit('user-joined-voice', {
-        socketId: socket.id,
-        userId,
-        username,
-      });
-
-      io.to(serverId).emit('voiceStateUpdate', voiceChannelState[serverId]);
-    } catch (error) {
-      console.error('Join voice error:', error);
-      socket.emit('join-voice-error', { message: error.message });
     }
-  });
+
+    // Doluluk Kontrolü
+    const currentUsers = voiceChannelState[serverId]?.[channelId]?.length || 0;
+    if (channel.maxUsers > 0 && currentUsers >= channel.maxUsers) {
+      return socket.emit('join-voice-error', { message: 'Oda kapasitesi dolu.' });
+    }
+
+    // ----------------------------------------------------------------
+    // 2. STATE TEMİZLİĞİ (Hayalet Kullanıcıyı Önler)
+    // ----------------------------------------------------------------
+
+    // Eğer sunucu state'i yoksa oluştur
+    if (!voiceChannelState[serverId]) {
+        voiceChannelState[serverId] = {};
+    }
+
+    // 🔥 KRİTİK ADIM: Kullanıcıyı bu sunucudaki DİĞER kanallardan sil.
+    // Bu sayede kullanıcı aynı anda iki odada görünmez.
+    Object.keys(voiceChannelState[serverId]).forEach((cId) => {
+      if (voiceChannelState[serverId][cId]) {
+        voiceChannelState[serverId][cId] = voiceChannelState[serverId][cId].filter(
+          (u) => u.userId !== userId
+        );
+      }
+    });
+
+    // ----------------------------------------------------------------
+    // 3. SOCKET ODALARINA KATILIM
+    // ----------------------------------------------------------------
+
+    // Eski ses odasından çık (Socket seviyesinde)
+    if (socket.currentVoiceChannel && socket.currentVoiceChannel.channelId !== channelId) {
+        socket.leave(socket.currentVoiceChannel.channelId);
+    }
+
+    // Yeni ses odasına gir
+    socket.join(channelId);
+
+    // Sunucu odasına gir (Listeyi görebilmek için şart)
+    if (!socket.rooms.has(serverId)) {
+        socket.join(serverId);
+    }
+
+    // Socket üzerine not al
+    socket.currentVoiceChannel = { channelId, serverId, userId, username };
+
+    // ----------------------------------------------------------------
+    // 4. LİSTEYE EKLEME VE YAYINLAMA
+    // ----------------------------------------------------------------
+
+    // Hedef kanal dizisini oluştur
+    if (!voiceChannelState[serverId][channelId]) {
+        voiceChannelState[serverId][channelId] = [];
+    }
+
+    // Kullanıcıyı listeye ekle
+    voiceChannelState[serverId][channelId].push({
+      userId,
+      username,
+      socketId: socket.id,
+      isMuted: false,   // Varsayılan
+      isDeafened: false // Varsayılan
+    });
+
+    console.log(`[SES-KATILIM] ${username} -> ${channelId}`);
+
+    // 📢 A. Ses kanalındakilere (WebRTC için) haber ver
+    socket.to(channelId).emit('user-joined-voice', {
+      socketId: socket.id,
+      userId,
+      username,
+    });
+
+    // 📢 B. Sunucudaki HERKESE (Liste güncellemesi için) haber ver
+    // "Diğer kullanıcılarda görünmüyor" sorununu çözen satır budur.
+    io.to(serverId).emit('voiceStateUpdate', voiceChannelState[serverId]);
+
+  } catch (error) {
+    console.error('Join voice error:', error);
+    socket.emit('join-voice-error', { message: 'Sunucu hatası.' });
+  }
+});
 
   // -------------------------------------
   // Moderatörün sesli kullanıcı taşıması
@@ -583,25 +619,17 @@ io.on('connection', (socket) => {
   // Disconnect
   // -------------------------------------
   socket.on('disconnect', () => {
-    console.log(`[SOCKET]: Kullanıcı ayrıldı. ID: ${socket.id}`);
+    console.log(`[SOCKET] Koptu: ${socket.id}`);
 
-    if (socket.userId) {
-      const now = new Date();
-      User.updateOne(
-        { _id: socket.userId },
-        { $set: { onlineStatus: 'offline', lastSeenAt: now } }
-      )
-        .then(() => {
-          io.emit('userStatusChanged', {
-            userId: socket.userId,
-            status: 'offline',
-            lastSeenAt: now,
-          });
-        })
-        .catch((err) => console.error('[PRESENCE] offline guncelleme hatasi', err));
-    }
-
+    // Ses kanalından temizle
     handleLeaveVoice(socket);
+
+    // Online durumunu güncelle
+    if (socket.userId) {
+        const now = new Date();
+        User.updateOne({ _id: socket.userId }, { $set: { onlineStatus: 'offline', lastSeenAt: now } }).catch(()=>{});
+        io.emit('userStatusChanged', { userId: socket.userId, status: 'offline', lastSeenAt: now });
+    }
   });
 });
 
