@@ -6,7 +6,9 @@ export const VoiceContext = createContext();
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
-  const { user } = useContext(AuthContext);
+
+  // 1. TOKEN'I BURADAN ALIYORUZ
+  const { user, token } = useContext(AuthContext);
 
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
@@ -26,26 +28,27 @@ export const VoiceProvider = ({ children }) => {
 
   const [stayConnected, setStayConnected] = useState(false);
 
-  // 1. SOCKET BAĞLANTISI
+  // 1. SOCKET BAĞLANTISI (Token değişirse yeniden bağlanır)
   useEffect(() => {
+    // Eğer token yoksa socket açmaya çalışma (Login olmamış kullanıcı)
+    if (!token) return;
+
+    // Eğer socket zaten varsa ve bağlıysa dokunma, ama token değiştiyse yenilemek gerekebilir.
+    // Şimdilik basitlik adına: Eğer socket varsa return ediyoruz.
     if (socketRef.current) return;
 
-    // 🟢 KRİTİK AYAR BURASI 🟢
-    // Tarayıcı adres çubuğuna bakar. "oceanlan.com" varsa canlı sunucuya bağlanır.
     const isProduction = window.location.hostname.includes('oceanlan.com');
-
-    // Canlıdaysa https://oceanlan.com, değilse localhost:4000
     const backendUrl = isProduction
-        ? 'https://oceanlan.com' 
+        ? 'https://oceanlan.com'
         : 'http://localhost:4000';
 
-    console.log(`[VoiceContext] Ortam: ${isProduction ? 'CANLI (Production)' : 'GELİŞTİRME (Local)'}`);
-    console.log(`[VoiceContext] Bağlanılacak Adres: ${backendUrl}`);
+    console.log(`[VoiceContext] Bağlanılıyor: ${backendUrl}`);
 
     socketRef.current = io(backendUrl, {
-      // Polling + Websocket kullanımı (Daha garanti bağlantı için)
+      // 🟢 KRİTİK DÜZELTME: Token'ı buraya ekledik 🟢
+      auth: { token: token },
+
       transports: ['polling', 'websocket'],
-      // Canlı sunucuda HTTPS (Secure) olması önemlidir
       secure: isProduction,
       reconnection: true,
       reconnectionAttempts: 20,
@@ -56,13 +59,18 @@ export const VoiceProvider = ({ children }) => {
     const socket = socketRef.current;
 
     socket.on('connect', () => {
-      console.log('[SOCKET] Bağlandı. ID:', socket.id);
+      console.log('[SOCKET] Voice Bağlandı. ID:', socket.id);
       setIsConnected(true);
 
-      // Kopup geri geldiyse odaya tekrar gir
       if (stayConnected && currentVoiceChannelId) {
         rejoinChannel();
       }
+    });
+
+    // Backend authentication hatası verirse
+    socket.on('connect_error', (err) => {
+      console.error('[SOCKET] Bağlantı Hatası:', err.message); // Burada "Token not provided" hatasını göreceğiz
+      setIsConnected(false);
     });
 
     socket.on('disconnect', (reason) => {
@@ -70,16 +78,18 @@ export const VoiceProvider = ({ children }) => {
       setIsConnected(false);
     });
 
-    socket.on('connect_error', (err) => {
-      console.error('[SOCKET] Bağlantı Hatası:', err.message);
-    });
-
     socket.on('voice-channel-moved', ({ newChannelId, serverId }) => {
       setCurrentVoiceChannelId(newChannelId);
       setCurrentServerId(serverId);
     });
 
-  }, []);
+    // Component unmount olduğunda veya token null olduğunda (logout) temizle
+    return () => {
+        // İsteğe bağlı: Logout olunca socket'i kapatabiliriz
+        // if (socketRef.current) socketRef.current.disconnect();
+    };
+
+  }, [token]); // 👈 Token değişince (Login olunca) bu useEffect tekrar çalışır
 
   // --- YARDIMCI FONKSİYONLAR ---
 
@@ -96,10 +106,10 @@ export const VoiceProvider = ({ children }) => {
   const joinVoiceChannel = (server, channel) => {
     const socket = socketRef.current;
 
+    // Socket kopuksa tekrar bağlanmayı dene
     if (!socket || !socket.connected) {
-        console.warn('[LOG] Socket bağlı değil, bağlanılıyor...');
+        console.warn('[LOG] Socket bağlı değil. Bağlanmaya çalışılıyor...');
         socket?.connect();
-        // Hemen return etmiyoruz, emit'i deneyecek, olmazsa bufferlar
     }
 
     const sId = server._id || server;
@@ -114,12 +124,15 @@ export const VoiceProvider = ({ children }) => {
     if (server.name) setCurrentServerName(server.name);
     if (channel.name) setCurrentVoiceChannelName(channel.name);
 
-    socket.emit('join-voice-channel', {
-      serverId: sId,
-      channelId: cId,
-      userId: user?._id || user?.id,
-      username: user?.username,
-    });
+    // Emit ederken de garanti olsun
+    if (socket) {
+        socket.emit('join-voice-channel', {
+        serverId: sId,
+        channelId: cId,
+        userId: user?._id || user?.id,
+        username: user?.username,
+        });
+    }
   };
 
   const leaveVoiceChannel = () => {
