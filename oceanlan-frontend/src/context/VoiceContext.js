@@ -16,8 +16,6 @@ const rtcConfig = {
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
-
-  // Refler
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
   const audioElementsRef = useRef({});
@@ -28,21 +26,18 @@ export const VoiceProvider = ({ children }) => {
   const audioSettings = useContext(AudioSettingsContext);
   const { inputDeviceId, outputDeviceId, isMicMuted, isDeafened, userVolumes } = audioSettings || {};
 
-  // --- STATES ---
+  // STATES
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
   const [currentServerId, setCurrentServerId] = useState(null);
   const [currentVoiceChannelName, setCurrentVoiceChannelName] = useState(null);
   const [currentServerName, setCurrentServerName] = useState(null);
-
   const [speakingUsers, setSpeakingUsers] = useState({});
   const [micError, setMicError] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
-
   const [peersWithVideo, setPeersWithVideo] = useState({});
   const [myScreenStream, setMyScreenStream] = useState(null);
 
-  // 1. SOCKET BAĞLANTISI
   useEffect(() => {
     if (!token || socketRef.current) return;
 
@@ -62,13 +57,10 @@ export const VoiceProvider = ({ children }) => {
     socket.on('connect', () => {
       console.log('[SOCKET] Bağlandı:', socket.id);
       setIsConnected(true);
-      if (stayConnected && currentVoiceChannelId) {
-        rejoinChannel();
-      }
+      if (stayConnected && currentVoiceChannelId) rejoinChannel();
     });
 
     socket.on('disconnect', () => setIsConnected(false));
-
     socket.on('user-joined-voice', handleUserJoined);
     socket.on('webrtc-offer', handleOffer);
     socket.on('webrtc-answer', handleAnswer);
@@ -79,45 +71,29 @@ export const VoiceProvider = ({ children }) => {
     return () => {};
   }, [token]);
 
-  // ----------------------------------------------------------------
-  // 🧹 İÇ TEMİZLİK (State'i bozmadan sadece medyayı temizler)
-  // ----------------------------------------------------------------
   const cleanupMediaOnly = () => {
-      // 1. Peerları kapat
       Object.keys(peersRef.current).forEach(socketId => {
           if (peersRef.current[socketId]) peersRef.current[socketId].destroy();
           if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
       });
       peersRef.current = {};
       audioElementsRef.current = {};
-
-      // 2. Video ve konuşma statelerini temizle
       setPeersWithVideo({});
       setSpeakingUsers({});
-
-      // 3. Local Stream (Mikrofon) durdur
       if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach(t => t.stop());
           localStreamRef.current = null;
       }
-
-      // 4. Ekran Paylaşımı durdur
       if (myScreenStream) {
           myScreenStream.getTracks().forEach(t => t.stop());
           setMyScreenStream(null);
       }
-
-      // 5. Analizcileri durdur
       if (localAudioContextRef.current) {
           localAudioContextRef.current.close().catch(()=>{});
           localAudioContextRef.current = null;
       }
       audioAnalyzersRef.current = {};
   };
-
-  // ----------------------------------------------------------------
-  // 2. LOGIC & HANDLERS
-  // ----------------------------------------------------------------
 
   const handleChannelMoved = ({ newChannelId, serverId, channelName }) => {
     cleanupMediaOnly();
@@ -140,7 +116,6 @@ export const VoiceProvider = ({ children }) => {
     } catch(e) {}
   };
 
-  // Ses Analiz Döngüsü
   useEffect(() => {
     const interval = setInterval(() => {
         const updates = {};
@@ -163,12 +138,12 @@ export const VoiceProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [speakingUsers]);
 
-  // WebRTC Fonksiyonları
   const handleUserJoined = ({ socketId }) => {
     const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
     createPeer(socketId, true, streams);
   };
   const handleOffer = ({ socketId, sdp }) => {
+    cleanupConnection(socketId);
     const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
     const p = createPeer(socketId, false, streams);
     p.signal(sdp);
@@ -176,7 +151,9 @@ export const VoiceProvider = ({ children }) => {
   const handleAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
   const handleIce = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
 
-  const handleUserLeft = ({ socketId }) => {
+  const handleUserLeft = ({ socketId }) => cleanupConnection(socketId);
+
+  const cleanupConnection = (socketId) => {
       if (peersRef.current[socketId]) {
           peersRef.current[socketId].destroy();
           delete peersRef.current[socketId];
@@ -185,20 +162,18 @@ export const VoiceProvider = ({ children }) => {
           audioElementsRef.current[socketId].remove();
           delete audioElementsRef.current[socketId];
       }
-      setPeersWithVideo(prev => { const n = { ...prev }; delete n[socketId]; return n; });
-      setSpeakingUsers(prev => { const n = { ...prev }; delete n[socketId]; return n; });
+      if (audioAnalyzersRef.current[socketId]) delete audioAnalyzersRef.current[socketId];
+      setPeersWithVideo(prev => { const n={...prev}; delete n[socketId]; return n; });
+      setSpeakingUsers(prev => { const n={...prev}; delete n[socketId]; return n; });
   };
 
   const createPeer = (targetSocketId, initiator, streams = []) => {
-    if (peersRef.current[targetSocketId] && !peersRef.current[targetSocketId].destroyed) {
-        return peersRef.current[targetSocketId];
-    }
+    if (peersRef.current[targetSocketId] && !peersRef.current[targetSocketId].destroyed) return peersRef.current[targetSocketId];
     const p = new Peer({ initiator, trickle: false, streams, config: rtcConfig });
-
     p.on('signal', data => socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { targetSocketId, sdp: data }));
     p.on('stream', stream => handleRemoteStream(stream, targetSocketId));
-    p.on('error', () => handleUserLeft({ socketId: targetSocketId }));
-
+    p.on('error', () => cleanupConnection(targetSocketId));
+    p.on('close', () => cleanupConnection(targetSocketId));
     peersRef.current[targetSocketId] = p;
     return p;
   };
@@ -244,25 +219,17 @@ export const VoiceProvider = ({ children }) => {
       }
   };
 
-  // ----------------------------------------------------------------
-  // 5. JOIN / LEAVE (STATE KORUMALI)
-  // ----------------------------------------------------------------
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
 
     if (currentVoiceChannelId === cId) return;
 
-    // 🟢 DÜZELTME: Eğer zaten bir kanaldaysak, State'i null yapmadan sadece medyayı temizle
     if (currentVoiceChannelId) {
-        console.log("[Voice] Kanal değişimi: Medya temizleniyor...");
         cleanupMediaOnly();
-
-        // Backend'e eski kanaldan çıktığını bildir (State null olmadan)
         socketRef.current?.emit('leave-voice-channel');
     }
 
-    // Arayüzü HIZLICA yeni kanala ayarla (Null'a düşmeden geçiş yapar)
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
     setStayConnected(true);
@@ -270,6 +237,10 @@ export const VoiceProvider = ({ children }) => {
     if(channel.name) setCurrentVoiceChannelName(channel.name);
 
     try {
+      if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -285,13 +256,19 @@ export const VoiceProvider = ({ children }) => {
 
       if (user) setupAudioAnalysis(stream, user.id);
 
-      // Yeni kanala katıl
-      socketRef.current.emit('join-voice-channel', {
-        serverId: sId,
-        channelId: cId,
-        userId: user?._id || user?.id,
-        username: user?.username
-      });
+      // 🟢 GÜVENLİK: Socket var mı diye bak, yoksa patlamasın
+      if (socketRef.current && socketRef.current.connected) {
+          socketRef.current.emit('join-voice-channel', {
+            serverId: sId,
+            channelId: cId,
+            userId: user?._id || user?.id,
+            username: user?.username
+          });
+      } else {
+          console.warn("[Voice] Socket bağlı değil, bağlanmaya çalışılıyor...");
+          socketRef.current?.connect();
+          // Bağlantı eventinde rejoinChannel çalışacak
+      }
 
     } catch (err) {
       console.error("Mikrofon hatası:", err);
@@ -300,11 +277,9 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const leaveVoiceChannel = () => {
-    // Tamamen çıkışta State'i sıfırla
     setStayConnected(false);
     setCurrentVoiceChannelId(null);
     setCurrentServerId(null);
-
     socketRef.current?.emit('leave-voice-channel');
     cleanupMediaOnly();
   };

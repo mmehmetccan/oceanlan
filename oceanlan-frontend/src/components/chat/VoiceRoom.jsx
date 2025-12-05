@@ -31,31 +31,30 @@ const VoiceRoom = () => {
       currentServerName,
       micError,
       speakingUsers,
-      isConnected // 🟢 YENİ: Gerçek bağlantı durumunu buradan alıyoruz
+      isConnected
   } = useContext(VoiceContext);
 
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
 
-  // 🛑 ESKİ STATE VE EFFECT KALDIRILDI
-  // (Bunlar arayüzün geç güncellenmesine sebep oluyordu)
-
+  // 🛑 Eğer kanal seçilmemişse gösterme (Bu doğru)
   if (!currentVoiceChannelId) return null;
-  if (!user) return null;
+
+  // ⚠️ DÜZELTME: User yoksa "null" döndürme, sadece boş veriyle render et.
+  // Bu sayede bileşen mount olur ve user verisi gelince otomatik güncellenir.
+  const safeUser = user || { username: 'Yükleniyor...', id: 'guest' };
 
   const handleScreenShareToggle = () => {
       if (myScreenStream) stopScreenShare();
       else startScreenShare();
   };
 
-  // 🟢 HIZLI DURUM KONTROLÜ
-  // State yerine doğrudan değişkene atıyoruz, render anında hesaplanıyor.
   const isVoiceConnected = isConnected;
   const connectionText = isVoiceConnected ? 'Ses Bağlı' : 'Bağlanıyor...';
   const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
 
-  // Konuşuyor mu?
-  const amISpeaking = speakingUsers && user ? speakingUsers[user.id] : false;
+  // Konuşuyor mu kontrolünü güvenli yap
+  const amISpeaking = speakingUsers && safeUser.id && speakingUsers[safeUser.id];
 
   return (
     <div className="voice-room-controls">
@@ -80,7 +79,6 @@ const VoiceRoom = () => {
       </div>
 
       <div className="voice-controls-actions">
-        {/* Butonların tepki süresini artırmak için onClick olayları doğrudan Context'i tetikler */}
         <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
             <MicrophoneIcon className="voice-icon" />
             {isMicMuted && <div className="strike-line" />}
@@ -100,18 +98,18 @@ const VoiceRoom = () => {
         </button>
       </div>
 
-      {/* Kullanıcı Kartı - Anlık Güncelleme */}
+      {/* Kullanıcı Kartı */}
       <div className="voice-user-section">
           <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
              <img
-                src={toAbsolute(user?.avatarUrl || user?.avatar)}
+                src={toAbsolute(safeUser.avatarUrl || safeUser.avatar)}
                 alt="Me"
                 className="voice-user-img"
              />
           </div>
           <div className="voice-user-info-mini">
               <span className="voice-username">
-                  {user?.username || 'Kullanıcı'}
+                  {safeUser.username}
               </span>
               <span className="voice-status-micro">
                   {isMicMuted ? 'Muted' : 'Open'}
