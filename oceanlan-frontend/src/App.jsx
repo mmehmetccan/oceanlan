@@ -31,6 +31,8 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
+      <SocketProvider>
+
     <AuthProvider>
       <ServerProvider>
         <AudioSettingsProvider>
@@ -62,6 +64,8 @@ function App() {
         </AudioSettingsProvider>
       </ServerProvider>
     </AuthProvider>
+        </SocketProvider>
+
   );
 }
 export default App;

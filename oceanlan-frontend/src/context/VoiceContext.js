@@ -30,6 +30,8 @@ const { user } = useContext(AuthContext);
 
 
   const { socket } = useSocket();
+  console.log("[VoiceContext] Socket durumu:", socket);
+
 
   useEffect(() => {
       if(!socket) return;
