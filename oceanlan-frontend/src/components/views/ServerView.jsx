@@ -116,39 +116,25 @@ const ServerView = () => {
 
   const handleVoiceUserDragStart = (e, fromChannelId, userId) => {
     if (!canMoveMembers) return;
-
-    // Tarayıcıya bunun bir taşıma işlemi olduğunu söyle
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData("text/plain", userId); // Firefox için zorunlu
-
-    // React state güncelle
+    e.stopPropagation();
     setDraggedUser({ fromChannelId, userId });
-
-    // Sürüklenen elementin hayalet görüntüsü için opsiyonel ayar
-    // e.dataTransfer.setDragImage(e.target, 0, 0);
+    e.dataTransfer.setData("text/plain", userId);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleVoiceUserDragEnd = () => {
-      setDraggedUser(null);
-      setDragOverChannelId(null);
-  };
+  const handleVoiceUserDragEnd = () => setDraggedUser(null);
 
   const handleVoiceChannelDragOver = (e, channel) => {
-    e.preventDefault(); // 🛑 BU SATIR ÇOK ÖNEMLİ (Drop'a izin verir)
+    e.preventDefault(); // 🛑 BURASI ŞART
     e.stopPropagation();
-
-    if (!draggedUser || !canMoveMembers) return;
-
-    // Kendi olduğu kanala taşınamaz
-    if (draggedUser.fromChannelId === channel._id) {
+    if (!draggedUser || !canMoveMembers || draggedUser.fromChannelId === channel._id) {
         e.dataTransfer.dropEffect = 'none';
-        setDragOverChannelId(null);
         return;
     }
-
     e.dataTransfer.dropEffect = 'move';
-    setDragOverChannelId(channel._id); // Görsel efekt için state
   };
+
+
 
   const handleVoiceChannelDragLeave = (e) => {
       e.preventDefault();

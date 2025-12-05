@@ -207,6 +207,18 @@ io.on('connection', (socket) => {
         console.error('Join voice error:', error);
     }
   });
+  // -------------------------------------
+  // 🎙️ KONUŞMA GÖSTERGESİ (GLOBAL YEŞİL IŞIK)
+  // -------------------------------------
+  socket.on('speaking-start', ({ serverId, userId }) => {
+      // Sunucudaki HERKESE "Bu kişi konuşuyor" de
+      io.to(serverId).emit('user-speaking-change', { userId, isSpeaking: true });
+  });
+
+  socket.on('speaking-stop', ({ serverId, userId }) => {
+      // Sunucudaki HERKESE "Bu kişi sustu" de
+      io.to(serverId).emit('user-speaking-change', { userId, isSpeaking: false });
+  });
 
   // -------------------------------------
   // 2. KULLANICI TAŞIMA (MOVE) (DÜZELTİLDİ)
