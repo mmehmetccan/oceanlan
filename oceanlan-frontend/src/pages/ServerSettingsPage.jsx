@@ -22,7 +22,7 @@ const PERMISSIONS_LIST = [
   'MANAGE_MESSAGES', 'VOICE_SPEAK', 'MUTE_MEMBERS', 'DEAFEN_MEMBERS'
 ];
 
-// Üye rol yöneticisi
+// Üye rol yöneticisi Bileşeni
 const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate }) => {
   const [memberRoles, setMemberRoles] = useState(new Set(member.roles.map(r => r._id)));
   const { addToast } = useContext(ToastContext);
@@ -56,10 +56,7 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate }) => {
         {serverRoles
           .filter(role => role.name !== '@everyone')
           .map(role => (
-            <label
-              key={role._id}
-              className="role-checkbox-chip"
-            >
+            <label key={role._id} className="role-checkbox-chip">
               <input
                 type="checkbox"
                 checked={memberRoles.has(role._id)}
@@ -120,10 +117,22 @@ const ServerSettingsPage = () => {
 
   useServerSocket(serverId);
 
-  // İzin kontrolleri
-  const canManageServer = useMemo(() => {
-    return checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR');
-  }, [activeServer, user?.id]);
+  // 🛠️ YETKİ KONTROLÜ GÜNCELLENDİ
+  // Sahibin, Yöneticinin veya 'MANAGE_SERVER' yetkisi olanın girmesine izin ver
+  const hasSettingsAccess = useMemo(() => {
+    if (!activeServer || !user) return false;
+
+    // 1. Sunucu Sahibi mi?
+    if (activeServer.owner._id === user.id || activeServer.owner === user.id) return true;
+
+    // 2. Administrator yetkisi var mı?
+    if (checkUserPermission(activeServer, user.id, 'ADMINISTRATOR')) return true;
+
+    // 3. Sunucu Yönetme yetkisi var mı?
+    if (checkUserPermission(activeServer, user.id, 'MANAGE_SERVER')) return true;
+
+    return false;
+  }, [activeServer, user]);
 
   const isOwner = useMemo(() => {
     if (!activeServer || !user) return false;
@@ -284,17 +293,6 @@ const ServerSettingsPage = () => {
     }
   };
 
-  // Davet
-  const handleGenerateInvite = async () => {
-    try {
-      const res = await axios.post(`${API_URL_BASE}/api/v1/servers/${serverId}/invite`);
-      fetchServerDetails(serverId);
-      addToast(res.data.message || 'Yeni davet kodu oluşturuldu!', 'success');
-    } catch (error) {
-      addToast(`Hata: ${error.response?.data?.message || 'Kod oluşturulamadı'}`, 'error');
-    }
-  };
-
   // Sunucu sil
   const handleDeleteServer = async () => {
     if (!isOwner) {
@@ -315,8 +313,14 @@ const ServerSettingsPage = () => {
     return <div className="server-settings-loading">Sunucu Ayarları Yükleniyor...</div>;
   }
 
-  if (!canManageServer) {
-    return (<div className="no-permission">Bu sayfayı görme yetkiniz yok.</div>);
+  // 🛑 ERİŞİM ENGELİ (Eğer yetkisi yoksa)
+  if (!hasSettingsAccess) {
+    return (
+      <div className="no-permission" style={{ padding: '20px', color: '#fff', textAlign: 'center' }}>
+        <h2>Erişim Reddedildi</h2>
+        <p>Bu sayfayı görme yetkiniz yok. (Sadece Yönetici veya Sunucu Sahibi)</p>
+      </div>
+    );
   }
 
   return (
@@ -348,42 +352,12 @@ const ServerSettingsPage = () => {
       </div>
 
       <div className="settings-tabs">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={activeTab === 'overview' ? 'active' : ''}
-        >
-          Genel Bakış
-        </button>
-        <button
-          onClick={() => setActiveTab('channels')}
-          className={activeTab === 'channels' ? 'active' : ''}
-        >
-          Kanallar
-        </button>
-        <button
-          onClick={() => setActiveTab('roles')}
-          className={activeTab === 'roles' ? 'active' : ''}
-        >
-          Roller
-        </button>
-        <button
-          onClick={() => setActiveTab('members')}
-          className={activeTab === 'members' ? 'active' : ''}
-        >
-          Üyeler
-        </button>
-        <button
-          onClick={() => setActiveTab('bans')}
-          className={activeTab === 'bans' ? 'active' : ''}
-        >
-          Yasaklamalar
-        </button>
-        <button
-          onClick={() => setActiveTab('invites')}
-          className={activeTab === 'invites' ? 'active' : ''}
-        >
-          Davetler
-        </button>
+        <button onClick={() => setActiveTab('overview')} className={activeTab === 'overview' ? 'active' : ''}>Genel Bakış</button>
+        <button onClick={() => setActiveTab('channels')} className={activeTab === 'channels' ? 'active' : ''}>Kanallar</button>
+        <button onClick={() => setActiveTab('roles')} className={activeTab === 'roles' ? 'active' : ''}>Roller</button>
+        <button onClick={() => setActiveTab('members')} className={activeTab === 'members' ? 'active' : ''}>Üyeler</button>
+        <button onClick={() => setActiveTab('bans')} className={activeTab === 'bans' ? 'active' : ''}>Yasaklamalar</button>
+        {/* ❌ Davetler sekmesi buradan kaldırıldı (Ana sayfada olduğu için) */}
       </div>
 
       <div className="settings-content">
@@ -795,23 +769,6 @@ const ServerSettingsPage = () => {
                 />
               </div>
             )}
-          </section>
-        )}
-
-        {/* DAVETLER */}
-        {activeTab === 'invites' && (
-          <section>
-            <h2>Davet Kodu</h2>
-            {activeServer.inviteCode ? (
-              <p>
-                Mevcut Kod: <strong>{activeServer.inviteCode}</strong>
-              </p>
-            ) : (
-              <p>Henüz davet kodu oluşturulmadı.</p>
-            )}
-            <button onClick={handleGenerateInvite} className="pill-btn primary">
-              {activeServer.inviteCode ? 'Kodu Değiştir/Yönet' : 'Yeni Davet Kodu Oluştur'}
-            </button>
           </section>
         )}
       </div>

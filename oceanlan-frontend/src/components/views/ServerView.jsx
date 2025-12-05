@@ -9,6 +9,8 @@ import { ToastContext } from '../../context/ToastContext';
 import { checkUserPermission } from '../../utils/permissionChecker';
 import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
+import ServerInviteModal from '../modals/ServerInviteModal';
+import { UserPlusIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'; // İkonlar
 import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -34,6 +36,7 @@ const ServerView = () => {
   const { addToast } = useContext(ToastContext);
 
   const { joinVoiceChannel, currentVoiceChannelId, speakingUsers } = useContext(VoiceContext);
+const [showInviteModal, setShowInviteModal] = useState(false);
 
   useServerSocket(serverId);
 
@@ -53,8 +56,9 @@ const ServerView = () => {
   );
 
   const canManageServer = activeServer && (
-      isOwner || // Sunucu sahibi ayarları görebilir
-      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR')
+      isOwner ||
+      checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
+      checkUserPermission(activeServer, user?.id, 'MANAGE_SERVER')
   );
 
   const handleJoinVoiceChannel = (channel) => {
@@ -170,6 +174,26 @@ const ServerView = () => {
           <div className="server-title-text">
             <h2 className="server-name">{activeServer.name}</h2>
           </div>
+        </div>
+        {/* 👇 HEADER SAĞ TARAFI: DAVET VE AYARLAR */}
+        <div className="server-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+
+            {/* 🟢 DAVET ET BUTONU (HERKESE AÇIK) */}
+            <button
+                className="header-icon-btn invite-btn"
+                onClick={() => setShowInviteModal(true)}
+                title="İnsanları Davet Et"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b9bbbe' }}
+            >
+                <UserPlusIcon style={{ width: 24 }} />
+            </button>
+
+            {/* ⚙️ AYARLAR BUTONU (SADECE YETKİLİYE) */}
+            {canManageServer && (
+                <Link to={`/dashboard/server/${serverId}/settings`} className="header-icon-btn settings-btn" title="Sunucu Ayarları">
+                    <Cog6ToothIcon style={{ width: 24, color: '#b9bbbe' }} />
+                </Link>
+            )}
         </div>
       </header>
 
@@ -297,6 +321,14 @@ const ServerView = () => {
           })}
         </div>
       </div>
+
+      {/* 👇 DAVET MODALI */}
+      {showInviteModal && (
+        <ServerInviteModal
+            serverId={serverId}
+            onClose={() => setShowInviteModal(false)}
+        />
+      )}
 
       {contextMenu && (
         <MemberContextMenu member={contextMenu.member} x={contextMenu.x} y={contextMenu.y} serverId={serverId} onClose={() => setContextMenu(null)} />
