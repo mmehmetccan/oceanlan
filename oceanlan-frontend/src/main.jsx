@@ -6,14 +6,28 @@ import './index.css';
 import { HashRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ServerProvider } from './context/ServerContext';
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+
+
+if (typeof window !== 'undefined') {
+  if (window.global === undefined) {
+    window.global = window;
+  }
+  if (window.process === undefined) {
+    window.process = { env: {} };
+  }
+  if (window.process.nextTick === undefined) {
+    window.process.nextTick = (cb) => setTimeout(cb, 0);
+  }
+}
+// 👆👆👆 YUKARIDAKİ KOD BLOĞUNU YAPIŞTIR 👆👆👆
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+    //<React.StrictMode>
     <Router>
-      <AuthProvider>
-       <ServerProvider>
+
           <App />
-        </ServerProvider>
-      </AuthProvider>
+       
     </Router>
-  </React.StrictMode>,
+  //</React.StrictMode>,
 );
