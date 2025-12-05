@@ -212,11 +212,13 @@ io.on('connection', (socket) => {
   // 2. KULLANICI TAŞIMA (MOVE) (DÜZELTİLDİ)
   // -------------------------------------
   socket.on('move-voice-user', async (payload) => {
-    const { serverId, fromChannelId, toChannelId, targetUserId } = payload;
+    const { serverId, toChannelId, targetUserId } = payload;
+
+    // Basit validasyon
     if (!serverId || !toChannelId || !targetUserId) return;
 
     try {
-        // Yetki kontrolü (Senin kodundan)
+        // 1) YETKİ KONTROLÜ
         const operatorMember = await Member.findOne({ user: socket.userId, server: serverId }).populate('roles');
         if (!operatorMember) return;
 
@@ -224,58 +226,88 @@ io.on('connection', (socket) => {
             role.permissions && (role.permissions.includes('ADMINISTRATOR') || role.permissions.includes('MOVE_MEMBERS'))
         );
 
-        if (!canMove) return;
-
-        // Hedef kullanıcının socket'ini bul
-        let targetSocketId = null;
-        let targetUserEntry = null;
-
-        // State içinde kullanıcıyı ara
-        const serverState = voiceChannelState[serverId] || {};
-        Object.keys(serverState).forEach(cId => {
-            const found = serverState[cId].find(u => String(u.userId) === String(targetUserId));
-            if (found) {
-                targetSocketId = found.socketId;
-                targetUserEntry = found;
-            }
-        });
-
-        if (!targetSocketId) {
-            console.log("[MOVE] Kullanıcı bulunamadı.");
+        // Sunucu sahibi kontrolü (Database owner'ı kontrol etmek daha iyi olur ama şimdilik yetki yeterli)
+        // Eğer yetkisi yoksa dur
+        if (!canMove) {
+            console.log(`[MOVE] Yetkisiz işlem denemesi: ${socket.userId}`);
             return;
         }
 
-        const targetSocket = io.sockets.sockets.get(targetSocketId);
+        // 2) KULLANICIYI BUL (Akıllı Arama)
+        // Frontend'in gönderdiği 'fromChannelId'ye güvenme. Sunucuyu tara.
+        const serverState = voiceChannelState[serverId] || {};
+        let foundFromChannelId = null;
+        let targetSocketId = null;
+        let targetUserEntry = null;
 
-        // State Güncellemesi: Eskiden sil, yeniye ekle
-        removeUserFromVoiceState(serverId, targetUserId);
+        // Tüm kanalları gez ve kullanıcıyı bul
+        Object.keys(serverState).forEach(cId => {
+            const userInChannel = serverState[cId].find(u => String(u.userId) === String(targetUserId));
+            if (userInChannel) {
+                foundFromChannelId = cId;
+                targetSocketId = userInChannel.socketId;
+                targetUserEntry = userInChannel;
+            }
+        });
 
-        if (!voiceChannelState[serverId][toChannelId]) voiceChannelState[serverId][toChannelId] = [];
-        voiceChannelState[serverId][toChannelId].push(targetUserEntry);
-
-        // Socket Odası Değişimi & Bildirim
-        if (targetSocket) {
-            // Backend tarafında odayı değiştir
-            targetSocket.leave(fromChannelId);
-            targetSocket.join(toChannelId);
-
-            targetSocket.currentVoiceChannel = {
-                ...targetSocket.currentVoiceChannel,
-                channelId: toChannelId
-            };
-
-            // 🔥 HEDEF KULLANICIYA ZORLA TAŞINMA EMRİ GÖNDER
-            targetSocket.emit('voice-channel-moved', {
-                newChannelId: toChannelId,
-                serverId,
-                channelName: 'Yeni Kanal'
-            });
+        // Kullanıcı ses kanalında değilse işlem yapma
+        if (!foundFromChannelId || !targetUserEntry) {
+            console.log(`[MOVE] Kullanıcı ${targetUserId} ses kanallarında bulunamadı.`);
+            return;
         }
 
-        // 📢 HERKESE GÜNCEL LİSTEYİ GÖNDER (Kartların görünmesi için)
+        // Aynı kanala taşıyorsak dur
+        if (foundFromChannelId === toChannelId) return;
+
+        // 3) STATE GÜNCELLEMESİ (Database gibi davranan bellek)
+
+        // Eskiden sil
+        if (voiceChannelState[serverId][foundFromChannelId]) {
+            voiceChannelState[serverId][foundFromChannelId] = voiceChannelState[serverId][foundFromChannelId].filter(
+                u => String(u.userId) !== String(targetUserId)
+            );
+            // Kanal boşaldıysa key'i sil (Temizlik)
+            if (voiceChannelState[serverId][foundFromChannelId].length === 0) {
+                delete voiceChannelState[serverId][foundFromChannelId];
+            }
+        }
+
+        // Yeniye ekle
+        if (!voiceChannelState[serverId][toChannelId]) {
+            voiceChannelState[serverId][toChannelId] = [];
+        }
+
+        // Duplicate kontrolü
+        if (!voiceChannelState[serverId][toChannelId].find(u => String(u.userId) === String(targetUserId))) {
+            voiceChannelState[serverId][toChannelId].push(targetUserEntry);
+        }
+
+        // 4) HEDEF KULLANICIYI SOKET ODASINDA TAŞI
+        if (targetSocketId) {
+            const targetSocket = io.sockets.sockets.get(targetSocketId);
+            if (targetSocket) {
+                targetSocket.leave(foundFromChannelId); // Eski odadan çık
+                targetSocket.join(toChannelId);         // Yeni odaya gir
+
+                // Socket üzerindeki bilgiyi güncelle
+                targetSocket.currentVoiceChannel = {
+                    ...targetSocket.currentVoiceChannel,
+                    channelId: toChannelId
+                };
+
+                // 🔥 HEDEF KULLANICIYA "TAŞINDIN" EMRİ GÖNDER
+                targetSocket.emit('voice-channel-moved', {
+                    newChannelId: toChannelId,
+                    serverId,
+                    channelName: 'Taşınan Kanal'
+                });
+            }
+        }
+
+        // 5) HERKESE GÜNCEL LİSTEYİ GÖNDER (Herkesin ekranı güncellensin)
         io.to(serverId).emit('voiceStateUpdate', voiceChannelState[serverId]);
 
-        console.log(`[MOVE] ${targetUserId} taşındı -> ${toChannelId}`);
+        console.log(`[MOVE] Başarılı: ${targetUserId} (${foundFromChannelId} -> ${toChannelId})`);
 
     } catch (err) {
         console.error('[MOVE] Hata:', err);

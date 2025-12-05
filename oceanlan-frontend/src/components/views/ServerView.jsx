@@ -238,32 +238,34 @@ const ServerView = () => {
                 </button>
 
                 {usersInThisChannel.length > 0 && (
-                  <div className="voice-channel-users">
+                 <div className="voice-channel-users">
                     {usersInThisChannel.map((voiceUser) => {
                       const member = activeServer.members.find(m => m.user && String(m.user._id) === String(voiceUser.userId));
                       const isSelf = String(voiceUser.userId) === String(user?.id);
+
                       const displayName = member?.user?.username || (isSelf ? user.username : voiceUser.username);
 
-                      // Avatar Çözümleme (Kendi avatarın için AuthContext yedeği)
+                      // Avatar Çözümleme
                       let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
                       if (!rawAvatar && isSelf) rawAvatar = user.avatarUrl;
                       if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
+                      const isSpeaking = speakingUsers?.[voiceUser.userId] || false;
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
-                      const isSpeaking = speakingUsers?.[voiceUser.userId] || false;
 
-                      return (
+                     return (
                         <div
                           key={voiceUser.userId}
+                          // Yetki varsa sürüklenebilir yap
                           className={`voice-user-item ${canMoveMembers ? 'draggable' : ''} ${isSpeaking ? 'is-speaking' : ''}`}
                           draggable={canMoveMembers}
                           onDragStart={(e) => handleVoiceUserDragStart(e, channel._id, voiceUser.userId)}
                           onDragEnd={handleVoiceUserDragEnd}
                           onContextMenu={(e) => member && handleContextMenu(e, member)}
                         >
-                          {/* 👇 BURADAKİ "sadasd" YAZISI SİLİNDİ */}
+                          {/* 🛑 "sadasd" YAZISI SİLİNDİ */}
                           <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`}>
                             <img src={absoluteAvatarSrc} alt={displayName} onError={handleAvatarError} />
                             {isSpeaking && <span className="voice-speaking-ring" />}
@@ -272,7 +274,7 @@ const ServerView = () => {
                           <div className="voice-user-details">
                             <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
                             <div className="voice-user-tags">
-                              {isSelf && <span className="voice-user-tag">Sen.</span>}
+                              {isSelf && <span className="voice-user-tag">Sen</span>}
                               {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
                               {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
                             </div>
@@ -281,6 +283,7 @@ const ServerView = () => {
                       );
                     })}
                   </div>
+                
                 )}
               </div>
             );
