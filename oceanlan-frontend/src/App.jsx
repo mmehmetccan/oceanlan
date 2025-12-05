@@ -7,10 +7,7 @@ import { AuthProvider, AuthContext } from './context/AuthContext';
 import { ServerProvider } from './context/ServerContext';
 import { ToastProvider } from './context/ToastContext';
 import { VoiceProvider } from './context/VoiceContext';
-import { AudioSettingsProvider } from './context/AudioSettingsContext'; // 👈 EKLENDİ
-
-import { SocketProvider } from './context/SocketContext';
-
+import { AudioSettingsProvider } from './context/AudioSettingsContext';
 
 // --- PAGE IMPORTS ---
 import LoginPage from './pages/LoginPage';
@@ -19,7 +16,7 @@ import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
-import AudioSettingsPage from './pages/AudioSettingsPage'; // 👈 EKLENDİ (Rota için)
+import VerifyChangeEmailPage from './pages/VerifyEmailPage'; // İsimlendirme tutarlılığı için
 
 // --- COMPONENT IMPORTS ---
 import ToastContainer from './components/common/ToastContainer';
@@ -32,43 +29,47 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-          <VoiceProvider>
-
-      <SocketProvider>
-
+    // 1. EN TEPEYE AUTH KOYUYORUZ (Kullanıcı verisi her şeye lazım)
     <AuthProvider>
-      <ServerProvider>
+      {/* 2. TOAST KOYUYORUZ (Hata mesajları için) */}
+      <ToastProvider>
+        <ToastContainer />
+
+        {/* 3. AUDIO AYARLARI */}
         <AudioSettingsProvider>
-            <ToastProvider>
-              <ToastContainer />
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
-                <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
 
-                {/* 👇 SADECE BU KALSIN, DİĞER settings/audio ROTASINI BURADAN SİLİN */}
-                <Route
-                  path="/dashboard/*"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardPage />
-                    </ProtectedRoute>
-                  }
-                />
+            {/* 4. VOICE PROVIDER (Artık User verisine erişebilir!) */}
+            <VoiceProvider>
 
-                <Route path="*" element={<Navigate to="/dashboard" />} />
-              </Routes>
-            </ToastProvider>
+                {/* 5. SERVER PROVIDER */}
+                <ServerProvider>
+                    <Routes>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/register" element={<RegisterPage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
+                        <Route path="/verify-email" element={<VerifyEmailPage />} />
+                        {/* Eğer verify-change-email aynı sayfaysa: */}
+                        <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
+
+                        <Route
+                        path="/dashboard/*"
+                        element={
+                            <ProtectedRoute>
+                            <DashboardPage />
+                            </ProtectedRoute>
+                        }
+                        />
+
+                        <Route path="*" element={<Navigate to="/dashboard" />} />
+                    </Routes>
+                </ServerProvider>
+
+            </VoiceProvider>
         </AudioSettingsProvider>
-      </ServerProvider>
+      </ToastProvider>
     </AuthProvider>
-        </SocketProvider>
-                </VoiceProvider>
-
-
   );
 }
+
 export default App;
