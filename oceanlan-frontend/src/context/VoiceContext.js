@@ -1,13 +1,12 @@
-// src/context/VoiceContext.js
-import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { io } from 'socket.io-client';
-import Peer from 'simple-peer'; // 👈 Bu paketin kurulu olduğundan emin ol
+import Peer from 'simple-peer';
 import { AuthContext } from './AuthContext';
 import { AudioSettingsContext } from './AudioSettingsContext';
 
 export const VoiceContext = createContext();
 
-// RTC Config (Google STUN sunucuları)
+// RTC Config
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -17,13 +16,21 @@ const rtcConfig = {
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
-  const peersRef = useRef({}); // Peer bağlantılarını burada tutacağız
+
+  // 🛡️ ÖNEMLİ: Başlangıç değerlerini kesinlikle {} (boş obje) olarak veriyoruz
+  const peersRef = useRef({});
   const localStreamRef = useRef(null);
-  const audioElementsRef = useRef({}); // Gelen ses elementleri
+  const audioElementsRef = useRef({});
 
   const { user, token } = useContext(AuthContext);
-  // Ses ayarlarını buradan yönetiyoruz
-  const { inputDeviceId, outputDeviceId, isMicMuted, isDeafened, userVolumes } = useContext(AudioSettingsContext);
+
+  // AudioSettingsContext'ten gelen verilerin undefined olmadığından emin olalım
+  const audioSettings = useContext(AudioSettingsContext);
+  const inputDeviceId = audioSettings?.inputDeviceId;
+  const outputDeviceId = audioSettings?.outputDeviceId;
+  const isMicMuted = audioSettings?.isMicMuted;
+  const isDeafened = audioSettings?.isDeafened;
+  const userVolumes = audioSettings?.userVolumes;
 
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
@@ -55,68 +62,61 @@ export const VoiceProvider = ({ children }) => {
       console.log('[SOCKET] Bağlandı:', socket.id);
       setIsConnected(true);
       if (stayConnected && currentVoiceChannelId) {
-        rejoinChannel();
+        rejoinChannel(); // Fonksiyon aşağıda tanımlı
       }
     });
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    // WebRTC Sinyal Dinleyicileri (Global)
-    socket.on('user-joined-voice', handleUserJoined);
-    socket.on('webrtc-offer', handleOffer);
-    socket.on('webrtc-answer', handleAnswer);
-    socket.on('webrtc-ice-candidate', handleIce);
-    socket.on('user-left-voice', handleUserLeft);
+    socket.on('user-joined-voice', (data) => handleUserJoined(data));
+    socket.on('webrtc-offer', (data) => handleOffer(data));
+    socket.on('webrtc-answer', (data) => handleAnswer(data));
+    socket.on('webrtc-ice-candidate', (data) => handleIce(data));
+    socket.on('user-left-voice', (data) => handleUserLeft(data));
 
-    return () => {
-      // Cleanup yok, uygulama kapanana kadar açık kalsın
-    };
+    return () => { };
   }, [token]);
 
-
   // ----------------------------------------------------------------
-  // 2. WEBRTC MANTIĞI (Peer Yönetimi)
+  // 2. WEBRTC MANTIĞI
   // ----------------------------------------------------------------
 
-  // A. Yeni biri gelince Peer oluştur (Initiator biziz)
   const handleUserJoined = ({ socketId }) => {
     createPeer(socketId, socketRef.current?.id, true, localStreamRef.current);
   };
 
-  // B. Biri bize teklif atınca Peer oluştur (Initiator karşı taraf)
   const handleOffer = ({ socketId, sdp }) => {
     const p = createPeer(socketId, null, false, localStreamRef.current);
     p.signal(sdp);
   };
 
-  // C. Cevap gelince sinyali işle
   const handleAnswer = ({ socketId, sdp }) => {
-    if (peersRef.current[socketId]) {
+    if (peersRef.current && peersRef.current[socketId]) {
       peersRef.current[socketId].signal(sdp);
     }
   };
 
-  // D. ICE Adayı gelince
   const handleIce = ({ socketId, candidate }) => {
-    if (peersRef.current[socketId]) {
+    if (peersRef.current && peersRef.current[socketId]) {
       peersRef.current[socketId].signal(candidate);
     }
   };
 
-  // E. Kullanıcı çıkınca temizle
   const handleUserLeft = ({ socketId }) => {
-    if (peersRef.current[socketId]) {
+    // 🛡️ GÜVENLİK KONTROLÜ
+    if (peersRef.current && peersRef.current[socketId]) {
       peersRef.current[socketId].destroy();
       delete peersRef.current[socketId];
     }
-    if (audioElementsRef.current[socketId]) {
+    if (audioElementsRef.current && audioElementsRef.current[socketId]) {
       audioElementsRef.current[socketId].remove();
       delete audioElementsRef.current[socketId];
     }
   };
 
-  // Peer Oluşturucu Fonksiyon
   const createPeer = (targetSocketId, myId, initiator, stream) => {
+    // 🛡️ GÜVENLİK KONTROLÜ
+    if (!peersRef.current) peersRef.current = {};
     if (peersRef.current[targetSocketId]) return peersRef.current[targetSocketId];
 
     const p = new Peer({
@@ -141,26 +141,24 @@ export const VoiceProvider = ({ children }) => {
     return p;
   };
 
-  // Gelen Sesi Oynat
   const playRemoteStream = (stream, id) => {
-    // Varsa sil
+    // 🛡️ GÜVENLİK KONTROLÜ
+    if (!audioElementsRef.current) audioElementsRef.current = {};
     if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
 
     const audio = document.createElement('audio');
     audio.srcObject = stream;
     audio.autoplay = true;
     audio.playsInline = true;
-    audio.style.display = 'none'; // Görünmez
-    document.body.appendChild(audio); // DOM'a ekle ki çalışsın
+    audio.style.display = 'none';
+    document.body.appendChild(audio);
 
-    // Hoparlör seçimi (Output Device)
     if (outputDeviceId && typeof audio.setSinkId === 'function') {
         audio.setSinkId(outputDeviceId).catch(e => console.warn(e));
     }
 
     audioElementsRef.current[id] = audio;
   };
-
 
   // ----------------------------------------------------------------
   // 3. KANALA KATIL / AYRIL
@@ -172,7 +170,6 @@ export const VoiceProvider = ({ children }) => {
     if (currentVoiceChannelId === cId) return;
 
     try {
-      // 1. Mikrofonu Al
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -184,18 +181,12 @@ export const VoiceProvider = ({ children }) => {
       });
 
       localStreamRef.current = stream;
+      stream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
 
-      // Mikrofon ayarlarını uygula (Mute durumunu kontrol et)
-      stream.getAudioTracks().forEach(track => {
-          track.enabled = !isMicMuted;
-      });
-
-      // 2. State Güncelle
       setCurrentVoiceChannelId(cId);
       setCurrentServerId(sId);
       setStayConnected(true);
 
-      // 3. Sunucuya Bildir
       socketRef.current.emit('join-voice-channel', {
         serverId: sId,
         channelId: cId,
@@ -214,51 +205,53 @@ export const VoiceProvider = ({ children }) => {
     setCurrentVoiceChannelId(null);
     setCurrentServerId(null);
 
-    // Socket'e bildir
     socketRef.current?.emit('leave-voice-channel');
 
-    // Mikrofonu kapat
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop());
       localStreamRef.current = null;
     }
 
-    // Peerları kapat
-    Object.values(peersRef.current).forEach(p => p.destroy());
-    peersRef.current = {};
+    // 🛡️ KRİTİK DÜZELTME: Object.values kullanırken null kontrolü
+    if (peersRef.current) {
+        Object.values(peersRef.current).forEach(p => p.destroy());
+        peersRef.current = {};
+    }
 
-    // Sesleri temizle
-    Object.values(audioElementsRef.current).forEach(a => a.remove());
-    audioElementsRef.current = {};
+    if (audioElementsRef.current) {
+        Object.values(audioElementsRef.current).forEach(a => a.remove());
+        audioElementsRef.current = {};
+    }
   };
 
   const rejoinChannel = () => {
-      // Bu fonksiyon sayfa yenilenirse çalışır, şimdilik basit tutalım.
-      // Normal navigasyonda joinVoiceChannel içindeki stream zaten korunur.
+      // Rejoin mantığı
   };
 
   // ----------------------------------------------------------------
-  // 4. SES AYARLARI DİNLEYİCİSİ (Mute/Deafen/Device)
+  // 4. SES AYARLARI DİNLEYİCİSİ (Hatanın Kaynağı Olabilir)
   // ----------------------------------------------------------------
   useEffect(() => {
-      // Mikrofon Mute/Unmute
+      // 🛡️ Bu kontrol olmazsa, audioElementsRef null iken Object.entries patlar
+      if (!audioElementsRef.current) return;
+
+      Object.entries(audioElementsRef.current).forEach(([id, audio]) => {
+          if (!audio) return;
+          audio.muted = isDeafened;
+
+          if(outputDeviceId && typeof audio.setSinkId === 'function') {
+              audio.setSinkId(outputDeviceId).catch(e=>{});
+          }
+      });
+  }, [isDeafened, outputDeviceId, userVolumes]);
+
+  useEffect(() => {
       if (localStreamRef.current) {
           localStreamRef.current.getAudioTracks().forEach(track => {
               track.enabled = !isMicMuted;
           });
       }
   }, [isMicMuted]);
-
-  useEffect(() => {
-      // Hoparlör Sağırlaştırma (Deafen) ve Ses Ayarı
-      Object.entries(audioElementsRef.current).forEach(([id, audio]) => {
-          audio.muted = isDeafened;
-          // Volume ayarını buraya entegre edebilirsin (userVolumes kullanarak)
-          if(outputDeviceId && typeof audio.setSinkId === 'function') {
-              audio.setSinkId(outputDeviceId).catch(e=>{});
-          }
-      });
-  }, [isDeafened, outputDeviceId, userVolumes]);
 
 
   return (
