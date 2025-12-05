@@ -3,14 +3,6 @@ import { useEffect, useContext, useState } from 'react';
 import io from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 
-// 🔴 Backend portunuz 4000 ise burası 4000 olmalı
-const getSocketUrl = () => {
-  return import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
-};
-
-const SOCKET_SERVER_URL = getSocketUrl();
-
-
 let globalSocket = null;
 
 export const useSocket = () => {
@@ -18,23 +10,44 @@ export const useSocket = () => {
   const [socket, setSocket] = useState(globalSocket);
 
   useEffect(() => {
-    if (isAuthenticated && token && !globalSocket) {
+    // Zaten bağlıysa veya giriş yapılmamışsa işlem yapma
+    if (!isAuthenticated || !token) {
+        if (globalSocket) {
+            globalSocket.disconnect();
+            globalSocket = null;
+            setSocket(null);
+        }
+        return;
+    }
+
+    if (!globalSocket) {
+      // 🟢 URL AYARI BURADA YAPILIYOR 🟢
+      const isProduction = window.location.hostname.includes('oceanlan.com');
+
+      const SOCKET_SERVER_URL = isProduction
+        ? 'https://oceanlan.com'
+        : 'http://localhost:4000';
+
+      console.log(`[useSocket] Bağlanılıyor: ${SOCKET_SERVER_URL}`);
+
       const newSocket = io(SOCKET_SERVER_URL, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
-        withCredentials: true,
+        auth: { token }, // Token göndermeyi unutmuyoruz
+        transports: ['polling', 'websocket'],
+        secure: isProduction,
+        reconnection: true,
         reconnectionAttempts: 5,
       });
 
-      newSocket.on('connect', () => console.log('[SOCKET] Bağlandı:', newSocket.id));
+      newSocket.on('connect', () => {
+          console.log('[useSocket] Genel Socket Bağlandı:', newSocket.id);
+      });
+
+      newSocket.on('connect_error', (err) => {
+          console.error('[useSocket] Bağlantı Hatası:', err.message);
+      });
 
       globalSocket = newSocket;
       setSocket(newSocket);
-    }
-    else if (!isAuthenticated && globalSocket) {
-      globalSocket.close();
-      globalSocket = null;
-      setSocket(null);
     }
   }, [isAuthenticated, token]);
 
