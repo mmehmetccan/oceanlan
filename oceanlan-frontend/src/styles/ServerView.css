@@ -1,6 +1,25 @@
 /* src/styles/ServerView.css */
 
+/* ServerView.css EN ALTINA EKLE */
 
+/* Konuşurken yanan yeşil çerçeve */
+.voice-user-avatar.speaking {
+    box-shadow: 0 0 0 2px #43b581; /* Discord Yeşili */
+    border-color: #43b581;
+}
+
+/* Sürükleme sırasında kanalın yeşil yanması */
+.channel-group-item.drag-over-active {
+    transition: all 0.2s ease;
+}
+
+/* Sürüklenen öğe */
+.voice-user-item.draggable {
+    cursor: grab;
+}
+.voice-user-item.draggable:active {
+    cursor: grabbing;
+}
 .voice-user-avatar.speaking {
     box-shadow: 0 0 0 2px #3ba55d, 0 0 10px rgba(59, 165, 93, 0.6);
     border-color: #3ba55d;
