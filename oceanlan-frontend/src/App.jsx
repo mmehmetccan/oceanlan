@@ -32,12 +32,13 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
+          <VoiceProvider>
+
       <SocketProvider>
 
     <AuthProvider>
       <ServerProvider>
         <AudioSettingsProvider>
-          <VoiceProvider>
             <ToastProvider>
               <ToastContainer />
               <Routes>
@@ -61,11 +62,12 @@ function App() {
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
             </ToastProvider>
-          </VoiceProvider>
         </AudioSettingsProvider>
       </ServerProvider>
     </AuthProvider>
         </SocketProvider>
+                </VoiceProvider>
+
 
   );
 }
