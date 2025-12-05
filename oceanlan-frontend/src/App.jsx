@@ -9,6 +9,7 @@ import { ToastProvider } from './context/ToastContext';
 import { VoiceProvider } from './context/VoiceContext';
 import { AudioSettingsProvider } from './context/AudioSettingsContext'; // 👈 EKLENDİ
 
+import { SocketProvider } from './context/SocketContext';
 
 
 // --- PAGE IMPORTS ---
