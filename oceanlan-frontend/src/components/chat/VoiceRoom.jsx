@@ -113,7 +113,7 @@ const VoiceRoom = () => {
                 className="voice-user-img"
              />
           </div>
-          dslaşkdsa
+
           <div className="voice-user-info-mini">
               <span className="voice-username">
                   {safeUser.username}

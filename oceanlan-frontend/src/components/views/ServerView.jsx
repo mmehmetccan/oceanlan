@@ -269,7 +269,7 @@ const ServerView = () => {
         </div>
 
         {/* Ses Kanalları */}
-        <div className="channel-group voice-channels-group">
+       <div className="channel-group voice-channels-group">
           <h3>🎤 Ses Kanalları</h3>
           {voiceChannels.map((channel) => {
             const isActiveVoice = currentVoiceChannelId === channel._id;
@@ -277,145 +277,171 @@ const ServerView = () => {
               draggedUser &&
               canMoveMembers &&
               draggedUser.fromChannelId !== channel._id;
-            const usersInThisChannel = voiceState[channel._id] || [];
+
+            // 🛑 ESKİ KOD: const usersInThisChannel = voiceState[channel._id] || [];
+
+            // ✅ YENİ KOD (Optimistic UI):
+            // Sunucudan gelen listeyi al
+            let usersInThisChannel = [...(voiceState[channel._id] || [])];
+
+            // EĞER ben bu kanaldaysam (VoiceContext) ama listede yoksam (Socket gecikmesi), BENİ EKLE.
+            if (currentVoiceChannelId === channel._id && user) {
+                const amIInList = usersInThisChannel.find(u => String(u.userId) === String(user.id));
+
+                if (!amIInList) {
+                    usersInThisChannel.push({
+                        userId: user.id,
+                        socketId: socket?.id || 'temp-id',
+                        username: user.username,
+                        isMuted: false, // Varsayılan
+                        isDeafened: false
+                    });
+                }
+            }
+
+            // EĞER ben bu kanalda DEĞİLSEM ama listede varsam (Eski kanal hayaleti), BENİ SİL.
+            // Bu, kanal değiştirirken eski kanalda isminin takılı kalmasını önler.
+            if (currentVoiceChannelId !== channel._id && user) {
+                usersInThisChannel = usersInThisChannel.filter(u => String(u.userId) !== String(user.id));
+            }
 
             return (
-              <div key={channel._id} className="channel-group-item">
-                <button
-                  className={`channel-item voice-channel ${
-                    isActiveVoice ? 'active' : ''
-                  } ${isDropTarget ? 'drop-target' : ''}`}
-                  onClick={() => handleJoinVoiceChannel(channel)}
-                  onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
-                  onDrop={(e) => handleVoiceChannelDrop(e, channel)}
-                >
-                  <div className="channel-main">
-                    <span className="channel-icon">🎤</span>
-                    <span className="channel-name">{channel.name}</span>
-                  </div>
-                  <div className="channel-meta">
+                <div key={channel._id} className="channel-group-item">
+                  <button
+                      className={`channel-item voice-channel ${
+                          isActiveVoice ? 'active' : ''
+                      } ${isDropTarget ? 'drop-target' : ''}`}
+                      onClick={() => handleJoinVoiceChannel(channel)}
+                      onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
+                      onDrop={(e) => handleVoiceChannelDrop(e, channel)}
+                  >
+                    <div className="channel-main">
+                      <span className="channel-icon">🎤</span>
+                      <span className="channel-name">{channel.name}</span>
+                    </div>
+                    <div className="channel-meta">
                     <span className="channel-occupancy">
                       {usersInThisChannel.length} / {channel.maxUsers || '∞'}
                     </span>
-                  </div>
-                </button>
+                    </div>
+                  </button>
 
-                {usersInThisChannel.length > 0 && (
-                  <div className="voice-channel-users">
-                    {usersInThisChannel.map((voiceUser) => {
-                      const member = activeServer.members.find(
-                        (m) =>
-                          m.user &&
-                          String(m.user._id) === String(voiceUser.userId)
-                      );
+                  {usersInThisChannel.length > 0 && (
+                      <div className="voice-channel-users">
+                        {usersInThisChannel.map((voiceUser) => {
+                          const member = activeServer.members.find(
+                              (m) =>
+                                  m.user &&
+                                  String(m.user._id) === String(voiceUser.userId)
+                          );
 
-                      const displayName =
-                        member?.user?.username ||
-                        voiceUser.username ||
-                        'Kullanıcı';
+                          const displayName =
+                              member?.user?.username ||
+                              voiceUser.username ||
+                              'Kullanıcı';
 
-                      const rawAvatar =
-                        member?.user?.avatarUrl ||
-                        member?.user?.avatar ||
-                        DEFAULT_AVATAR;
+                          const rawAvatar =
+                              member?.user?.avatarUrl ||
+                              member?.user?.avatar ||
+                              DEFAULT_AVATAR;
 
-                      const absoluteAvatarSrc = rawAvatar.startsWith('/uploads')
-                        ? `${API_URL_BASE}${rawAvatar}`
-                        : rawAvatar;
+                          const absoluteAvatarSrc = rawAvatar.startsWith('/uploads')
+                              ? `${API_URL_BASE}${rawAvatar}`
+                              : rawAvatar;
 
-                      const isMuted = member?.isMuted;
-                      const isDeafened = member?.isDeafened;
-                      const isSelf =
-                        String(voiceUser.userId) === String(user?.id);
+                          const isMuted = member?.isMuted;
+                          const isDeafened = member?.isDeafened;
+                          const isSelf =
+                              String(voiceUser.userId) === String(user?.id);
 
-                      const statusClass = isDeafened
-                        ? 'status-deafened'
-                        : isMuted
-                        ? 'status-muted'
-                        : 'status-live';
+                          const statusClass = isDeafened
+                              ? 'status-deafened'
+                              : isMuted
+                                  ? 'status-muted'
+                                  : 'status-live';
 
-                      // 🔥 Konuşan kullanıcı bilgisi (Discord style)
-                      const isSpeaking =
-                        speakingUsers?.[voiceUser.userId] ||
-                        speakingUsers?.[voiceUser.socketId];
+                          // 🔥 Konuşan kullanıcı bilgisi (Discord style)
+                          const isSpeaking =
+                              speakingUsers?.[voiceUser.userId] ||
+                              speakingUsers?.[voiceUser.socketId];
 
-                      return (
-                        <div
-                          key={voiceUser.userId}
-                          className={`voice-user-item 
+                          return (
+                              <div
+                                  key={voiceUser.userId}
+                                  className={`voice-user-item 
                             ${canMoveMembers ? 'draggable' : ''} 
                             ${isSelf ? 'voice-user-item-self' : ''} 
                             ${isSpeaking ? 'is-speaking' : ''}`}
-                          draggable={canMoveMembers}
-                          onDragStart={(e) =>
-                            handleVoiceUserDragStart(
-                              e,
-                              channel._id,
-                              voiceUser.userId
-                            )
-                          }
-                          onDragEnd={handleVoiceUserDragEnd}
-                          onContextMenu={(e) =>
-                            member && handleContextMenu(e, member)
-                          }
-                        >
-                          <div
-                            className={`voice-user-avatar ${statusClass} ${
-                              isSpeaking ? 'speaking' : ''
-                            }`}
-                          >
-                            <img
-                              src={absoluteAvatarSrc}
-                              alt={displayName}
-                              onError={handleAvatarError}
-                            />
-                            {isSpeaking && (
-                              <span className="voice-speaking-ring" />
-                            )}
-                          </div>
-                          <div className="voice-user-details">
+                                  draggable={canMoveMembers}
+                                  onDragStart={(e) =>
+                                      handleVoiceUserDragStart(
+                                          e,
+                                          channel._id,
+                                          voiceUser.userId
+                                      )
+                                  }
+                                  onDragEnd={handleVoiceUserDragEnd}
+                                  onContextMenu={(e) =>
+                                      member && handleContextMenu(e, member)
+                                  }
+                              >
+                                <div
+                                    className={`voice-user-avatar ${statusClass} ${
+                                        isSpeaking ? 'speaking' : ''
+                                    }`}
+                                >
+                                  <img
+                                      src={absoluteAvatarSrc}
+                                      alt={displayName}
+                                      onError={handleAvatarError}
+                                  />
+                                  {isSpeaking && (
+                                      <span className="voice-speaking-ring"/>
+                                  )}
+                                </div>
+                                <div className="voice-user-details">
                             <span
-                              className={`voice-user-name ${
-                                isMuted ? 'text-muted' : ''
-                              }`}
+                                className={`voice-user-name ${
+                                    isMuted ? 'text-muted' : ''
+                                }`}
                             >
                               {displayName}
                             </span>
-                            <div className="voice-user-tags">
-                              {isSelf && (
-                                <span className="voice-user-tag">Sen</span>
-                              )}
-                              {isMuted && (
-                                <span className="voice-user-tag voice-user-tag-muted">
+                                  <div className="voice-user-tags">
+                                    {isSelf && (
+                                        <span className="voice-user-tag">Sen</span>
+                                    )}
+                                    {isMuted && (
+                                        <span className="voice-user-tag voice-user-tag-muted">
                                   Mute
                                 </span>
-                              )}
-                              {isDeafened && (
-                                <span className="voice-user-tag voice-user-tag-deafened">
+                                    )}
+                                    {isDeafened && (
+                                        <span className="voice-user-tag voice-user-tag-deafened">
                                   Deaf
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                          );
+                        })}
+                      </div>
+                  )}
+                </div>
             );
           })}
-        </div>
+       </div>
       </div>
 
       {contextMenu && (
-        <MemberContextMenu
-          member={contextMenu.member}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          serverId={serverId}
-          onClose={() => setContextMenu(null)}
-        />
+          <MemberContextMenu
+              member={contextMenu.member}
+              x={contextMenu.x}
+              y={contextMenu.y}
+              serverId={serverId}
+              onClose={() => setContextMenu(null)}
+          />
       )}
     </div>
   );
