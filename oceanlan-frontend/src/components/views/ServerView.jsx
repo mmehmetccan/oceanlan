@@ -10,7 +10,7 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
-import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/outline'; // İkonlar güncellendi
+import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
 import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -45,11 +45,13 @@ const ServerView = () => {
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // YETKİLER
-  const isOwner = activeServer && user && (
-      (activeServer.owner?._id?.toString() === user.id?.toString()) ||
-      (activeServer.owner?.toString() === user.id?.toString())
-  );
+  // 🛠️ YETKİ KONTROLÜ (GÜÇLENDİRİLMİŞ)
+  const isOwner = React.useMemo(() => {
+      if (!activeServer || !user) return false;
+      const ownerId = activeServer.owner?._id || activeServer.owner; // Populate edilmişse _id, değilse direkt string
+      const myId = user._id || user.id; // Context bazen _id bazen id verebilir
+      return String(ownerId) === String(myId);
+  }, [activeServer, user]);
 
   const canManageServer = activeServer && (
       isOwner ||
@@ -77,6 +79,7 @@ const ServerView = () => {
       fetchServerDetails(serverId);
       return;
     }
+    // Varsayılan kanal
     if (activeServer && activeServer._id === serverId && activeServer.channels.length > 0 && !location.pathname.includes('/channel/') && !location.pathname.includes('/settings') && !currentVoiceChannelId) {
       const defaultChannel = activeServer.channels.find((c) => c.type === 'text') || activeServer.channels[0];
       if (defaultChannel) {
@@ -86,6 +89,7 @@ const ServerView = () => {
     }
   }, [serverId, activeServer, navigate, location.pathname, fetchServerDetails, currentVoiceChannelId, setActiveChannel]);
 
+  // Socket
   useEffect(() => {
     if (!socket || !serverId) return;
 
@@ -166,71 +170,37 @@ const ServerView = () => {
     <div className="server-view" onClick={() => setContextMenu(null)}>
 
       {/* 🎨 YENİ HEADER TASARIMI */}
-      <header className="server-view-header" style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: 'auto', // Yüksekliği otomatik yap
-          padding: '0',
-          backgroundColor: '#2f3136'
-      }}>
-        {/* Üst Kısım: Resim ve İsim */}
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '16px 16px 12px 16px',
-            borderBottom: '1px solid #202225'
-        }}>
-            <div className="server-avatar-chip" style={{ overflow: 'hidden', padding: 0, background: serverIconUrl ? 'transparent' : '', width: '48px', height: '48px', marginRight: '12px' }}>
+      <header className="server-view-header">
+
+        {/* Üst: İsim ve Logo */}
+        <div className="server-header-top">
+            <div className="server-avatar-chip">
                 {serverIconUrl ? (
                 <img src={serverIconUrl} alt={activeServer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerText = serverInitial; }} />
                 ) : (serverInitial)}
             </div>
-            <h2 className="server-name" style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: 'white' }}>
-                {activeServer.name}
-            </h2>
+            <h2 className="server-name">{activeServer.name}</h2>
         </div>
 
-        {/* Alt Kısım: Toolbar (İstatistikler ve Butonlar) */}
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 16px',
-            backgroundColor: 'rgba(32, 34, 37, 0.6)',
-            fontSize: '13px',
-            color: '#b9bbbe'
-        }}>
-            {/* Sol: Üye Sayısı */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <UsersIcon style={{ width: 16 }} />
-                <span>{serverMemberCount} Üye</span>
+        {/* Alt: Butonlar ve Bilgi */}
+        <div className="server-header-toolbar">
+            <div className="server-stat-badge">
+                <UsersIcon style={{ width: 14 }} />
+                <span>{serverMemberCount}</span>
             </div>
 
-            {/* Sağ: Aksiyon Butonları (Yazının altına alındı) */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="server-actions">
                 <button
+                    className="action-btn invite"
                     onClick={() => setShowInviteModal(true)}
-                    title="İnsanları Davet Et"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '4px',
-                        background: '#5865F2', border: 'none', borderRadius: '4px',
-                        color: 'white', padding: '4px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'
-                    }}
+                    title="Davet Et"
                 >
-                    <UserPlusIcon style={{ width: 14 }} /> Davet
+                    <UserPlusIcon /> Davet Et
                 </button>
 
                 {canManageServer && (
-                    <Link
-                        to={`/dashboard/server/${serverId}/settings`}
-                        title="Sunucu Ayarları"
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            background: '#4f545c', border: 'none', borderRadius: '4px',
-                            color: 'white', padding: '4px 8px', cursor: 'pointer', textDecoration: 'none', fontSize: '12px', fontWeight: '600'
-                        }}
-                    >
-                        <Cog6ToothIcon style={{ width: 14 }} /> Ayarlar
+                    <Link to={`/dashboard/server/${serverId}/settings`} className="action-btn" title="Ayarlar">
+                        <Cog6ToothIcon /> Ayarlar
                     </Link>
                 )}
             </div>
@@ -284,7 +254,6 @@ const ServerView = () => {
                 className={`channel-group-item ${isDragOver ? 'drag-over-active' : ''}`}
                 onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
                 onDrop={(e) => handleVoiceChannelDrop(e, channel)}
-                style={isDragOver ? { border: '2px dashed #43b581', backgroundColor: 'rgba(67, 181, 129, 0.1)' } : {}}
               >
                 <button
                   className={`channel-item voice-channel ${isActiveVoice ? 'active' : ''}`}
@@ -311,9 +280,10 @@ const ServerView = () => {
                       if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
+                      // 🟢 YEŞİL IŞIK KONTROLÜ
+                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
-                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
 
                       return (
                         <div
@@ -335,8 +305,12 @@ const ServerView = () => {
                             {isSpeaking && <span className="voice-speaking-ring" />}
                           </div>
                           <div className="voice-user-details">
-                            <span className="voice-user-name">{displayName}</span>
-                            {isSelf && <span className="voice-user-tag">Sen</span>}
+                            <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
+                            <div className="voice-user-tags">
+                              {isSelf && <span className="voice-user-tag">Sen</span>}
+                              {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
+                              {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
+                            </div>
                           </div>
                         </div>
                       );
