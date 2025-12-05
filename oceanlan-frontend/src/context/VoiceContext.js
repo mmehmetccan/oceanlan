@@ -17,14 +17,14 @@ const rtcConfig = {
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
 
-  // Başlangıç değerlerini boş obje {} olarak atıyoruz
+  // Refler (Sayfa değişse de sıfırlanmaz)
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
   const audioElementsRef = useRef({});
 
   const { user, token } = useContext(AuthContext);
 
-  // Audio ayarlarını güvenli şekilde alıyoruz
+  // Ses ayarları
   const audioSettings = useContext(AudioSettingsContext);
   const inputDeviceId = audioSettings?.inputDeviceId;
   const outputDeviceId = audioSettings?.outputDeviceId;
@@ -32,12 +32,17 @@ export const VoiceProvider = ({ children }) => {
   const isDeafened = audioSettings?.isDeafened;
   const userVolumes = audioSettings?.userVolumes;
 
+  // --- STATE'LER ---
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
   const [currentServerId, setCurrentServerId] = useState(null);
   const [speakingUsers, setSpeakingUsers] = useState({});
   const [micError, setMicError] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
+
+  // 🔴 EKSİK OLAN KISIMLAR EKLENDİ 👇
+  const [incomingStreams, setIncomingStreams] = useState({});
+  const [myScreenStream, setMyScreenStream] = useState(null);
 
   // 1. SOCKET BAĞLANTISI
   useEffect(() => {
@@ -76,6 +81,19 @@ export const VoiceProvider = ({ children }) => {
     return () => { };
   }, [token]);
 
+  // --- Yardımcı Stream Fonksiyonları ---
+  const addIncomingStream = (socketId, stream) => {
+    setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
+  };
+
+  const removeIncomingStream = (socketId) => {
+    setIncomingStreams(prev => {
+      const newState = { ...prev };
+      delete newState[socketId];
+      return newState;
+    });
+  };
+
   // --- WebRTC Mantığı ---
 
   const handleUserJoined = ({ socketId }) => {
@@ -108,6 +126,8 @@ export const VoiceProvider = ({ children }) => {
       audioElementsRef.current[socketId].remove();
       delete audioElementsRef.current[socketId];
     }
+    // State'ten de sil
+    removeIncomingStream(socketId);
   };
 
   const createPeer = (targetSocketId, initiator, stream) => {
@@ -137,6 +157,7 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const playRemoteStream = (stream, id) => {
+    // 1. DOM'a Audio Elementi Ekle (Duymak için)
     if (!audioElementsRef.current) audioElementsRef.current = {};
     if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
 
@@ -152,6 +173,9 @@ export const VoiceProvider = ({ children }) => {
     }
 
     audioElementsRef.current[id] = audio;
+
+    // 2. State'e Ekle (Arayüzün görmesi için - Yeşil çerçeve vb.)
+    addIncomingStream(id, stream);
   };
 
   // --- Kanala Katılma / Ayrılma ---
@@ -213,6 +237,9 @@ export const VoiceProvider = ({ children }) => {
         Object.values(audioElementsRef.current).forEach(a => a.remove());
         audioElementsRef.current = {};
     }
+    // Stream state'lerini temizle
+    setIncomingStreams({});
+    setMyScreenStream(null);
   };
 
   const rejoinChannel = () => {
@@ -221,7 +248,6 @@ export const VoiceProvider = ({ children }) => {
 
   // --- Ses Ayarları Dinleyicisi ---
   useEffect(() => {
-      // Güvenlik kontrolü: Eğer ref boşsa işlem yapma
       if (!audioElementsRef.current) return;
 
       Object.values(audioElementsRef.current).forEach((audio) => {
@@ -249,9 +275,17 @@ export const VoiceProvider = ({ children }) => {
       currentServerId,
       joinVoiceChannel,
       leaveVoiceChannel,
+
       speakingUsers,
       micError,
-      stayConnected
+      stayConnected,
+
+      // 🔴 EKSİK OLAN BU KISIMLAR GERİ EKLENDİ 🔴
+      incomingStreams,
+      addIncomingStream,
+      removeIncomingStream,
+      myScreenStream,
+      setMyScreenStream
     }}>
       {children}
     </VoiceContext.Provider>
