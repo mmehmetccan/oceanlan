@@ -73,10 +73,15 @@ const { user } = useContext(AuthContext);
 
   // 📢 GÜNCELLENDİ: Artık obje (isimli) veya sadece ID kabul ediyor
   const joinVoiceChannel = (server, channel) => {
+  console.log('[LOG] joinVoiceChannel çağrıldı', { server, channel });
+
   const sId = server._id || server;
   const cId = channel._id || channel;
 
-  if (currentVoiceChannelId === cId) return;
+  if (currentVoiceChannelId === cId) {
+    console.log('[LOG] Zaten bu kanaldasın, işlem yapılmadı.');
+    return;
+  }
 
   setCurrentVoiceChannelId(cId);
   setCurrentServerId(sId);
@@ -85,17 +90,25 @@ const { user } = useContext(AuthContext);
   if (server.name) setCurrentServerName(server.name);
   if (channel.name) setCurrentVoiceChannelName(channel.name);
 
-  // ✅ BACKEND'E SÖYLE: Bu kanala katıl
   if (socket) {
-    socket.emit('join-voice-channel', {
-    serverId: sId,
-    channelId: cId,
-    userId: user?._id || user?.id,
-    username: user?.username,
+    console.log('[LOG] socket.emit -> join-voice-channel', {
+      serverId: sId,
+      channelId: cId,
+      userId: user?._id || user?.id,
+      username: user?.username,
     });
-    console.log('[SOCKET] join-voice-channel emit edildi:', sId, cId);
+
+    socket.emit('join-voice-channel', {
+      serverId: sId,
+      channelId: cId,
+      userId: user?._id || user?.id,
+      username: user?.username,
+    });
+  } else {
+    console.warn('[LOG] Socket mevcut değil!');
   }
 };
+
 
 
   const leaveVoiceChannel = () => {
