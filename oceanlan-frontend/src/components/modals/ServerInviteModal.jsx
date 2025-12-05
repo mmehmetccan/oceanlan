@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
 import { XMarkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
-import '../../styles/ModalStyles.css'; // Veya kendi stil dosyan
+import '../../styles/ModalStyles.css';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -11,22 +11,27 @@ const ServerInviteModal = ({ serverId, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Modal açılınca mevcut kodu çek veya yeni oluştur
   useEffect(() => {
     const fetchInvite = async () => {
       setLoading(true);
       try {
-        // Önce sunucu bilgilerinden mevcut kodu almaya çalışabiliriz
-        // ama temiz olsun diye "create/get invite" endpointine istek atıyoruz
+        console.log("Davet kodu isteniyor:", serverId);
+        // POST isteği ile yeni kod oluştur veya var olanı al
         const res = await axiosInstance.post(`${API_URL_BASE}/api/v1/servers/${serverId}/invite`);
-        setInviteCode(res.data.data?.code || res.data.code);
+
+        console.log("Davet API Yanıtı:", res.data); // Konsola basıyoruz ki hatayı görelim
+
+        // Veri yolunu garantiye al (Backend ne gönderirse göndersin yakalayalım)
+        const code = res.data.data?.code || res.data.code || res.data?.inviteCode;
+
+        setInviteCode(code);
       } catch (error) {
         console.error("Davet kodu alınamadı:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchInvite();
+    if(serverId) fetchInvite();
   }, [serverId]);
 
   const handleCopy = () => {
@@ -53,18 +58,19 @@ const ServerInviteModal = ({ serverId, onClose }) => {
 
           <div className="invite-input-wrapper">
             {loading ? (
-              <div className="invite-loading">Kod oluşturuluyor...</div>
+              <div className="invite-loading" style={{padding: '10px', color: '#ccc'}}>Kod oluşturuluyor...</div>
             ) : (
               <>
                 <input
                   type="text"
                   readOnly
-                  value={inviteCode || 'Kod bulunamadı'}
+                  value={inviteCode || 'Kod alınamadı (Konsola bak)'}
                   className="invite-code-input"
                 />
                 <button
                   onClick={handleCopy}
                   className={`copy-btn ${copied ? 'copied' : ''}`}
+                  disabled={!inviteCode}
                 >
                   {copied ? 'Kopyalandı!' : <ClipboardDocumentIcon style={{ width: 20 }} />}
                 </button>

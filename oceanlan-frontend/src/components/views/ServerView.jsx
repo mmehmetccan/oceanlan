@@ -45,12 +45,21 @@ const ServerView = () => {
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // 🛠️ GÜÇLENDİRİLMİŞ SAHİPLİK KONTROLÜ
-  // Owner bazen obje { _id: "...", username: "..." } bazen string "..." gelebilir.
-  const isOwner = activeServer && user && (
-      (activeServer.owner?._id?.toString() === user.id?.toString()) || // Eğer obje ise _id'ye bak
-      (activeServer.owner?.toString() === user.id?.toString())         // Eğer string ise direkt bak
-  );
+  // 🔍 DEBUG VE SAHİPLİK KONTROLÜ
+  // user ve activeServer değiştiğinde konsola basar, hatayı görmeni sağlar.
+  useEffect(() => {
+      if(activeServer && user) {
+          const ownerId = activeServer.owner?._id || activeServer.owner;
+          const myId = user._id || user.id;
+          console.log(`[YETKİ KONTROLÜ] Server Sahibi: ${ownerId} | Ben: ${myId} | Eşleşiyor mu: ${String(ownerId) === String(myId)}`);
+      }
+  }, [activeServer, user]);
+
+  const isOwner = activeServer && user && (() => {
+      const ownerId = activeServer.owner?._id || activeServer.owner;
+      const myId = user._id || user.id;
+      return String(ownerId) === String(myId);
+  })();
 
   const canManageServer = activeServer && (
       isOwner ||
@@ -59,7 +68,7 @@ const ServerView = () => {
   );
 
   const canMoveMembers = activeServer && (
-      isOwner || // Sahip her şeyi yapar
+      isOwner ||
       checkUserPermission(activeServer, user?.id, 'MUTE_MEMBERS') ||
       checkUserPermission(activeServer, user?.id, 'ADMINISTRATOR') ||
       checkUserPermission(activeServer, user?.id, 'MOVE_MEMBERS')
@@ -113,7 +122,6 @@ const ServerView = () => {
     };
   }, [socket, serverId, fetchServerDetails, addToast]);
 
-  // DRAG & DROP
   const handleVoiceUserDragStart = (e, fromChannelId, userId) => {
     if (!canMoveMembers) return;
     e.dataTransfer.effectAllowed = 'move';
@@ -162,9 +170,6 @@ const ServerView = () => {
   const serverIconUrl = activeServer?.iconUrl ? (activeServer.iconUrl.startsWith('http') ? activeServer.iconUrl : `${BASE_URL}${activeServer.iconUrl}`) : null;
   const serverInitial = activeServer?.name?.charAt(0)?.toUpperCase() || '#';
 
-  // Sahip adı güvenli okuma
-  const ownerName = activeServer.owner?.username || 'Sunucu Sahibi';
-
   return (
     <div className="server-view" onClick={() => setContextMenu(null)}>
       <header className="server-view-header">
@@ -179,10 +184,8 @@ const ServerView = () => {
           </div>
         </div>
 
-        {/* ⚙️ HEADER AKSİYONLARI */}
+        {/* HEADER ACTIONS */}
         <div className="server-header-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-
-            {/* Davet Butonu (Herkes Görür) */}
             <button
                 className="header-icon-btn invite-btn"
                 onClick={() => setShowInviteModal(true)}
@@ -192,7 +195,7 @@ const ServerView = () => {
                 <UserPlusIcon style={{ width: 24 }} />
             </button>
 
-            {/* Ayarlar Butonu (Sadece Yetkili ve SAHİP Görür) */}
+            {/* AYARLAR BUTONU KONTROLÜ */}
             {canManageServer && (
                 <Link to={`/dashboard/server/${serverId}/settings`} className="header-icon-btn settings-btn" title="Sunucu Ayarları">
                     <Cog6ToothIcon style={{ width: 24, color: '#b9bbbe' }} />
@@ -223,7 +226,6 @@ const ServerView = () => {
             const isActiveVoice = currentVoiceChannelId === channel._id;
             const isDragOver = dragOverChannelId === channel._id;
 
-            // DUPLICATE & OPTIMISTIC UI
             let usersInThisChannel = [...(voiceState[channel._id] || [])];
             const myId = user?._id || user?.id;
 
@@ -267,15 +269,12 @@ const ServerView = () => {
                       const isSelf = String(voiceUser.userId) === String(user?.id);
 
                       const displayName = member?.user?.username || (isSelf ? user.username : voiceUser.username);
-
-                      let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
-                      if (!rawAvatar && isSelf) rawAvatar = user.avatarUrl;
-                      if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
+                      let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar || (isSelf ? user.avatarUrl : null) || DEFAULT_AVATAR;
                       const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
 
+                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
                       const isMuted = member?.isMuted || false;
                       const isDeafened = member?.isDeafened || false;
-                      const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];
 
                       return (
                         <div
