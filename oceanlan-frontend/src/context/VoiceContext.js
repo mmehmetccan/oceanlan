@@ -125,7 +125,10 @@ export const VoiceProvider = ({ children }) => {
         isScreenPickerOpen,
         setScreenPickerOpen,
         screenShareCallback,
-        setScreenShareCallback
+        setScreenShareCallback,
+
+         stayConnected,          // ⬅️ BUNU EKLE
+    setStayConnected
     }}>
       {children}
     </VoiceContext.Provider>

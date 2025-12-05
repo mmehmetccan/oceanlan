@@ -29,7 +29,7 @@ export const useVoiceChannel = () => {
   const { addToast } = useContext(ToastContext);
 
   const {
-    currentVoiceChannelId,
+     currentVoiceChannelId,
     currentServerId,
     leaveVoiceChannel,
     setMyScreenStream,
@@ -38,6 +38,9 @@ export const useVoiceChannel = () => {
     setScreenPickerOpen,
     setScreenShareCallback,
     setSpeakingUsers,
+
+    stayConnected,
+    setStayConnected
   } = useContext(VoiceContext);
 
   const {
@@ -255,10 +258,16 @@ export const useVoiceChannel = () => {
 
   // --- 7. ANA BAĞLANTI MANTIĞI (RACE CONDITION FIX) ---
   useEffect(() => {
-    // Gerekli veriler yoksa çık
-    if (!currentVoiceChannelId || !currentServerId || !user || !socket || !socket.connected) {
-        return;
-    }
+  if (!stayConnected ||
+    !currentVoiceChannelId ||
+    !currentServerId ||
+    !user ||
+    !socket ||
+    !socket.connected
+) {
+    return;
+}
+
 
     let isMounted = true;
     let localStream = null;
@@ -427,7 +436,7 @@ export const useVoiceChannel = () => {
         setSpeakingUsers({});
     };
 
-  }, [currentVoiceChannelId, currentServerId, socket, socket?.connected, user, inputDeviceId]); // inputDeviceId değişince de yeniden başlar
+}, [stayConnected, currentVoiceChannelId, currentServerId, socket, socket?.connected, user, inputDeviceId]);
 
   // --- EKRAN PAYLAŞIMI (Aynı Mantık) ---
   const startScreenShare = async (electronSourceId = null) => {
