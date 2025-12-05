@@ -5,14 +5,12 @@ import { AuthContext } from '../context/AuthContext';
 
 // 🔴 Backend portunuz 4000 ise burası 4000 olmalı
 const getSocketUrl = () => {
-    const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl && envUrl.includes('oceanlan.com')) {
-        return envUrl.replace('/api/v1', '');
-    }
-    return 'http://localhost:4000'; // 👈 BURAYI 4000 YAPTIM
+  return import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 };
 
 const SOCKET_SERVER_URL = getSocketUrl();
+
+
 let globalSocket = null;
 
 export const useSocket = () => {
