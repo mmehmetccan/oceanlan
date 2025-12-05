@@ -1,24 +1,23 @@
-// public/electron.cjs
-const { app, BrowserWindow, ipcMain, desktopCapturer, session } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, session, systemPreferences } = require('electron');
 const path = require('path');
-const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
-// Loglama ayarları
+// --- AYARLAR ---
 autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
-
-// Otomatik indirsin mi? Evet.
 autoUpdater.autoDownload = true;
 
-// 👇 BU FONKSİYON ARTIK DIŞARIDA (Global Scope)
-// Böylece her yerden erişilebilir.
+// Sesin kullanıcı etkileşimi olmadan çalabilmesi için kritik:
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+// --- HELPER: GÜNCELLEME İLETİŞİMİ ---
 function sendStatusToWindow(type, text) {
   BrowserWindow.getAllWindows().forEach(win => {
     win.webContents.send('update-message', { type, text });
   });
 }
 
+// --- ANA PENCERE OLUŞTURMA ---
 function createWindow() {
   const isDev = !app.isPackaged;
 
@@ -38,6 +37,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
       contextIsolation: true,
+      // Güvenlik politikasını biraz gevşeterek WebRTC'nin rahat çalışmasını sağlar
+      webSecurity: true,
+      backgroundThrottling: false // Pencere alta inince mikrofonun kesilmemesi için
     },
   });
 
@@ -51,7 +53,7 @@ function createWindow() {
   });
   ipcMain.on('window-close', () => win.close());
 
-  // Ekran Paylaşımı Kaynakları
+  // Ekran Paylaşımı
   ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
     try {
       const sources = await desktopCapturer.getSources({
@@ -59,7 +61,6 @@ function createWindow() {
         thumbnailSize: { width: 300, height: 300 },
         fetchWindowIcons: true
       });
-
       return sources.map(source => ({
         id: source.id,
         name: source.name,
@@ -71,36 +72,16 @@ function createWindow() {
     }
   });
 
+  // Yükleme
   if (isDev) {
     const devUrl = 'http://localhost:5173/';
-    console.log('[DEV] loading:', devUrl);
     win.loadURL(devUrl);
   } else {
     const appPath = app.getAppPath();
     const indexPath = path.join(appPath, 'dist', 'index.html');
-    console.log('[PROD] indexPath:', indexPath);
     win.loadFile(indexPath);
   }
 
-  // İzin Yönetimi
-  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'display-capture', 'notifications', 'audio-capture', 'video-capture'];
-    if (allowedPermissions.includes(permission)) {
-      callback(true);
-    } else {
-      callback(false);
-    }
-  });
-
-  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    // Custom modal kullandığımız için burayı boş bırakıyoruz veya varsayılanı eziyoruz.
-  });
-
-  win.webContents.on('did-fail-load', (e, code, desc, url) => {
-    console.error('[did-fail-load]', code, desc, url);
-  });
-
-  // 👇 PENCERE YÜKLENİNCE GÜNCELLEME KONTROLÜ BAŞLASIN
   win.webContents.on('did-finish-load', () => {
     if (app.isPackaged) {
        autoUpdater.checkForUpdatesAndNotify();
@@ -108,64 +89,57 @@ function createWindow() {
   });
 }
 
-// --- GÜNCELLEME OLAYLARI (Burada sendStatusToWindow kullanabiliriz) ---
-
-autoUpdater.on('checking-for-update', () => {
-  console.log('Güncellemeler kontrol ediliyor...');
-  // İsterseniz bunu da açabilirsiniz:
-  // sendStatusToWindow('info', 'Güncellemeler kontrol ediliyor...');
-});
-
-autoUpdater.on('update-available', (info) => {
-  sendStatusToWindow('info', 'Yeni güncelleme bulundu, arka planda indiriliyor...');
-});
-
-autoUpdater.on('update-not-available', (info) => {
-  console.log('Güncel sürüm kullanılıyor.');
-});
-
-autoUpdater.on('error', (err) => {
-  sendStatusToWindow('error', 'Güncelleme hatası: ' + (err.message || err));
-});
-
-autoUpdater.on('download-progress', (progressObj) => {
-  // İndirme yüzdesini loglayabiliriz
-  // const log_message = "İndirme hızı: " + progressObj.bytesPerSecond;
-  // console.log(log_message);
-});
-
+// --- GÜNCELLEME OLAYLARI ---
+autoUpdater.on('checking-for-update', () => console.log('Güncelleme kontrol ediliyor...'));
+autoUpdater.on('update-available', (info) => sendStatusToWindow('info', 'Güncelleme indiriliyor...'));
+autoUpdater.on('update-not-available', (info) => console.log('Güncel.'));
+autoUpdater.on('error', (err) => sendStatusToWindow('error', 'Hata: ' + err.message));
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('Güncelleme indirildi, yükleniyor...');
-
-  // KULLANICIYA SORMADAN DİREKT GÜNCELLEMEK İÇİN:
-  // quitAndInstall(isSilent, isForceRunAfter)
-  // isSilent: true -> Yükleyici arayüzünü gösterme
-  // isForceRunAfter: true -> Yükleme bitince uygulamayı hemen aç
+  console.log('İndirildi, yükleniyor...');
   autoUpdater.quitAndInstall(true, true);
 });
 
-app.whenReady().then(() => {
-  createWindow();
+// --- APP READY (SIRALAMA DÜZELTİLDİ) ---
+app.whenReady().then(async () => {
 
-session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'audioCapture', 'videoCapture', 'mediaKeySystem'];
+  // 1. ADIM: macOS İZİNLERİ (Mac kullanmasan bile kodda durmalı)
+  if (process.platform === 'darwin') {
+    const micStatus = await systemPreferences.getMediaAccessStatus('microphone');
+    if (micStatus !== 'granted') {
+      await systemPreferences.askForMediaAccess('microphone');
+    }
+  }
+
+  // 2. ADIM: OTOMATİK İZİN YÖNETİCİSİ (Pencere açılmadan önce!)
+  // `session.defaultSession` tüm pencereleri kapsar.
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = [
+      'media',          // Mikrofon/Kamera
+      'display-capture', // Ekran Paylaşımı
+      'audio-capture',
+      'video-capture',
+      'notifications',
+      'mediaKeySystem'
+    ];
 
     if (allowedPermissions.includes(permission)) {
-      // Otomatik olarak izin ver
-      callback(true);
+      callback(true); // Otomatik onayla
     } else {
+      console.log(`İzin reddedildi: ${permission}`);
       callback(false);
     }
   });
 
-  // 👇 BU DA EK GÜVENLİK AYARI (Bazı Electron sürümleri için) 👇
+  // 3. ADIM: İZİN KONTROL (Check Handler)
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    if (permission === 'media' || permission === 'audioCapture') {
+    if (permission === 'media' || permission === 'audio-capture' || permission === 'display-capture') {
       return true;
     }
     return false;
   });
 
+  // 4. ADIM: PENCEREYİ OLUŞTUR (Artık her şey hazır)
+  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

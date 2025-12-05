@@ -1,6 +1,5 @@
 // src/components/chat/VoiceRoom.jsx
-import React, { useContext } from 'react';
-import { useVoiceChannel } from '../../hooks/useVoiceChannel';
+import React, { useContext, useEffect, useState } from 'react';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
@@ -10,7 +9,8 @@ import {
     SpeakerWaveIcon,
     ComputerDesktopIcon,
     PhoneXMarkIcon,
-    SignalIcon
+    SignalIcon,
+    ArrowPathIcon // Yenileme ikonu
 } from '@heroicons/react/24/solid';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -21,9 +21,6 @@ const toAbsolute = (src) => {
 };
 
 const VoiceRoom = () => {
-  const { startScreenShare, stopScreenShare } = useVoiceChannel();
-
-  // 📢 GÜNCELLENDİ: İsimleri context'ten alıyoruz
   const {
       currentVoiceChannelId,
       leaveVoiceChannel,
@@ -32,10 +29,22 @@ const VoiceRoom = () => {
       currentVoiceChannelName,
       currentServerName,
       micError,
+      speakingUsers,
+      screenShareMethods // 👈 Context'e eklediğimiz metodlar
   } = useContext(VoiceContext);
+  const { startScreenShare, stopScreenShare } = screenShareMethods;
 
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
+
+  // Connection durumu için basit bir local state
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, error
+
+  useEffect(() => {
+    if (currentVoiceChannelId) {
+        setConnectionStatus('connected');
+    }
+  }, [currentVoiceChannelId]);
 
   if (!currentVoiceChannelId) return null;
 
@@ -44,48 +53,76 @@ const VoiceRoom = () => {
       else startScreenShare();
   };
 
+  // 📢 SES GELMİYORSA RESTART ATACAK BUTON
+  const handleReconnect = () => {
+      // Kanaldan çıkıp tekrar girmek en temiz çözümdür
+      const oldChannel = currentVoiceChannelId; // ID'yi sakla
+      leaveVoiceChannel();
+      setTimeout(() => {
+          // Burada tekrar katılma mantığı VoiceContext üzerinden tetiklenmeli
+          // veya kullanıcıya manuel tıklatmalı. Şimdilik sadece çıkış yapıyoruz.
+          // Kullanıcı tekrar tıklasın.
+      }, 500);
+  };
+
+  // Gerçekten konuşuyor muyum? Context + Analiz
+  const amISpeaking = speakingUsers[user?.id];
+
   return (
     <div className="voice-room-controls">
         {micError && (
-  <div className="voice-error-banner">
-    <strong>❗ Ses bağlantısı kurulamadı:</strong> {micError}
-    <br />
-    Lütfen mikrofon izninizin açık olduğundan ve tarayıcınızın desteklediğinden emin olun.
-  </div>
-)}
+          <div className="voice-error-banner">
+            ❗ {micError}
+          </div>
+        )}
+
       <div className="voice-room-info">
-        <div className={`voice-connection-status ${isLocalSpeaking ? 'speaking' : ''}`}>
+        <div className={`voice-connection-status ${connectionStatus === 'connected' ? 'connected' : 'connecting'}`}>
             <SignalIcon className="voice-icon-signal" />
-            <span className="voice-status-text">Ses Bağlandı</span>
+            <span className="voice-status-text">
+                {connectionStatus === 'connected' ? 'Ses Bağlı' : 'Bağlanıyor...'}
+            </span>
         </div>
-        <span className="voice-room-subtitle">
-           <span style={{fontWeight: 'bold', color: '#fff'}}>{currentServerName || 'Sunucu'}</span> / {currentVoiceChannelName || 'Kanal'}
-        </span>
+        <div className="voice-room-details">
+            <span className="server-name">{currentServerName || 'Sunucu'}</span>
+            <span className="channel-seperator">/</span>
+            <span className="channel-name">{currentVoiceChannelName || 'Kanal'}</span>
+        </div>
       </div>
 
       <div className="voice-controls-actions">
-        <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`} title={isMicMuted ? "Mikrofonu Aç" : "Sustur"}>
+        <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
             <MicrophoneIcon className="voice-icon" />
             {isMicMuted && <div className="strike-line" />}
         </button>
-        <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`} title={isDeafened ? "Sağırlaştırmayı Kapat" : "Sağırlaştır"}>
+
+        <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`}>
             <SpeakerWaveIcon className="voice-icon" />
             {isDeafened && <div className="strike-line" />}
         </button>
-        <button onClick={handleScreenShareToggle} className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`} title="Ekran Paylaş">
+
+        <button onClick={handleScreenShareToggle} className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
             <ComputerDesktopIcon className="voice-icon" />
         </button>
-        <button onClick={leaveVoiceChannel} className="voice-control-btn terminate" title="Bağlantıyı Kes">
+
+        <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">
             <PhoneXMarkIcon className="voice-icon" />
         </button>
       </div>
 
+      {/* Kullanıcı Kartı */}
       <div className="voice-user-section">
-          <img
-            src={toAbsolute(user?.avatarUrl || user?.avatar)}
-            alt="Profil"
-            className={`voice-user-img ${isLocalSpeaking && !isMicMuted ? 'speaking' : ''}`}
-          />
+          <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
+             <img
+                src={toAbsolute(user?.avatarUrl || user?.avatar)}
+                alt="Me"
+                className="voice-user-img"
+             />
+          </div>
+          <div className="voice-user-info-mini">
+              <span className="voice-username">{user?.username}</span>
+              <span className="voice-status-micro">{isMicMuted ? 'Muted' : 'Open'}</span>
+          </div>
       </div>
     </div>
   );

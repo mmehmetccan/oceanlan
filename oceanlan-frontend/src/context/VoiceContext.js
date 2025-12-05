@@ -21,6 +21,10 @@ export const VoiceProvider = ({ children }) => {
 
   const [micError, setMicError] = useState(null);
 
+const [screenShareMethods, setScreenShareMethods] = useState({
+      startScreenShare: () => console.warn("Henüz hazır değil"),
+      stopScreenShare: () => console.warn("Henüz hazır değil")
+  });
 
   const [speakingUsers, setSpeakingUsers] = useState({});
 
@@ -49,13 +53,9 @@ export const VoiceProvider = ({ children }) => {
   const joinVoiceChannel = (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
-
     if (currentVoiceChannelId === cId) return;
-
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
-
-    // Eğer isim bilgisi geldiyse kaydet
     if (server.name) setCurrentServerName(server.name);
     if (channel.name) setCurrentVoiceChannelName(channel.name);
   };
@@ -65,7 +65,6 @@ export const VoiceProvider = ({ children }) => {
     setCurrentServerId(null);
     setCurrentVoiceChannelName(null);
     setCurrentServerName(null);
-
     if (myScreenStream) {
         myScreenStream.getTracks().forEach(track => track.stop());
         setMyScreenStream(null);
@@ -73,10 +72,7 @@ export const VoiceProvider = ({ children }) => {
     setIncomingStreams({});
   };
 
-  const addIncomingStream = (socketId, stream) => {
-      setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
-  };
-
+  const addIncomingStream = (socketId, stream) => setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
   const removeIncomingStream = (socketId) => {
       setIncomingStreams(prev => {
           const newStreams = { ...prev };
@@ -89,8 +85,8 @@ export const VoiceProvider = ({ children }) => {
     <VoiceContext.Provider value={{
         currentVoiceChannelId,
         currentServerId,
-        currentVoiceChannelName, // 👈
-        currentServerName,       // 👈
+        currentVoiceChannelName,
+        currentServerName,
         joinVoiceChannel,
         leaveVoiceChannel,
         myScreenStream,
@@ -100,15 +96,17 @@ export const VoiceProvider = ({ children }) => {
         removeIncomingStream,
         isLocalSpeaking,
         setIsLocalSpeaking,
-         speakingUsers,
+        speakingUsers,
         setSpeakingUsers,
-
         micError, setMicError,
-
         isScreenPickerOpen,
         setScreenPickerOpen,
         screenShareCallback,
-        setScreenShareCallback
+        setScreenShareCallback,
+
+        // 👇 YENİ: Context'e ekledik
+        screenShareMethods,
+        setScreenShareMethods
     }}>
       {children}
     </VoiceContext.Provider>
