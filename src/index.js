@@ -25,11 +25,11 @@ connectDB();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
+const io = new Server(httpServer, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+    origin: "*", // Tüm sitelerden (localhost dahil) gelen isteklere izin ver
+    methods: ["GET", "POST"]
+  }
 });
 
 // io'yu Express app'e tak

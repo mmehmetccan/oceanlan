@@ -1,94 +1,115 @@
 // src/context/VoiceContext.js
 import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
-import { io } from 'socket.io-client'; // useSocket yerine direkt io kullanıyoruz
+import { io } from 'socket.io-client';
 import { AuthContext } from './AuthContext';
 
 export const VoiceContext = createContext();
 
 export const VoiceProvider = ({ children }) => {
-  // Socket'i state yerine ref içinde tutuyoruz (Bağlantı kopmaması için kritik)
   const socketRef = useRef(null);
+  const { user } = useContext(AuthContext);
 
+  const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
   const [currentServerId, setCurrentServerId] = useState(null);
 
-  // İsim state'leri
+  // İsimlendirmeler
   const [currentVoiceChannelName, setCurrentVoiceChannelName] = useState(null);
   const [currentServerName, setCurrentServerName] = useState(null);
 
-  const [myScreenStream, setMyScreenStream] = useState(null);
+  // Stream ve Konuşma Durumları
   const [incomingStreams, setIncomingStreams] = useState({});
+  const [myScreenStream, setMyScreenStream] = useState(null);
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
+  const [speakingUsers, setSpeakingUsers] = useState({});
+  const [micError, setMicError] = useState(null);
 
+  // Ekran Paylaşımı
   const [isScreenPickerOpen, setScreenPickerOpen] = useState(false);
   const [screenShareCallback, setScreenShareCallback] = useState(null);
-
-  const [micError, setMicError] = useState(null);
-  const { user } = useContext(AuthContext);
-
-  const [speakingUsers, setSpeakingUsers] = useState({});
   const [stayConnected, setStayConnected] = useState(false);
 
-  // 1. SOCKET BAĞLANTISINI BAŞLAT (Sayfa değişse de kopmaz)
+  // 1. SOCKET BAĞLANTISI (Sayfa değişse de kopmaz)
   useEffect(() => {
-    // Eğer socket yoksa oluştur
-    if (!socketRef.current) {
-      console.log("[VoiceContext] Socket başlatılıyor...");
+    // Eğer zaten bir socket varsa tekrar yaratma (Singleton)
+    if (socketRef.current) return;
 
-      // Backend adresini buraya yaz (Loglarda 4000 portu görünüyordu)
-      socketRef.current = io('http://localhost:4000', {
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-      });
+    console.log("[VoiceContext] Socket başlatılıyor...");
 
-      const socket = socketRef.current;
+    // Backend adresini buraya yaz
+    socketRef.current = io('http://localhost:4000', {
+      transports: ['websocket'], // Websocket'e zorla (polling yapmasın)
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
 
-      socket.on('connect', () => {
-        console.log('[SOCKET] VoiceContext Bağlandı:', socket.id);
-      });
+    const socket = socketRef.current;
 
-      socket.on('voice-channel-moved', ({ newChannelId, serverId }) => {
-        console.log(`[VoiceContext] Taşındım: ${newChannelId}`);
-        setCurrentVoiceChannelId(newChannelId);
-        setCurrentServerId(serverId);
-      });
+    socket.on('connect', () => {
+      console.log('[SOCKET] Bağlandı:', socket.id);
+      setIsConnected(true);
 
-      socket.on('disconnect', () => {
-        console.log('[SOCKET] Bağlantı koptu.');
-      });
-    }
-
-    // Component tamamen yok olduğunda (Uygulama kapandığında) temizle
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      // Eğer bağlantı kopup geri geldiyse ve bir kanalda olmamız gerekiyorsa:
+      if (stayConnected && currentVoiceChannelId) {
+        console.log('[SOCKET] Bağlantı geri geldi, kanala tekrar giriliyor...');
+        rejoinChannel();
       }
-    };
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('[SOCKET] Bağlantı koptu:', reason);
+      setIsConnected(false);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[SOCKET] Bağlantı hatası:', err.message);
+    });
+
+    // Ses kanalı taşıma eventi
+    socket.on('voice-channel-moved', ({ newChannelId, serverId }) => {
+      console.log(`[VoiceContext] Taşındım: ${newChannelId}`);
+      setCurrentVoiceChannelId(newChannelId);
+      setCurrentServerId(serverId);
+    });
+
+    // Cleanup YAPMIYORUZ. Uygulama kapanmadığı sürece socket açık kalsın.
+    // Profil sayfasına gidince burası unmount olursa ses giderdi.
+    // Artık main.jsx'te en tepede olduğu için unmount olmayacak.
   }, []);
 
-  // 2. KANAL KATILMA FONKSİYONU
-  const joinVoiceChannel = (server, channel) => {
-    console.log('[LOG] joinVoiceChannel çağrıldı', { server, channel });
+  // Bağlantı kopup gelirse tekrar kanala sokan fonksiyon
+  const rejoinChannel = () => {
+    if (!socketRef.current || !currentVoiceChannelId) return;
 
+    socketRef.current.emit('join-voice-channel', {
+      serverId: currentServerId,
+      channelId: currentVoiceChannelId,
+      userId: user?._id || user?.id,
+      username: user?.username,
+    });
+  };
+
+  // 2. KANALA KATILMA
+  const joinVoiceChannel = (server, channel) => {
     if (!socketRef.current) {
-      console.error('[LOG] Socket henüz hazır değil!');
+      console.error('[LOG] Socket yok, bağlanılamıyor.');
       return;
     }
 
     const sId = server._id || server;
     const cId = channel._id || channel;
 
-    if (currentVoiceChannelId === cId) {
+    // Zaten aynı kanaldaysak işlem yapma
+    if (currentVoiceChannelId === cId && isConnected) {
       console.log('[LOG] Zaten bu kanaldasın.');
       return;
     }
 
+    // State güncelle
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
     setStayConnected(true);
-
     if (server.name) setCurrentServerName(server.name);
     if (channel.name) setCurrentVoiceChannelName(channel.name);
 
@@ -99,16 +120,17 @@ export const VoiceProvider = ({ children }) => {
       username: user?.username,
     };
 
-    console.log('[LOG] socket.emit -> join-voice-channel', payload);
+    console.log('[LOG] Kanala katılıyorum:', payload);
     socketRef.current.emit('join-voice-channel', payload);
   };
 
   // 3. KANALDAN AYRILMA
   const leaveVoiceChannel = () => {
+    console.log('[LOG] Kanaldan ayrılınıyor...');
     setStayConnected(false);
 
     if (socketRef.current) {
-      socketRef.current.emit('leave-voice-channel'); // Backend'de varsa tetikle
+      socketRef.current.emit('leave-voice-channel');
     }
 
     setCurrentVoiceChannelId(null);
@@ -116,6 +138,7 @@ export const VoiceProvider = ({ children }) => {
     setCurrentVoiceChannelName(null);
     setCurrentServerName(null);
 
+    // Streamleri temizle
     if (myScreenStream) {
       myScreenStream.getTracks().forEach(track => track.stop());
       setMyScreenStream(null);
@@ -123,43 +146,51 @@ export const VoiceProvider = ({ children }) => {
     setIncomingStreams({});
   };
 
-  // 4. STREAM YÖNETİMİ
+  // Stream Yardımcıları
   const addIncomingStream = (socketId, stream) => {
     setIncomingStreams(prev => ({ ...prev, [socketId]: stream }));
   };
 
   const removeIncomingStream = (socketId) => {
     setIncomingStreams(prev => {
-      const newStreams = { ...prev };
-      delete newStreams[socketId];
-      return newStreams;
+      const newState = { ...prev };
+      delete newState[socketId];
+      return newState;
     });
   };
 
   return (
     <VoiceContext.Provider value={{
-      socket: socketRef.current, // Dışarıya ref'teki socketi veriyoruz
+      socket: socketRef.current,
+      isConnected,
+
       currentVoiceChannelId,
       currentServerId,
       currentVoiceChannelName,
       currentServerName,
+
       joinVoiceChannel,
       leaveVoiceChannel,
+
       myScreenStream,
       setMyScreenStream,
       incomingStreams,
       addIncomingStream,
       removeIncomingStream,
+
       isLocalSpeaking,
       setIsLocalSpeaking,
       speakingUsers,
       setSpeakingUsers,
+
       micError,
       setMicError,
+
       isScreenPickerOpen,
       setScreenPickerOpen,
       screenShareCallback,
       setScreenShareCallback,
+
       stayConnected,
       setStayConnected
     }}>
