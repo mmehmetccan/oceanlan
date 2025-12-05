@@ -21,14 +21,11 @@ export const VoiceProvider = ({ children }) => {
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
   const audioElementsRef = useRef({});
-
-  // Ses Analiz Refleri
   const audioAnalyzersRef = useRef({});
   const localAudioContextRef = useRef(null);
 
   const { user, token } = useContext(AuthContext);
   const audioSettings = useContext(AudioSettingsContext);
-
   const { inputDeviceId, outputDeviceId, isMicMuted, isDeafened, userVolumes } = audioSettings || {};
 
   // --- STATES ---
@@ -42,7 +39,6 @@ export const VoiceProvider = ({ children }) => {
   const [micError, setMicError] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
 
-  // Video State
   const [peersWithVideo, setPeersWithVideo] = useState({});
   const [myScreenStream, setMyScreenStream] = useState(null);
 
@@ -73,7 +69,6 @@ export const VoiceProvider = ({ children }) => {
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    // Eventler
     socket.on('user-joined-voice', handleUserJoined);
     socket.on('webrtc-offer', handleOffer);
     socket.on('webrtc-answer', handleAnswer);
@@ -85,49 +80,47 @@ export const VoiceProvider = ({ children }) => {
   }, [token]);
 
   // ----------------------------------------------------------------
-  // 🧹 TEMİZLİK (CLEANUP)
+  // 🧹 İÇ TEMİZLİK (State'i bozmadan sadece medyayı temizler)
   // ----------------------------------------------------------------
-  const cleanupConnection = (socketId) => {
-      if (peersRef.current[socketId]) {
-          peersRef.current[socketId].destroy();
-          delete peersRef.current[socketId];
-      }
-      if (audioElementsRef.current[socketId]) {
-          const audio = audioElementsRef.current[socketId];
-          audio.pause();
-          audio.srcObject = null;
-          audio.remove();
-          delete audioElementsRef.current[socketId];
-      }
-      if (audioAnalyzersRef.current[socketId]) {
-          delete audioAnalyzersRef.current[socketId];
-      }
-      setPeersWithVideo(prev => {
-          const n = { ...prev };
-          delete n[socketId];
-          return n;
+  const cleanupMediaOnly = () => {
+      // 1. Peerları kapat
+      Object.keys(peersRef.current).forEach(socketId => {
+          if (peersRef.current[socketId]) peersRef.current[socketId].destroy();
+          if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
       });
-      setSpeakingUsers(prev => {
-          const n = { ...prev };
-          delete n[socketId];
-          return n;
-      });
-  };
+      peersRef.current = {};
+      audioElementsRef.current = {};
 
-  const destroyAllConnections = () => {
-      Object.keys(peersRef.current).forEach(socketId => cleanupConnection(socketId));
+      // 2. Video ve konuşma statelerini temizle
+      setPeersWithVideo({});
+      setSpeakingUsers({});
+
+      // 3. Local Stream (Mikrofon) durdur
+      if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => t.stop());
+          localStreamRef.current = null;
+      }
+
+      // 4. Ekran Paylaşımı durdur
       if (myScreenStream) {
           myScreenStream.getTracks().forEach(t => t.stop());
           setMyScreenStream(null);
       }
+
+      // 5. Analizcileri durdur
+      if (localAudioContextRef.current) {
+          localAudioContextRef.current.close().catch(()=>{});
+          localAudioContextRef.current = null;
+      }
+      audioAnalyzersRef.current = {};
   };
 
   // ----------------------------------------------------------------
-  // 2. LOGIC
+  // 2. LOGIC & HANDLERS
   // ----------------------------------------------------------------
 
   const handleChannelMoved = ({ newChannelId, serverId, channelName }) => {
-    destroyAllConnections();
+    cleanupMediaOnly();
     setCurrentVoiceChannelId(newChannelId);
     setCurrentServerId(serverId);
     if(channelName) setCurrentVoiceChannelName(channelName);
@@ -137,13 +130,11 @@ export const VoiceProvider = ({ children }) => {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-
         const audioCtx = new AudioContext();
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
         const source = audioCtx.createMediaStreamSource(stream);
         source.connect(analyser);
-
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         audioAnalyzersRef.current[id] = { ctx: audioCtx, analyser, dataArray };
     } catch(e) {}
@@ -152,18 +143,14 @@ export const VoiceProvider = ({ children }) => {
   // Ses Analiz Döngüsü
   useEffect(() => {
     const interval = setInterval(() => {
-        if (!audioAnalyzersRef.current) return;
         const updates = {};
         let changed = false;
-
         Object.entries(audioAnalyzersRef.current).forEach(([id, { analyser, dataArray }]) => {
             if(!analyser) return;
             analyser.getByteFrequencyData(dataArray);
             let sum = 0;
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-            const avg = sum / dataArray.length;
-            const isSpeaking = avg > 15;
-
+            const isSpeaking = (sum / dataArray.length) > 15;
             if (speakingUsers[id] !== isSpeaking) {
                 updates[id] = isSpeaking;
                 changed = true;
@@ -171,90 +158,62 @@ export const VoiceProvider = ({ children }) => {
                 updates[id] = speakingUsers[id];
             }
         });
-
-        if (changed) {
-            setSpeakingUsers(prev => ({ ...prev, ...updates }));
-        }
+        if (changed) setSpeakingUsers(prev => ({ ...prev, ...updates }));
     }, 100);
-
     return () => clearInterval(interval);
   }, [speakingUsers]);
 
-  // ----------------------------------------------------------------
-  // 3. WEBRTC HANDLERS
-  // ----------------------------------------------------------------
-
+  // WebRTC Fonksiyonları
   const handleUserJoined = ({ socketId }) => {
-    const streamsToSend = [localStreamRef.current];
-    if (myScreenStream) streamsToSend.push(myScreenStream);
-    createPeer(socketId, true, streamsToSend.filter(s => s));
+    const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
+    createPeer(socketId, true, streams);
   };
-
   const handleOffer = ({ socketId, sdp }) => {
-    cleanupConnection(socketId);
-    const streamsToSend = [localStreamRef.current];
-    if (myScreenStream) streamsToSend.push(myScreenStream);
-    const p = createPeer(socketId, false, streamsToSend.filter(s => s));
+    const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
+    const p = createPeer(socketId, false, streams);
     p.signal(sdp);
   };
-
   const handleAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
   const handleIce = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
-  const handleUserLeft = ({ socketId }) => cleanupConnection(socketId);
+
+  const handleUserLeft = ({ socketId }) => {
+      if (peersRef.current[socketId]) {
+          peersRef.current[socketId].destroy();
+          delete peersRef.current[socketId];
+      }
+      if (audioElementsRef.current[socketId]) {
+          audioElementsRef.current[socketId].remove();
+          delete audioElementsRef.current[socketId];
+      }
+      setPeersWithVideo(prev => { const n = { ...prev }; delete n[socketId]; return n; });
+      setSpeakingUsers(prev => { const n = { ...prev }; delete n[socketId]; return n; });
+  };
 
   const createPeer = (targetSocketId, initiator, streams = []) => {
-    if (peersRef.current[targetSocketId]) {
-        if (!peersRef.current[targetSocketId].destroyed) return peersRef.current[targetSocketId];
-        cleanupConnection(targetSocketId);
+    if (peersRef.current[targetSocketId] && !peersRef.current[targetSocketId].destroyed) {
+        return peersRef.current[targetSocketId];
     }
+    const p = new Peer({ initiator, trickle: false, streams, config: rtcConfig });
 
-    const p = new Peer({
-      initiator,
-      trickle: false,
-      streams: streams,
-      config: rtcConfig
-    });
-
-    p.on('signal', data => {
-      if (socketRef.current) {
-        const type = initiator ? 'webrtc-offer' : 'webrtc-answer';
-        socketRef.current.emit(type, { targetSocketId, sdp: data });
-      }
-    });
-
-    p.on('stream', remoteStream => handleRemoteStream(remoteStream, targetSocketId));
-
-    p.on('error', (err) => {
-        console.error(`Peer Error (${targetSocketId}):`, err);
-        cleanupConnection(targetSocketId);
-    });
-
-    p.on('close', () => cleanupConnection(targetSocketId));
+    p.on('signal', data => socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { targetSocketId, sdp: data }));
+    p.on('stream', stream => handleRemoteStream(stream, targetSocketId));
+    p.on('error', () => handleUserLeft({ socketId: targetSocketId }));
 
     peersRef.current[targetSocketId] = p;
     return p;
   };
 
   const handleRemoteStream = (stream, id) => {
-    const isVideo = stream.getVideoTracks().length > 0;
-
-    if (isVideo) {
+    if (stream.getVideoTracks().length > 0) {
         setPeersWithVideo(prev => ({ ...prev, [id]: stream }));
     } else {
-        if (audioElementsRef.current[id]) {
-             audioElementsRef.current[id].remove();
-        }
-
+        if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
         const audio = document.createElement('audio');
         audio.srcObject = stream;
         audio.autoplay = true;
-        audio.playsInline = true;
         audio.style.display = 'none';
         document.body.appendChild(audio);
-
-        if (outputDeviceId && typeof audio.setSinkId === 'function') {
-            audio.setSinkId(outputDeviceId).catch(e => console.warn(e));
-        }
+        if (outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(()=>{});
         audioElementsRef.current[id] = audio;
         setupAudioAnalysis(stream, id);
     }
@@ -271,27 +230,22 @@ export const VoiceProvider = ({ children }) => {
         } else {
              stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         }
-
         setMyScreenStream(stream);
         Object.values(peersRef.current).forEach(p => p.addStream(stream));
         stream.getVideoTracks()[0].onended = () => stopScreenShare();
-    } catch (err) {
-        console.error(err);
-    }
+    } catch (err) {}
   };
 
   const stopScreenShare = () => {
       if (myScreenStream) {
           myScreenStream.getTracks().forEach(t => t.stop());
-          Object.values(peersRef.current).forEach(p => {
-              try { p.removeStream(myScreenStream); } catch(e){}
-          });
+          Object.values(peersRef.current).forEach(p => { try { p.removeStream(myScreenStream); } catch(e){} });
           setMyScreenStream(null);
       }
   };
 
   // ----------------------------------------------------------------
-  // 5. JOIN / LEAVE (ANLIK GÜNCELLEME İÇİN REVİZE EDİLDİ)
+  // 5. JOIN / LEAVE (STATE KORUMALI)
   // ----------------------------------------------------------------
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
@@ -299,23 +253,23 @@ export const VoiceProvider = ({ children }) => {
 
     if (currentVoiceChannelId === cId) return;
 
+    // 🟢 DÜZELTME: Eğer zaten bir kanaldaysak, State'i null yapmadan sadece medyayı temizle
     if (currentVoiceChannelId) {
-        leaveVoiceChannel();
+        console.log("[Voice] Kanal değişimi: Medya temizleniyor...");
+        cleanupMediaOnly();
+
+        // Backend'e eski kanaldan çıktığını bildir (State null olmadan)
+        socketRef.current?.emit('leave-voice-channel');
     }
 
-    // 🚀 DÜZELTME: Önce State'i güncelle (Arayüz anında değişsin)
+    // Arayüzü HIZLICA yeni kanala ayarla (Null'a düşmeden geçiş yapar)
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
     setStayConnected(true);
     if(server.name) setCurrentServerName(server.name);
     if(channel.name) setCurrentVoiceChannelName(channel.name);
 
-    // ⏳ AĞIR İŞLEM (Mikrofon) bundan sonra yapılır
     try {
-      if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -331,7 +285,7 @@ export const VoiceProvider = ({ children }) => {
 
       if (user) setupAudioAnalysis(stream, user.id);
 
-      // Socket'e bildir
+      // Yeni kanala katıl
       socketRef.current.emit('join-voice-channel', {
         serverId: sId,
         channelId: cId,
@@ -341,53 +295,34 @@ export const VoiceProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Mikrofon hatası:", err);
-      setMicError("Mikrofon erişim hatası!");
-      // Hata olursa geri alabiliriz veya sessizce hata gösterebiliriz
+      setMicError("Mikrofon hatası");
     }
   };
 
   const leaveVoiceChannel = () => {
-    // 🚀 Çıkışta da anında güncelle
+    // Tamamen çıkışta State'i sıfırla
     setStayConnected(false);
     setCurrentVoiceChannelId(null);
     setCurrentServerId(null);
-    setPeersWithVideo({});
-    stopScreenShare();
 
     socketRef.current?.emit('leave-voice-channel');
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
-      localStreamRef.current = null;
-    }
-
-    destroyAllConnections();
-
-    if (localAudioContextRef.current) {
-        localAudioContextRef.current.close().catch(()=>{});
-        localAudioContextRef.current = null;
-    }
+    cleanupMediaOnly();
   };
 
   const rejoinChannel = () => {};
 
-  // Ayar dinleyicileri
   useEffect(() => {
       if (!audioElementsRef.current) return;
       Object.values(audioElementsRef.current).forEach((audio) => {
           if (!audio) return;
           audio.muted = isDeafened;
-          if(outputDeviceId && typeof audio.setSinkId === 'function') {
-              audio.setSinkId(outputDeviceId).catch(e=>{});
-          }
+          if(outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(e=>{});
       });
   }, [isDeafened, outputDeviceId, userVolumes]);
 
   useEffect(() => {
       if (localStreamRef.current) {
-          localStreamRef.current.getAudioTracks().forEach(track => {
-              track.enabled = !isMicMuted;
-          });
+          localStreamRef.current.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
       }
   }, [isMicMuted]);
 

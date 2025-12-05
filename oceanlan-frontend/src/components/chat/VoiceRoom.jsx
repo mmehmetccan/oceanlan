@@ -41,6 +41,7 @@ const VoiceRoom = () => {
   // (Bunlar arayüzün geç güncellenmesine sebep oluyordu)
 
   if (!currentVoiceChannelId) return null;
+  if (!user) return null;
 
   const handleScreenShareToggle = () => {
       if (myScreenStream) stopScreenShare();
