@@ -2,6 +2,7 @@
 import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { AuthContext } from './AuthContext';
+import { useSocket } from '../hooks/useSocket'; // en üstte
 
 export const VoiceContext = createContext();
 
@@ -28,6 +29,7 @@ export const VoiceProvider = ({ children }) => {
   const [isScreenPickerOpen, setScreenPickerOpen] = useState(false);
   const [screenShareCallback, setScreenShareCallback] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
+const { socket } = useSocket(); // VoiceProvider içinde
 
   // 1. SOCKET BAĞLANTISI (Sayfa değişse de kopmaz)
   useEffect(() => {
@@ -82,7 +84,7 @@ export const VoiceProvider = ({ children }) => {
   const rejoinChannel = () => {
     if (!socketRef.current || !currentVoiceChannelId) return;
 
-    socketRef.current.emit('join-voice-channel', {
+    socket.emit('join-voice-channel', {
       serverId: currentServerId,
       channelId: currentVoiceChannelId,
       userId: user?._id || user?.id,
@@ -121,7 +123,7 @@ export const VoiceProvider = ({ children }) => {
     };
 
     console.log('[LOG] Kanala katılıyorum:', payload);
-    socketRef.current.emit('join-voice-channel', payload);
+    socket.emit('join-voice-channel', payload);
   };
 
   // 3. KANALDAN AYRILMA
@@ -130,7 +132,7 @@ export const VoiceProvider = ({ children }) => {
     setStayConnected(false);
 
     if (socketRef.current) {
-      socketRef.current.emit('leave-voice-channel');
+      socket.emit('leave-voice-channel');
     }
 
     setCurrentVoiceChannelId(null);
