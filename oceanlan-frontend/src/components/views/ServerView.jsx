@@ -125,14 +125,22 @@ const ServerView = () => {
 
   const handleVoiceChannelDrop = (e, channel) => {
     e.preventDefault();
-    if (!draggedUser || !canMoveMembers || channel.type !== 'voice' || draggedUser.fromChannelId === channel._id) return;
+    e.stopPropagation(); // Event'in karışmasını önle
+
+    if (!draggedUser || !canMoveMembers) return;
+
+    // Kullanıcı zaten o kanaldaysa işlem yapma
+    if (draggedUser.fromChannelId === channel._id) return;
+
+    console.log(`[DRAG-DROP] ${draggedUser.userId} kullanıcısı ${channel.name} kanalına atılıyor.`);
 
     socket.emit('move-voice-user', {
-      serverId,
+      serverId: serverId, // Şu anki sunucu ID'si
       fromChannelId: draggedUser.fromChannelId,
       toChannelId: channel._id,
       targetUserId: draggedUser.userId,
     });
+
     setDraggedUser(null);
   };
 

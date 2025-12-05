@@ -54,6 +54,8 @@ export const VoiceProvider = ({ children }) => {
 
     const socket = socketRef.current;
 
+    socketRef.current.on('voice-channel-moved', handleChannelMoved);
+
     socket.on('connect', () => {
       console.log('[SOCKET] Bağlandı:', socket.id);
       setIsConnected(true);
@@ -68,7 +70,9 @@ export const VoiceProvider = ({ children }) => {
     socket.on('user-left-voice', handleUserLeft);
     socket.on('voice-channel-moved', handleChannelMoved);
 
-    return () => {};
+    return () => {
+        socketRef.current?.off('voice-channel-moved', handleChannelMoved);
+    };
   }, [token]);
 
   const cleanupMediaOnly = () => {
@@ -96,17 +100,16 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const handleChannelMoved = ({ newChannelId, serverId }) => {
-    console.log(`[VoiceContext] Admin tarafından taşındınız: ${newChannelId}`);
+    console.log(`[VoiceContext] Admin tarafından taşındınız -> ${newChannelId}`);
 
-    // 1. Mevcut bağlantıları temizle (State'i sıfırlama)
+    // Eski bağlantıları temizle ama State'i null yapma (Titrememesi için)
     cleanupMediaOnly();
 
-    // 2. Yeni ID'yi set et (UI anında güncellenir)
+    // UI Güncelle
     setCurrentVoiceChannelId(newChannelId);
     setCurrentServerId(serverId);
 
-    // 3. Yeni kanala otomatik katıl
-    // (Join fonksiyonunu tekrar çağırmak yerine emit yapıyoruz çünkü socket zaten odalara girdi)
+    // Yeni odaya ses bağlantısını başlat
     joinVoiceChannel(serverId, newChannelId);
   };
 
