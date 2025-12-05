@@ -1,4 +1,3 @@
-// src/components/chat/VoiceRoom.jsx
 import React, { useContext } from 'react';
 import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
@@ -37,12 +36,19 @@ const VoiceRoom = () => {
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
 
-  // 🛑 Eğer kanal seçilmemişse gösterme (Bu doğru)
+  // 1. Kanal seçilmediyse gösterme (Bu doğru)
   if (!currentVoiceChannelId) return null;
 
-  // ⚠️ DÜZELTME: User yoksa "null" döndürme, sadece boş veriyle render et.
-  // Bu sayede bileşen mount olur ve user verisi gelince otomatik güncellenir.
-  const safeUser = user || { username: 'Yükleniyor...', id: 'guest' };
+  // 🛑 2. ESKİ HATALI KOD BURADAYDI (if (!user) return null;)
+  // O satırı sildik! Yerine aşağıdaki "safeUser" mantığını kullanıyoruz.
+
+  // Eğer user verisi henüz gelmediyse geçici bir "Misafir" objesi oluşturuyoruz.
+  // Böylece kart anında görünür, veri gelince ismi güncellenir.
+  const safeUser = user || {
+      username: 'Yükleniyor...',
+      id: 'loading',
+      avatarUrl: null
+  };
 
   const handleScreenShareToggle = () => {
       if (myScreenStream) stopScreenShare();
@@ -53,7 +59,7 @@ const VoiceRoom = () => {
   const connectionText = isVoiceConnected ? 'Ses Bağlı' : 'Bağlanıyor...';
   const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
 
-  // Konuşuyor mu kontrolünü güvenli yap
+  // Konuşuyor mu kontrolü (safeUser.id kullanarak hata almayı engelliyoruz)
   const amISpeaking = speakingUsers && safeUser.id && speakingUsers[safeUser.id];
 
   return (
@@ -98,7 +104,7 @@ const VoiceRoom = () => {
         </button>
       </div>
 
-      {/* Kullanıcı Kartı */}
+      {/* Kullanıcı Kartı - Anlık Güncelleme */}
       <div className="voice-user-section">
           <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
              <img
@@ -107,6 +113,7 @@ const VoiceRoom = () => {
                 className="voice-user-img"
              />
           </div>
+          dslaşkdsa
           <div className="voice-user-info-mini">
               <span className="voice-username">
                   {safeUser.username}
