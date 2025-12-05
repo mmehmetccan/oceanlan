@@ -13,7 +13,12 @@ import '../../styles/ServerView.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const BASE_URL = API_URL_BASE.replace(/\/api\/v1\/?$/, '');
+const BASE_URL = getBaseUrl();
+
+function getBaseUrl() {
+  const url = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  return url.replace(/\/api\/v1\/?$/, '');
+}
 
 const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
@@ -32,13 +37,17 @@ const ServerView = () => {
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
   const { addToast } = useContext(ToastContext);
+
   const { joinVoiceChannel, currentVoiceChannelId, speakingUsers } = useContext(VoiceContext);
 
   useServerSocket(serverId);
 
   const [voiceState, setVoiceState] = useState({});
   const [contextMenu, setContextMenu] = useState(null);
+
+  // Drag & Drop State
   const [draggedUser, setDraggedUser] = useState(null);
+  const [dragOverChannelId, setDragOverChannelId] = useState(null); // Görsel efekt için
 
   // Yetki Kontrolü
   const canMoveMembers = activeServer && (
@@ -70,6 +79,7 @@ const ServerView = () => {
     }
   }, [serverId, activeServer, navigate, location.pathname, fetchServerDetails, currentVoiceChannelId, setActiveChannel]);
 
+  // Socket Events
   useEffect(() => {
     if (!socket || !serverId) return;
 
@@ -101,54 +111,62 @@ const ServerView = () => {
   }, [socket, serverId, fetchServerDetails, addToast]);
 
   // =======================================================
-  // 🔥 DRAG & DROP DÜZELTMESİ 🔥
+  // 🔥 GÜÇLENDİRİLMİŞ DRAG & DROP 🔥
   // =======================================================
 
   const handleVoiceUserDragStart = (e, fromChannelId, userId) => {
     if (!canMoveMembers) return;
 
-    console.log('[DRAG] Başladı:', userId);
+    // Tarayıcıya bunun bir taşıma işlemi olduğunu söyle
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData("text/plain", userId); // Firefox için zorunlu
+
+    // React state güncelle
     setDraggedUser({ fromChannelId, userId });
 
-    // Firefox ve bazı tarayıcılar için veri seti şarttır
-    e.dataTransfer.setData("text/plain", userId);
-    e.dataTransfer.effectAllowed = 'move';
+    // Sürüklenen elementin hayalet görüntüsü için opsiyonel ayar
+    // e.dataTransfer.setDragImage(e.target, 0, 0);
   };
 
   const handleVoiceUserDragEnd = () => {
       setDraggedUser(null);
+      setDragOverChannelId(null);
   };
 
   const handleVoiceChannelDragOver = (e, channel) => {
-    // 🔴 KRİTİK DÜZELTME: preventDefault() EN BAŞTA OLMALI
-    // Bunu yapmazsan tarayıcı drop işlemini engeller!
-    e.preventDefault();
+    e.preventDefault(); // 🛑 BU SATIR ÇOK ÖNEMLİ (Drop'a izin verir)
     e.stopPropagation();
 
-    if (!draggedUser || !canMoveMembers) {
-        e.dataTransfer.dropEffect = 'none';
-        return;
-    }
+    if (!draggedUser || !canMoveMembers) return;
 
-    // Aynı kanala taşımaya çalışma
+    // Kendi olduğu kanala taşınamaz
     if (draggedUser.fromChannelId === channel._id) {
         e.dataTransfer.dropEffect = 'none';
+        setDragOverChannelId(null);
         return;
     }
 
     e.dataTransfer.dropEffect = 'move';
+    setDragOverChannelId(channel._id); // Görsel efekt için state
+  };
+
+  const handleVoiceChannelDragLeave = (e) => {
+      e.preventDefault();
+      // Mouse gerçekten elementten çıktıysa efekti kaldır
+      // (Bazen child elementlere girince de leave tetiklenir, basit tutuyoruz)
+      // setDragOverChannelId(null);
   };
 
   const handleVoiceChannelDrop = (e, channel) => {
     e.preventDefault();
     e.stopPropagation();
-
-    console.log('[DROP] Bırakıldı:', channel.name);
+    setDragOverChannelId(null);
 
     if (!draggedUser || !canMoveMembers) return;
     if (draggedUser.fromChannelId === channel._id) return;
 
-    // Backend'e emit et
+    console.log(`[MOVE] ${draggedUser.userId} -> ${channel.name}`);
+
     socket.emit('move-voice-user', {
       serverId,
       fromChannelId: draggedUser.fromChannelId,
@@ -190,6 +208,7 @@ const ServerView = () => {
       </header>
 
       <div className="channels-list">
+        {/* Text Kanalları */}
         <div className="channel-group text-channels-group">
           <h3># Metin Kanalları</h3>
           {textChannels.map((channel) => {
@@ -205,31 +224,28 @@ const ServerView = () => {
           })}
         </div>
 
+        {/* Voice Kanalları */}
         <div className="channel-group voice-channels-group">
           <h3>🎤 Ses Kanalları</h3>
           {voiceChannels.map((channel) => {
             const isActiveVoice = currentVoiceChannelId === channel._id;
+            const isDragOver = dragOverChannelId === channel._id; // Sürüklerken yeşil olsun
 
-            // 🛠️ DUPLICATE USER FİX (Kopya Kullanıcı Çözümü)
-
-            // 1. Backend listesini al
+            // DUPLICATE USER ÖNLEYİCİ + OPTIMISTIC UI
             let usersInThisChannel = [...(voiceState[channel._id] || [])];
-
-            // 2. Kendi ID'ni güvenli al
             const myId = user?._id || user?.id;
 
             if (myId) {
-                // 3. Backend listesinden BENİ SİL (Böylece kopya oluşamaz)
+                // Backend'den gelen veride kendimi sil (Çakışma olmasın)
                 usersInThisChannel = usersInThisChannel.filter(u => String(u.userId) !== String(myId));
 
-                // 4. Eğer gerçekten bu kanaldaysam, BENİ GERİ EKLE (Optimistic Update)
+                // Eğer bu kanaldaysam, kendimi temiz bir şekilde ekle
                 if (currentVoiceChannelId === channel._id) {
-                    // (Opsiyonel: Backend'den gelen mute/deaf durumunu korumak istersen find yapabilirsin, şimdilik temiz ekliyoruz)
                     usersInThisChannel.push({
                         userId: myId,
                         username: user.username,
                         socketId: socket?.id || 'temp',
-                        isMuted: false, // Local state'den de çekilebilir
+                        isMuted: false,
                         isDeafened: false
                     });
                 }
@@ -238,14 +254,17 @@ const ServerView = () => {
             return (
               <div
                 key={channel._id}
-                className="channel-group-item"
-                // 🔥 Eventleri buraya koyduk ki tüm alan tutulabilir olsun
+                className={`channel-group-item ${isDragOver ? 'drag-over-active' : ''}`}
+                // Eventleri Button yerine DIV'e koyduk (Daha geniş alan)
                 onDragOver={(e) => handleVoiceChannelDragOver(e, channel)}
+                onDragLeave={handleVoiceChannelDragLeave}
                 onDrop={(e) => handleVoiceChannelDrop(e, channel)}
+                style={isDragOver ? { border: '2px dashed #43b581', borderRadius: '4px', backgroundColor: 'rgba(67, 181, 129, 0.1)' } : {}}
               >
                 <button
                   className={`channel-item voice-channel ${isActiveVoice ? 'active' : ''}`}
                   onClick={() => handleJoinVoiceChannel(channel)}
+                  style={{ pointerEvents: draggedUser ? 'none' : 'auto' }} // Sürüklerken tıklamayı engelle
                 >
                   <div className="channel-main">
                     <span className="channel-icon">🎤</span>
@@ -259,6 +278,7 @@ const ServerView = () => {
                     {usersInThisChannel.map((voiceUser) => {
                       const member = activeServer.members.find(m => m.user && String(m.user._id) === String(voiceUser.userId));
                       const isSelf = String(voiceUser.userId) === String(user?.id);
+
                       const displayName = member?.user?.username || (isSelf ? user.username : voiceUser.username);
 
                       let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
@@ -274,18 +294,29 @@ const ServerView = () => {
                         <div
                           key={voiceUser.userId}
                           className={`voice-user-item ${canMoveMembers ? 'draggable' : ''} ${isSpeaking ? 'is-speaking' : ''}`}
-                          draggable={canMoveMembers} // Sürüklenebilirlik burada
+                          draggable={canMoveMembers} // Sürüklenebilirliği aç
                           onDragStart={(e) => handleVoiceUserDragStart(e, channel._id, voiceUser.userId)}
                           onDragEnd={handleVoiceUserDragEnd}
                           onContextMenu={(e) => member && handleContextMenu(e, member)}
                         >
                           <div className={`voice-user-avatar ${isSpeaking ? 'speaking' : ''}`}>
-                            <img src={absoluteAvatarSrc} alt={displayName} onError={handleAvatarError} />
+                            {/* 🛑 RESİM SÜRÜKLEMEYİ ENGELLE (Çok Önemli) */}
+                            <img
+                                src={absoluteAvatarSrc}
+                                alt={displayName}
+                                onError={handleAvatarError}
+                                draggable="false" // Resim dosyası gibi sürüklenmesini önler
+                                style={{ pointerEvents: 'none' }} // Tıklamaları üstteki div'e geçirir
+                            />
                             {isSpeaking && <span className="voice-speaking-ring" />}
                           </div>
                           <div className="voice-user-details">
                             <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
-                            {isSelf && <span className="voice-user-tag">Sen</span>}
+                            <div className="voice-user-tags">
+                              {isSelf && <span className="voice-user-tag">Sen</span>}
+                              {isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}
+                              {isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}
+                            </div>
                           </div>
                         </div>
                       );
