@@ -1,17 +1,16 @@
 // src/components/chat/VoiceRoom.jsx
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
-import '../../styles/VoiceRoom.css'
+import '../../styles/VoiceRoom.css';
 import {
     MicrophoneIcon,
     SpeakerWaveIcon,
     ComputerDesktopIcon,
     PhoneXMarkIcon,
-    SignalIcon,
-    ArrowPathIcon // Yenileme ikonu
+    SignalIcon
 } from '@heroicons/react/24/solid';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -28,24 +27,18 @@ const VoiceRoom = () => {
       currentVoiceChannelId,
       leaveVoiceChannel,
       myScreenStream,
-      isLocalSpeaking, // Bu artık useVoiceChannel'daki analizden doğru gelecek
       currentVoiceChannelName,
       currentServerName,
       micError,
-      speakingUsers
+      speakingUsers,
+      isConnected // 🟢 YENİ: Gerçek bağlantı durumunu buradan alıyoruz
   } = useContext(VoiceContext);
 
   const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
 
-  // Connection durumu için basit bir local state
-  const [connectionStatus, setConnectionStatus] = useState('connecting'); // connecting, connected, error
-
-  useEffect(() => {
-    if (currentVoiceChannelId) {
-        setConnectionStatus('connected'); // Basitçe bağlandı varsayıyoruz
-    }
-  }, [currentVoiceChannelId]);
+  // 🛑 ESKİ STATE VE EFFECT KALDIRILDI
+  // (Bunlar arayüzün geç güncellenmesine sebep oluyordu)
 
   if (!currentVoiceChannelId) return null;
 
@@ -54,20 +47,14 @@ const VoiceRoom = () => {
       else startScreenShare();
   };
 
-  // 📢 SES GELMİYORSA RESTART ATACAK BUTON
-  const handleReconnect = () => {
-      // Kanaldan çıkıp tekrar girmek en temiz çözümdür
-      const oldChannel = currentVoiceChannelId; // ID'yi sakla
-      leaveVoiceChannel();
-      setTimeout(() => {
-          // Burada tekrar katılma mantığı VoiceContext üzerinden tetiklenmeli
-          // veya kullanıcıya manuel tıklatmalı. Şimdilik sadece çıkış yapıyoruz.
-          // Kullanıcı tekrar tıklasın.
-      }, 500);
-  };
+  // 🟢 HIZLI DURUM KONTROLÜ
+  // State yerine doğrudan değişkene atıyoruz, render anında hesaplanıyor.
+  const isVoiceConnected = isConnected;
+  const connectionText = isVoiceConnected ? 'Ses Bağlı' : 'Bağlanıyor...';
+  const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
 
-  // Gerçekten konuşuyor muyum? Context + Analiz
-  const amISpeaking = speakingUsers[user?.id];
+  // Konuşuyor mu?
+  const amISpeaking = speakingUsers && user ? speakingUsers[user.id] : false;
 
   return (
     <div className="voice-room-controls">
@@ -78,10 +65,10 @@ const VoiceRoom = () => {
         )}
 
       <div className="voice-room-info">
-        <div className={`voice-connection-status ${connectionStatus === 'connected' ? 'connected' : 'connecting'}`}>
+        <div className={`voice-connection-status ${connectionClass}`}>
             <SignalIcon className="voice-icon-signal" />
             <span className="voice-status-text">
-                {connectionStatus === 'connected' ? 'Ses Bağlı' : 'Bağlanıyor...'}
+                {connectionText}
             </span>
         </div>
         <div className="voice-room-details">
@@ -92,6 +79,7 @@ const VoiceRoom = () => {
       </div>
 
       <div className="voice-controls-actions">
+        {/* Butonların tepki süresini artırmak için onClick olayları doğrudan Context'i tetikler */}
         <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
             <MicrophoneIcon className="voice-icon" />
             {isMicMuted && <div className="strike-line" />}
@@ -111,7 +99,7 @@ const VoiceRoom = () => {
         </button>
       </div>
 
-      {/* Kullanıcı Kartı */}
+      {/* Kullanıcı Kartı - Anlık Güncelleme */}
       <div className="voice-user-section">
           <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
              <img
@@ -121,8 +109,12 @@ const VoiceRoom = () => {
              />
           </div>
           <div className="voice-user-info-mini">
-              <span className="voice-username">{user?.username}</span>
-              <span className="voice-status-micro">{isMicMuted ? 'Muted' : 'Open'}</span>
+              <span className="voice-username">
+                  {user?.username || 'Kullanıcı'}
+              </span>
+              <span className="voice-status-micro">
+                  {isMicMuted ? 'Muted' : 'Open'}
+              </span>
           </div>
       </div>
     </div>
