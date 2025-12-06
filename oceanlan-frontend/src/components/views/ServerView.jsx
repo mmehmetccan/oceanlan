@@ -13,10 +13,12 @@ import ServerInviteModal from '../modals/ServerInviteModal';
 import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
 import '../../styles/ServerView.css';
 
-const DEFAULT_AVATAR = `${API_URL_BASE}/uploads/default-avatar.png`;
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const BASE_URL = API_URL_BASE.replace(/\/api\/v1\/?$/, '');
+
+const DEFAULT_AVATAR = `${API_URL_BASE}/uploads/default-avatar.png`;
+
 
 const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
