@@ -101,28 +101,40 @@ export const VoiceProvider = ({ children }) => {
   // ----------------------------------------------------------------
   // 🔊 MİKROFON ANALİZİ (YEŞİL IŞIK TETİKLEYİCİSİ)
   // ----------------------------------------------------------------
-  const startAudioAnalysis = (stream) => {
+  const startAudioAnalysis = async (stream) => { // 👈 async yaptık
       try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
           if (!AudioContext) return;
 
           const audioCtx = new AudioContext();
+
+          // 🔥 KRİTİK DÜZELTME: Tarayıcıda AudioContext 'suspended' başlar.
+          // Onu zorla uyandırmamız lazım.
+          if (audioCtx.state === 'suspended') {
+              await audioCtx.resume();
+          }
+
           const analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 512; // Hassasiyet
+          analyser.fftSize = 512;
+
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
 
-          // Reflere kaydet
           audioContextRef.current = audioCtx;
           analyserRef.current = analyser;
 
           if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
 
           checkIntervalRef.current = setInterval(() => {
-              // Mute ise konuşmuyor say
-              if (isMicMuted || !analyserRef.current) {
+              // Mute ise veya context kapandıysa dur
+              if (isMicMuted || !analyserRef.current || audioCtx.state === 'closed') {
                   updateSpeakingStatus(false);
                   return;
+              }
+
+              // Context hala suspended ise tekrar uyandırmayı dene (Garanti olsun)
+              if (audioCtx.state === 'suspended') {
+                  audioCtx.resume();
               }
 
               const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
@@ -132,14 +144,13 @@ export const VoiceProvider = ({ children }) => {
               for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
               const average = sum / dataArray.length;
 
-              // 🔥 EŞİK DEĞERİ: 10 (Çok hassas) - 20 (Normal) - 30 (Bağırmak lazım)
-              // Eğer yeşil ışık hiç yanmıyorsa bu değeri DÜŞÜR (örn: 5 yap)
-              const threshold = 10;
-
+              // Eşik Değeri (10 idealdir)
+              const threshold = 5;
               const isNowSpeaking = average > threshold;
+
               updateSpeakingStatus(isNowSpeaking);
 
-          }, 100); // 100ms gecikme ile kontrol
+          }, 100);
 
       } catch (e) {
           console.error("Analiz hatası:", e);

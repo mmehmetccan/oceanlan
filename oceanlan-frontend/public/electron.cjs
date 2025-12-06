@@ -45,6 +45,23 @@ function createWindow() {
 
   win.setMenuBarVisibility(false);
 
+
+  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+      // Otomatik olarak Birinci Ekranı seç (Kullanıcıya sormadan başlatır)
+      // Eğer birden fazla ekran varsa listedeki ilkini alır.
+      if (sources.length > 0) {
+        callback({ video: sources[0], audio: 'loopback' });
+      } else {
+        // Ekran bulunamazsa
+        callback({ video: null, audio: null });
+      }
+    }).catch(err => {
+      console.error("Ekran kaynakları alınamadı:", err);
+      callback({ video: null, audio: null });
+    });
+  });
+
   // Pencere Kontrolleri
   ipcMain.on('window-minimize', () => win.minimize());
   ipcMain.on('window-maximize', () => {

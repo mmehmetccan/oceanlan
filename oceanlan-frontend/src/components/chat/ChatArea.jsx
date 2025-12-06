@@ -91,7 +91,15 @@ const ChatArea = () => {
       setIsUploading(true);
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('content', inputContent);
+
+      // Yazı varsa onu da ekle (Yazı + Resim desteği)
+      if (inputContent.trim() !== '') {
+          formData.append('content', inputContent);
+      } else {
+          // Yazı yoksa boşluk veya varsayılan bir metin gönderebilirsin
+          // Bazı backendler content zorunlu tutabilir, kontrol et.
+          formData.append('content', '');
+      }
 
       try {
         await axiosInstance.post(
@@ -100,9 +108,11 @@ const ChatArea = () => {
           { headers: { 'Content-Type': 'multipart/form-data' } }
         );
 
+        // Başarılıysa temizle
         setInputContent('');
         setFile(null);
-        fileInputRef.current.value = null;
+        setPreviewImage(null);
+        if(fileInputRef.current) fileInputRef.current.value = null;
 
       } catch (error) {
         alert(error.response?.data?.message || 'Dosya yüklenemedi');
@@ -110,6 +120,7 @@ const ChatArea = () => {
         setIsUploading(false);
       }
     }
+    // 🅱️ SADECE YAZI VARSA -> SOCKET KULLAN (Daha hızlı)
     else if (inputContent.trim() !== '') {
       socket.emit('sendMessage', {
         content: inputContent,

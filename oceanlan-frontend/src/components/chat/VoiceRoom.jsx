@@ -15,8 +15,13 @@ import {
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const toAbsolute = (src) => {
-    if (!src) return '/default-avatar.png';
-    return src.startsWith('/uploads') ? `${API_URL_BASE}${src}` : src;
+    if (!src) return `${API_URL_BASE}/uploads/default-avatar.png`;
+
+    // Eğer zaten tam link ise dokunma
+    if (src.startsWith('http')) return src;
+
+    // Değilse sunucu yolunu ekle
+    return `${API_URL_BASE}${src.startsWith('/') ? src : '/' + src}`;
 };
 
 const VoiceRoom = () => {

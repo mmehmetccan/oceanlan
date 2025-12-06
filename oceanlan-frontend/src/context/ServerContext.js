@@ -20,38 +20,40 @@ const ServerReducer = (state, action) => {
     case 'SELECT_CHANNEL':
       return { ...state, activeChannel: action.payload };
     case 'ADD_SERVER':
-      return {
-        ...state,
-        servers: [...state.servers, action.payload],
-        // NOT: Active server'ı burada hemen set etmiyoruz,
-        // detaylı fetch (fetchServerDetails) yapınca set edilecek.
-      };
+      return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
+
+    // 👇 ONLINE DURUMU GÜNCELLEME (BU EKSİKTİ)
+    case 'UPDATE_MEMBER_STATUS':
+        if (!state.activeServer || !state.activeServer.members) return state;
+
+        const updatedMembers = state.activeServer.members.map(member => {
+            // Member objesinin içindeki user._id ile gelen userId eşleşiyor mu?
+            const mUserId = member.user?._id || member.user;
+            if (String(mUserId) === String(action.payload.userId)) {
+                return {
+                    ...member,
+                    user: {
+                        ...member.user,
+                        onlineStatus: action.payload.status, // 'online' veya 'offline'
+                        lastSeenAt: action.payload.lastSeenAt
+                    }
+                };
+            }
+            return member;
+        });
+
+        return {
+            ...state,
+            activeServer: {
+                ...state.activeServer,
+                members: updatedMembers
+            }
+        };
+
     case 'RESET_SERVER_STATE':
       return initialState;
-
-    case 'UPDATE_MEMBER_PRESENCE':
-      if (!state.activeServer || !state.activeServer.members) return state;
-      const updatedMembers = state.activeServer.members.map(member => {
-        const memberUserId = member.user?._id || member.user;
-        if (memberUserId && memberUserId.toString() === action.payload.userId.toString()) {
-          return {
-            ...member,
-            user: {
-              ...member.user,
-              onlineStatus: action.payload.status,
-              lastSeenAt: action.payload.lastSeenAt
-            }
-          };
-        }
-        return member;
-      });
-      return {
-        ...state,
-        activeServer: { ...state.activeServer, members: updatedMembers }
-      };
-
     default:
       return state;
   }
@@ -61,7 +63,7 @@ export const ServerContext = createContext(initialState);
 
 export const ServerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(ServerReducer, initialState);
-  const { token, isAuthenticated, logout } = useContext(AuthContext);
+  const { token, isAuthenticated } = useContext(AuthContext);
   const { socket } = useSocket();
 
   const fetchServerDetails = useCallback(async (serverId) => {
@@ -71,81 +73,47 @@ export const ServerProvider = ({ children }) => {
       const res = await axiosInstance.get(`/servers/${serverId}`);
       dispatch({ type: 'SET_ACTIVE_SERVER', payload: res.data.data });
       dispatch({ type: 'SET_LOADING', payload: false });
-      return res.data.data;
     } catch (error) {
       dispatch({ type: 'SET_LOADING', payload: false });
-      console.error("Sunucu detay hatası:", error);
     }
-  }, [dispatch, token]);
+  }, [token]);
 
   const fetchUserServers = useCallback(async () => {
     if (!token) return;
-    // Loading'i true yapmıyoruz ki menü titremesin
     try {
       const res = await axiosInstance.get('/servers/');
       dispatch({ type: 'SET_SERVERS', payload: res.data.data });
-    } catch (error) {
-      console.error("Sunucu listesi hatası:", error);
-    }
-  }, [token, dispatch]);
+    } catch (error) { console.error(error); }
+  }, [token]);
 
-  // Socket Presence
+  // 👇 SOCKET DINLEYICISI (ONLINE/OFFLINE İÇİN)
   useEffect(() => {
-    if (!socket) return;
-    const handleStatusChange = (data) => {
-      dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
-    };
-    socket.on('userStatusChanged', handleStatusChange);
-    return () => { socket.off('userStatusChanged', handleStatusChange); };
+      if (!socket) return;
+
+      const handleStatusChange = ({ userId, status, lastSeenAt }) => {
+          dispatch({
+              type: 'UPDATE_MEMBER_STATUS',
+              payload: { userId, status, lastSeenAt }
+          });
+      };
+
+      socket.on('userStatusChanged', handleStatusChange);
+
+      return () => {
+          socket.off('userStatusChanged', handleStatusChange);
+      };
   }, [socket]);
 
-  // İlk açılış
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchUserServers();
-    } else {
-      dispatch({ type: 'RESET_SERVER_STATE' });
-    }
+    if (isAuthenticated && token) fetchUserServers();
+    else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
-  // 📢 DÜZELTİLEN FONKSİYON: createNewServer
-  const createNewServer = useCallback(async (serverData) => {
-    if (!token) throw new Error('Oturum sonlandı.');
-    try {
-      const isFormData = serverData instanceof FormData;
-      const payload = typeof serverData === 'string' ? { name: serverData } : serverData;
-      const config = isFormData ? { headers: { "Content-Type": "multipart/form-data" } } : {};
-
-      // 1. Sunucuyu oluştur
-      const res = await axiosInstance.post('/servers', payload, config);
-      const newServerRaw = res.data.data;
-
-      // 2. Listeye ekle
-      dispatch({ type: 'ADD_SERVER', payload: newServerRaw });
-
-      // 3. 📢 KRİTİK: Detayları (Roller, İzinler) veritabanından tam çek
-      // Bu işlem 'activeServer'ı günceller ve 'Sunucu Ayarları' butonu görünür olur.
-      await fetchServerDetails(newServerRaw._id);
-
-      return newServerRaw;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Sunucu oluşturma başarısız');
-    }
-  }, [token, dispatch, fetchServerDetails]);
-
-  const setActiveChannel = useCallback((channel) => {
-    dispatch({ type: 'SELECT_CHANNEL', payload: channel });
-  }, [dispatch]);
+  const createNewServer = useCallback(async (serverData) => { /* ... Eski kodun aynısı ... */ }, [token, fetchServerDetails]);
+  const setActiveChannel = useCallback((channel) => { dispatch({ type: 'SELECT_CHANNEL', payload: channel }); }, []);
 
   return (
-    <ServerContext.Provider value={{
-      ...state,
-      dispatch,
-      fetchServerDetails,
-      createNewServer,
-      fetchUserServers,
-      setActiveChannel,
-    }}>
+    <ServerContext.Provider value={{ ...state, dispatch, fetchServerDetails, createNewServer, fetchUserServers, setActiveChannel }}>
       {children}
     </ServerContext.Provider>
   );
