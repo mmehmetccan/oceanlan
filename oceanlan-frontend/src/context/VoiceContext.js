@@ -47,13 +47,25 @@ export const VoiceProvider = ({ children }) => {
   useEffect(() => {
     if (!token || socketRef.current) return;
 
-    const isProduction = window.location.hostname.includes('oceanlan.com');
-    const backendUrl = isProduction ? 'https://oceanlan.com' : 'http://localhost:4000';
+    // 1. Electron Kontrolü (User Agent üzerinden)
+    const isElectron = navigator.userAgent.toLowerCase().indexOf(' electron/') > -1;
+
+    // 2. Canlı Sunucu Kontrolü (Domain üzerinden)
+    const isProductionUrl = window.location.hostname.includes('oceanlan.com');
+
+    // 3. KARAR MEKANİZMASI:
+    // Eğer Electron ise VEYA Web'de oceanlan.com üzerindeysek -> CANLIYA BAĞLAN
+    // Sadece tarayıcıda localhost'taysak -> LOCALHOST'A BAĞLAN
+    const backendUrl = (isElectron || isProductionUrl)
+        ? 'https://oceanlan.com'
+        : 'http://localhost:4000';
+
+    console.log(`[VoiceContext] Hedef Sunucu: ${backendUrl} (Electron: ${isElectron})`);
 
     socketRef.current = io(backendUrl, {
       auth: { token },
       transports: ['polling', 'websocket'],
-      secure: isProduction,
+      secure: true, // Her zaman güvenli dene, localhost ise zaten http çalışır
       reconnection: true,
       autoConnect: true,
     });

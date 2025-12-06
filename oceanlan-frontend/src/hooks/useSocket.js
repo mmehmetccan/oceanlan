@@ -22,9 +22,10 @@ export const useSocket = () => {
 
     if (!globalSocket) {
       // 🟢 URL AYARI BURADA YAPILIYOR 🟢
-      const isProduction = window.location.hostname.includes('oceanlan.com');
+      const isElectron = navigator.userAgent.toLowerCase().indexOf(' electron/') > -1;
+      const isProductionUrl = window.location.hostname.includes('oceanlan.com');
 
-      const SOCKET_SERVER_URL = isProduction
+      const SOCKET_SERVER_URL = (isElectron || isProductionUrl)
         ? 'https://oceanlan.com'
         : 'http://localhost:4000';
 
@@ -33,7 +34,7 @@ export const useSocket = () => {
       const newSocket = io(SOCKET_SERVER_URL, {
         auth: { token }, // Token göndermeyi unutmuyoruz
         transports: ['polling', 'websocket'],
-        secure: isProduction,
+        secure: true,
         reconnection: true,
         reconnectionAttempts: 5,
       });
