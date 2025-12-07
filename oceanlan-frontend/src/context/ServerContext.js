@@ -24,7 +24,8 @@ const ServerReducer = (state, action) => {
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
 
-    // 🛠️ DÜZELTME: İSİM EŞLEŞTİRİLDİ (UPDATE_MEMBER_PRESENCE)
+    // 🛠️ DÜZELTME BURADA: İsim "UPDATE_MEMBER_PRESENCE" olarak değiştirildi
+    // (Aşağıdaki dispatch ile aynı olması şart!)
     case 'UPDATE_MEMBER_PRESENCE':
         if (!state.activeServer || !state.activeServer.members) return state;
 
@@ -40,8 +41,8 @@ const ServerReducer = (state, action) => {
                 return {
                     ...member,
                     user: {
-                        ...oldUserObj,
-                        onlineStatus: action.payload.status, // 'online' veya 'offline'
+                        ...oldUserObj, // Eski verileri (isim, avatar) koru
+                        onlineStatus: action.payload.status, // Yeni durumu yaz
                         lastSeenAt: action.payload.lastSeenAt
                     }
                 };
@@ -91,13 +92,13 @@ export const ServerProvider = ({ children }) => {
     } catch (error) { console.error(error); }
   }, [token]);
 
-  // 🟢 SOCKET DINLEYICISI (HATA BURADAYDI)
+  // 🟢 SOCKET DINLEYICISI
   useEffect(() => {
       if (!socket) return;
 
       const handleStatusChange = ({ userId, status, lastSeenAt }) => {
-          // console.log(`[ServerContext] Durum değişti: ${userId} -> ${status}`);
-          // 🛠️ DÜZELTME: Reducer'daki isimle AYNISI gönderiliyor
+          // Socket'ten gelen veriyi Reducer'a gönderiyoruz
+          // İsim burada "UPDATE_MEMBER_PRESENCE" olduğu için yukarıda da öyle olmalı!
           dispatch({
               type: 'UPDATE_MEMBER_PRESENCE',
               payload: { userId, status, lastSeenAt }
