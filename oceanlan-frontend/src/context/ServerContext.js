@@ -2,7 +2,7 @@
 import React, { createContext, useReducer, useContext, useCallback, useEffect } from 'react';
 import axiosInstance from '../utils/axiosInstance';
 import { AuthContext } from './AuthContext';
-import { useSocket } from '../hooks/useSocket'; // useSocket hook'unu kullan
+import { useSocket } from '../hooks/useSocket';
 
 const initialState = {
   servers: [],
@@ -24,12 +24,12 @@ const ServerReducer = (state, action) => {
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
 
-    // 🟢 ONLINE DURUMU GÜNCELLEME (REDUCER)
-    case 'UPDATE_MEMBER_STATUS':
+    // 🛠️ DÜZELTME: İSİM EŞLEŞTİRİLDİ (UPDATE_MEMBER_PRESENCE)
+    case 'UPDATE_MEMBER_PRESENCE':
         if (!state.activeServer || !state.activeServer.members) return state;
 
         const updatedMembers = state.activeServer.members.map(member => {
-            const mUserId = member.user?._id || member.user; // ID'yi güvenli al
+            const mUserId = member.user?._id || member.user;
 
             // Gelen userId ile eşleşiyorsa güncelle
             if (String(mUserId) === String(action.payload.userId)) {
@@ -69,7 +69,7 @@ export const ServerContext = createContext(initialState);
 export const ServerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(ServerReducer, initialState);
   const { token, isAuthenticated } = useContext(AuthContext);
-  const { socket } = useSocket(); // Socket'i buradan al
+  const { socket } = useSocket();
 
   const fetchServerDetails = useCallback(async (serverId) => {
     if (!token) return;
@@ -91,14 +91,15 @@ export const ServerProvider = ({ children }) => {
     } catch (error) { console.error(error); }
   }, [token]);
 
-  // 🟢 SOCKET DINLEYICISI (ONLINE/OFFLINE)
+  // 🟢 SOCKET DINLEYICISI (HATA BURADAYDI)
   useEffect(() => {
       if (!socket) return;
 
       const handleStatusChange = ({ userId, status, lastSeenAt }) => {
           // console.log(`[ServerContext] Durum değişti: ${userId} -> ${status}`);
+          // 🛠️ DÜZELTME: Reducer'daki isimle AYNISI gönderiliyor
           dispatch({
-              type: 'UPDATE_MEMBER_STATUS',
+              type: 'UPDATE_MEMBER_PRESENCE',
               payload: { userId, status, lastSeenAt }
           });
       };

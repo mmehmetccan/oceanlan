@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
 import MemberContextMenu from '../modals/MemberContextMenu';
-// URL Helper'ı koruduk
+// 👇 URL Helper (Resimlerin görünmesi için şart)
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 
@@ -12,7 +12,7 @@ const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
   if (e?.target) {
     e.target.dataset.fallbackApplied = 'true';
-    e.target.src = getImageUrl(null);
+    e.target.src = getImageUrl(null); // Helperdan default al
   }
 };
 
@@ -24,7 +24,6 @@ const ServerMembersPanel = () => {
 
   const isOnServerRoute = location.pathname.includes('/dashboard/server/');
 
-  // 🛠️ GRUPLAMA MANTIĞI (DÜZELTİLDİ)
   const groupedMembers = useMemo(() => {
     if (!activeServer || !isOnServerRoute) return [];
 
@@ -34,7 +33,7 @@ const ServerMembersPanel = () => {
     // 1. Özel rolleri al (everyone hariç)
     const specialRoles = roles
         .filter(r => r.name !== '@everyone')
-        .sort((a, b) => (b.position || 0) - (a.position || 0)); // Yüksek yetki üstte
+        .sort((a, b) => (b.position || 0) - (a.position || 0));
 
     const groupsMap = new Map();
     specialRoles.forEach(role => {
@@ -52,20 +51,19 @@ const ServerMembersPanel = () => {
     // 2. Üyeleri dağıt
     members.forEach(member => {
         let assigned = false;
-        // Rol ID'lerini string'e çevirerek karşılaştır (Garanti olsun)
         const memberRoleIds = member.roles.map(r => String(r._id || r));
 
         for (const role of specialRoles) {
             if (memberRoleIds.includes(String(role._id))) {
                 groupsMap.get(role._id).members.push(member);
                 assigned = true;
-                break; // En yüksek role koyduk, bitir.
+                break;
             }
         }
 
         // Rolü yoksa duruma göre ayır
-       if (!assigned) {
-            // "online" stringi veritabanından küçük harfle gelir, dikkat et!
+        if (!assigned) {
+            // 🔥 FeedPage'deki mantıkla aynı: 'online' ise Online listesine
             if (member.user?.onlineStatus === 'online') {
                 onlineList.push(member);
             } else {
@@ -124,8 +122,9 @@ const ServerMembersPanel = () => {
                             String(activeServer.owner._id || activeServer.owner) === String(member.user._id)
                         );
 
-                        // 🟢 ONLINE KONTROLÜ
                         const isOnline = member.user?.onlineStatus === 'online';
+
+                        // 🔥 RESİM URL DÜZELTME (Helper ile)
                         const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
 
                         return (
@@ -134,7 +133,6 @@ const ServerMembersPanel = () => {
                                 className={`smp-item ${!isOnline ? 'offline' : ''}`}
                                 onContextMenu={(e) => handleContextMenu(e, member)}
                             >
-                                {/* 🟢 RESİM VE NOKTA */}
                                 <div className="smp-avatar-wrapper">
                                     <img
                                         src={avatarSrc}
@@ -142,7 +140,7 @@ const ServerMembersPanel = () => {
                                         onError={handleAvatarError}
                                         className="smp-avatar-img"
                                     />
-                                    {/* Sadece online ise nokta göster (Veya istersen her zaman) */}
+                                    {/* Yeşil Nokta */}
                                     <span className={`smp-status-dot ${isOnline ? 'online' : 'offline'}`} />
                                 </div>
 
