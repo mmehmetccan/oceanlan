@@ -11,7 +11,7 @@ import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
 import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
-import { getImageUrl } from '../../utils/urlHelper';
+import { getImageUrl ,DEFAULT_AVATAR_URL} from '../../utils/urlHelper';
 
 import '../../styles/ServerView.css';
 
@@ -26,8 +26,7 @@ const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
   if (e?.target) {
     e.target.dataset.fallbackApplied = 'true';
-    e.target.src = DEFAULT_AVATAR;
-  }
+    e.target.src = DEFAULT_AVATAR_URL;  }
 };
 
 const ServerView = () => {

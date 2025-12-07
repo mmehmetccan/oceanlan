@@ -4,7 +4,7 @@ import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
 import '../../styles/VoiceRoom.css';
-import { getImageUrl } from '../../utils/urlHelper';
+import { getImageUrl ,DEFAULT_AVATAR_URL} from '../../utils/urlHelper';
 import {
     MicrophoneIcon,
     SpeakerWaveIcon,
@@ -123,7 +123,12 @@ const VoiceRoom = () => {
                     src={getImageUrl(safeUser.avatarUrl || safeUser.avatar)}
                     alt="Me"
                     className="voice-user-img"
-                    onError={(e) => e.target.src = getImageUrl(null)} // Hata olursa defaulta dön
+                    onError={(e) => {
+                            if (e.target.dataset.fallbackApplied) return;
+                            e.target.dataset.fallbackApplied = 'true';
+                            // Hata durumunda senin sunucundaki resmi gösterir
+                            e.target.src = DEFAULT_AVATAR_URL;
+                        }}
                 />
             </div>
 
