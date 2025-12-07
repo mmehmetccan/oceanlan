@@ -25,3 +25,5 @@ export const getImageUrl = (path) => {
   // 5. Sunucu adresini başına ekle
   return `${API_BASE_URL}${cleanPath}`;
 };
+
+export const getFullImageUrl = getImageUrl;
