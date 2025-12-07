@@ -23,41 +23,19 @@ const ServerReducer = (state, action) => {
       return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
-
-    // 🛠️ DÜZELTME BURADA: İsim "UPDATE_MEMBER_PRESENCE" olarak değiştirildi
-    // (Aşağıdaki dispatch ile aynı olması şart!)
     case 'UPDATE_MEMBER_PRESENCE':
-        if (!state.activeServer || !state.activeServer.members) return state;
-
-        const updatedMembers = state.activeServer.members.map(member => {
-            const mUserId = member.user?._id || member.user;
-
-            // Gelen userId ile eşleşiyorsa güncelle
-            if (String(mUserId) === String(action.payload.userId)) {
-
-                // Eski user objesini koru, sadece status'u değiştir
-                const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
-
-                return {
-                    ...member,
-                    user: {
-                        ...oldUserObj, // Eski verileri (isim, avatar) koru
-                        onlineStatus: action.payload.status, // Yeni durumu yaz
-                        lastSeenAt: action.payload.lastSeenAt
-                    }
-                };
-            }
-            return member;
-        });
-
-        return {
-            ...state,
-            activeServer: {
-                ...state.activeServer,
-                members: updatedMembers
-            }
-        };
-
+      if (!state.activeServer || !state.activeServer.members) return state;
+      const updatedMembers = state.activeServer.members.map(member => {
+        const mUserId = member.user?._id || member.user;
+        if (String(mUserId) === String(action.payload.userId)) {
+          return {
+            ...member,
+            user: { ...member.user, onlineStatus: action.payload.status, lastSeenAt: action.payload.lastSeenAt }
+          };
+        }
+        return member;
+      });
+      return { ...state, activeServer: { ...state.activeServer, members: updatedMembers } };
     case 'RESET_SERVER_STATE':
       return initialState;
     default:
@@ -92,24 +70,12 @@ export const ServerProvider = ({ children }) => {
     } catch (error) { console.error(error); }
   }, [token]);
 
-  // 🟢 SOCKET DINLEYICISI
+  // Presence Dinleyicisi
   useEffect(() => {
       if (!socket) return;
-
-      const handleStatusChange = ({ userId, status, lastSeenAt }) => {
-          // Socket'ten gelen veriyi Reducer'a gönderiyoruz
-          // İsim burada "UPDATE_MEMBER_PRESENCE" olduğu için yukarıda da öyle olmalı!
-          dispatch({
-              type: 'UPDATE_MEMBER_PRESENCE',
-              payload: { userId, status, lastSeenAt }
-          });
-      };
-
+      const handleStatusChange = (data) => dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
       socket.on('userStatusChanged', handleStatusChange);
-
-      return () => {
-          socket.off('userStatusChanged', handleStatusChange);
-      };
+      return () => socket.off('userStatusChanged', handleStatusChange);
   }, [socket]);
 
   useEffect(() => {
@@ -117,21 +83,43 @@ export const ServerProvider = ({ children }) => {
     else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
+  // 📢 DÜZELTİLEN FONKSİYON: createNewServer
+  // Artık (name, file) alıyor. Önce oluşturuyor, sonra resim yüklüyor.
   const createNewServer = useCallback(async (serverName, file = null) => {
     if (!token) throw new Error('Oturum sonlandı.');
+
+    // Yükleme ekranını açmıyoruz ki modal kapanıp kullanıcı arkaplanda görsün
+    // Veya istersen dispatch({ type: 'SET_LOADING', payload: true }); yapabilirsin
+
     try {
+      // 1. Sunucuyu oluştur (Sadece JSON) - Bu adım Web'de de Electron'da da sorunsuz çalışır
       const res = await axiosInstance.post('/servers', { name: serverName });
       let newServer = res.data.data;
+
+      // 2. Eğer resim seçildiyse, oluşturulan sunucuya PUT isteği at
       if (file) {
           try {
               const formData = new FormData();
               formData.append('icon', file);
-              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, { headers: { "Content-Type": "multipart/form-data" } });
-              if (iconRes.data.data) newServer = iconRes.data.data;
-          } catch (uploadErr) { console.error("Resim yüklenemedi:", uploadErr); }
+
+              // İkon güncelleme endpointi
+              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, {
+                  headers: { "Content-Type": "multipart/form-data" }
+              });
+
+              if (iconRes.data.data) {
+                  newServer = iconRes.data.data; // Güncel (resimli) veriyi al
+              }
+          } catch (uploadErr) {
+              console.error("Sunucu oluştu ama resim yüklenemedi:", uploadErr);
+              // Kritik hata değil, devam et
+          }
       }
+
+      // 3. Listeye ekle ve detayları çek
       dispatch({ type: 'ADD_SERVER', payload: newServer });
       await fetchServerDetails(newServer._id);
+
       return newServer;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Sunucu oluşturma başarısız');
