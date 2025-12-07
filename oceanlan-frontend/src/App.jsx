@@ -2,23 +2,22 @@
 import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// --- CONTEXT IMPORTS ---
+// Context Imports
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { ServerProvider } from './context/ServerContext';
 import { ToastProvider } from './context/ToastContext';
 import { VoiceProvider } from './context/VoiceContext';
 import { AudioSettingsProvider } from './context/AudioSettingsContext';
+import { SocketProvider } from './context/SocketContext';
 
-// --- PAGE IMPORTS ---
+// Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
-import VerifyChangeEmailPage from './pages/VerifyEmailPage'; // İsimlendirme tutarlılığı için
 
-// --- COMPONENT IMPORTS ---
 import ToastContainer from './components/common/ToastContainer';
 
 const ProtectedRoute = ({ children }) => {
@@ -29,43 +28,39 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    // 1. EN TEPEYE AUTH KOYUYORUZ (Kullanıcı verisi her şeye lazım)
+    // 1. AUTH EN TEPEDE (Herkes buna muhtaç)
     <AuthProvider>
-      {/* 2. TOAST KOYUYORUZ (Hata mesajları için) */}
       <ToastProvider>
         <ToastContainer />
-
-        {/* 3. AUDIO AYARLARI */}
         <AudioSettingsProvider>
+          {/* 2. SOCKET, AUTH'TAN SONRA GELMELİ (Token okuyabilmek için) */}
+          <SocketProvider>
+            {/* 3. SERVER VE VOICE, SOCKET'İ KULLANIR */}
+            <ServerProvider>
+              <VoiceProvider>
 
-            {/* 4. VOICE PROVIDER (Artık User verisine erişebilir!) */}
-            <VoiceProvider>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
+                  <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
 
-                {/* 5. SERVER PROVIDER */}
-                <ServerProvider>
-                    <Routes>
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/register" element={<RegisterPage />} />
-                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                        <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
-                        <Route path="/verify-email" element={<VerifyEmailPage />} />
-                        {/* Eğer verify-change-email aynı sayfaysa: */}
-                        <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
+                  <Route
+                    path="/dashboard/*"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/dashboard" />} />
+                </Routes>
 
-                        <Route
-                        path="/dashboard/*"
-                        element={
-                            <ProtectedRoute>
-                            <DashboardPage />
-                            </ProtectedRoute>
-                        }
-                        />
-
-                        <Route path="*" element={<Navigate to="/dashboard" />} />
-                    </Routes>
-                </ServerProvider>
-
-            </VoiceProvider>
+              </VoiceProvider>
+            </ServerProvider>
+          </SocketProvider>
         </AudioSettingsProvider>
       </ToastProvider>
     </AuthProvider>

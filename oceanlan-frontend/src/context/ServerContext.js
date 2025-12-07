@@ -23,19 +23,33 @@ const ServerReducer = (state, action) => {
       return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
+
+    // 🛠️ DÜZELTME: İSİM EŞİTLENDİ (UPDATE_MEMBER_PRESENCE)
     case 'UPDATE_MEMBER_PRESENCE':
-      if (!state.activeServer || !state.activeServer.members) return state;
-      const updatedMembers = state.activeServer.members.map(member => {
-        const mUserId = member.user?._id || member.user;
-        if (String(mUserId) === String(action.payload.userId)) {
-          return {
-            ...member,
-            user: { ...member.user, onlineStatus: action.payload.status, lastSeenAt: action.payload.lastSeenAt }
-          };
-        }
-        return member;
-      });
-      return { ...state, activeServer: { ...state.activeServer, members: updatedMembers } };
+        if (!state.activeServer || !state.activeServer.members) return state;
+
+        const updatedMembers = state.activeServer.members.map(member => {
+            const mUserId = member.user?._id || member.user;
+            if (String(mUserId) === String(action.payload.userId)) {
+                // Mevcut veriyi koru, sadece status güncelle
+                const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
+                return {
+                    ...member,
+                    user: {
+                        ...oldUserObj,
+                        onlineStatus: action.payload.status,
+                        lastSeenAt: action.payload.lastSeenAt
+                    }
+                };
+            }
+            return member;
+        });
+
+        return {
+            ...state,
+            activeServer: { ...state.activeServer, members: updatedMembers }
+        };
+
     case 'RESET_SERVER_STATE':
       return initialState;
     default:
@@ -49,6 +63,17 @@ export const ServerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(ServerReducer, initialState);
   const { token, isAuthenticated } = useContext(AuthContext);
   const { socket } = useSocket();
+
+  // Socket Dinleyicisi
+  useEffect(() => {
+      if (!socket) return;
+      const handleStatusChange = (data) => {
+          // Socket'ten gelen veriyi Reducer'a gönder
+          dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
+      };
+      socket.on('userStatusChanged', handleStatusChange);
+      return () => socket.off('userStatusChanged', handleStatusChange);
+  }, [socket]);
 
   const fetchServerDetails = useCallback(async (serverId) => {
     if (!token) return;
@@ -67,66 +92,31 @@ export const ServerProvider = ({ children }) => {
     try {
       const res = await axiosInstance.get('/servers/');
       dispatch({ type: 'SET_SERVERS', payload: res.data.data });
-    } catch (error) { console.error(error); }
+    } catch (e) {}
   }, [token]);
-
-  // Presence Dinleyicisi
-  useEffect(() => {
-      if (!socket) return;
-      const handleStatusChange = (data) => dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
-      socket.on('userStatusChanged', handleStatusChange);
-      return () => socket.off('userStatusChanged', handleStatusChange);
-  }, [socket]);
 
   useEffect(() => {
     if (isAuthenticated && token) fetchUserServers();
     else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
-  // 📢 DÜZELTİLEN FONKSİYON: createNewServer
-  // Artık (name, file) alıyor. Önce oluşturuyor, sonra resim yüklüyor.
   const createNewServer = useCallback(async (serverName, file = null) => {
-    if (!token) throw new Error('Oturum sonlandı.');
-
-    // Yükleme ekranını açmıyoruz ki modal kapanıp kullanıcı arkaplanda görsün
-    // Veya istersen dispatch({ type: 'SET_LOADING', payload: true }); yapabilirsin
-
+    if (!token) throw new Error('Oturum yok');
     try {
-      // 1. Sunucuyu oluştur (Sadece JSON) - Bu adım Web'de de Electron'da da sorunsuz çalışır
       const res = await axiosInstance.post('/servers', { name: serverName });
       let newServer = res.data.data;
-
-      // 2. Eğer resim seçildiyse, oluşturulan sunucuya PUT isteği at
       if (file) {
-          try {
-              const formData = new FormData();
-              formData.append('icon', file);
-
-              // İkon güncelleme endpointi
-              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, {
-                  headers: { "Content-Type": "multipart/form-data" }
-              });
-
-              if (iconRes.data.data) {
-                  newServer = iconRes.data.data; // Güncel (resimli) veriyi al
-              }
-          } catch (uploadErr) {
-              console.error("Sunucu oluştu ama resim yüklenemedi:", uploadErr);
-              // Kritik hata değil, devam et
-          }
+          const fd = new FormData(); fd.append('icon', file);
+          const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+          if (iconRes.data.data) newServer = iconRes.data.data;
       }
-
-      // 3. Listeye ekle ve detayları çek
       dispatch({ type: 'ADD_SERVER', payload: newServer });
       await fetchServerDetails(newServer._id);
-
       return newServer;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Sunucu oluşturma başarısız');
-    }
+    } catch (e) { throw new Error(e.response?.data?.message || 'Hata'); }
   }, [token, dispatch, fetchServerDetails]);
 
-  const setActiveChannel = useCallback((channel) => { dispatch({ type: 'SELECT_CHANNEL', payload: channel }); }, []);
+  const setActiveChannel = useCallback((c) => dispatch({ type: 'SELECT_CHANNEL', payload: c }), []);
 
   return (
     <ServerContext.Provider value={{ ...state, dispatch, fetchServerDetails, createNewServer, fetchUserServers, setActiveChannel }}>
