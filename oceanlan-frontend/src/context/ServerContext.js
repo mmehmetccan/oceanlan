@@ -2,7 +2,7 @@
 import React, { createContext, useReducer, useContext, useCallback, useEffect } from 'react';
 import axiosInstance from '../utils/axiosInstance';
 import { AuthContext } from './AuthContext';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket } from '../hooks/useSocket'; // useSocket hook'unu kullan
 
 const initialState = {
   servers: [],
@@ -23,23 +23,25 @@ const ServerReducer = (state, action) => {
       return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
+
+    // 🟢 ONLINE DURUMU GÜNCELLEME (REDUCER)
     case 'UPDATE_MEMBER_STATUS':
         if (!state.activeServer || !state.activeServer.members) return state;
 
-
         const updatedMembers = state.activeServer.members.map(member => {
-            const mUserId = member.user?._id || member.user;
+            const mUserId = member.user?._id || member.user; // ID'yi güvenli al
 
-        if (String(mUserId) === String(action.payload.userId)) {
-                // Eğer member.user bir obje ise (Populate edilmişse) koru
-                // Eğer string ise (Sadece ID), yapıyı bozma
+            // Gelen userId ile eşleşiyorsa güncelle
+            if (String(mUserId) === String(action.payload.userId)) {
+
+                // Eski user objesini koru, sadece status'u değiştir
                 const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
 
                 return {
                     ...member,
                     user: {
-                        ...oldUserObj, // Eski verileri koru (username, avatar vb.)
-                        onlineStatus: action.payload.status, // Yeni durumu yaz
+                        ...oldUserObj,
+                        onlineStatus: action.payload.status, // 'online' veya 'offline'
                         lastSeenAt: action.payload.lastSeenAt
                     }
                 };
@@ -47,12 +49,14 @@ const ServerReducer = (state, action) => {
             return member;
         });
 
+        return {
+            ...state,
+            activeServer: {
+                ...state.activeServer,
+                members: updatedMembers
+            }
+        };
 
-
-      return { ...state,
-        activeServer: {
-        ...state.activeServer,
-          members: updatedMembers } };
     case 'RESET_SERVER_STATE':
       return initialState;
     default:
@@ -65,7 +69,7 @@ export const ServerContext = createContext(initialState);
 export const ServerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(ServerReducer, initialState);
   const { token, isAuthenticated } = useContext(AuthContext);
-  const { socket } = useSocket();
+  const { socket } = useSocket(); // Socket'i buradan al
 
   const fetchServerDetails = useCallback(async (serverId) => {
     if (!token) return;
@@ -87,12 +91,23 @@ export const ServerProvider = ({ children }) => {
     } catch (error) { console.error(error); }
   }, [token]);
 
-  // Presence Dinleyicisi
+  // 🟢 SOCKET DINLEYICISI (ONLINE/OFFLINE)
   useEffect(() => {
       if (!socket) return;
-      const handleStatusChange = (data) => dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
+
+      const handleStatusChange = ({ userId, status, lastSeenAt }) => {
+          // console.log(`[ServerContext] Durum değişti: ${userId} -> ${status}`);
+          dispatch({
+              type: 'UPDATE_MEMBER_STATUS',
+              payload: { userId, status, lastSeenAt }
+          });
+      };
+
       socket.on('userStatusChanged', handleStatusChange);
-      return () => socket.off('userStatusChanged', handleStatusChange);
+
+      return () => {
+          socket.off('userStatusChanged', handleStatusChange);
+      };
   }, [socket]);
 
   useEffect(() => {
@@ -100,43 +115,21 @@ export const ServerProvider = ({ children }) => {
     else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
-  // 📢 DÜZELTİLEN FONKSİYON: createNewServer
-  // Artık (name, file) alıyor. Önce oluşturuyor, sonra resim yüklüyor.
   const createNewServer = useCallback(async (serverName, file = null) => {
     if (!token) throw new Error('Oturum sonlandı.');
-
-    // Yükleme ekranını açmıyoruz ki modal kapanıp kullanıcı arkaplanda görsün
-    // Veya istersen dispatch({ type: 'SET_LOADING', payload: true }); yapabilirsin
-
     try {
-      // 1. Sunucuyu oluştur (Sadece JSON) - Bu adım Web'de de Electron'da da sorunsuz çalışır
       const res = await axiosInstance.post('/servers', { name: serverName });
       let newServer = res.data.data;
-
-      // 2. Eğer resim seçildiyse, oluşturulan sunucuya PUT isteği at
       if (file) {
           try {
               const formData = new FormData();
               formData.append('icon', file);
-
-              // İkon güncelleme endpointi
-              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, {
-                  headers: { "Content-Type": "multipart/form-data" }
-              });
-
-              if (iconRes.data.data) {
-                  newServer = iconRes.data.data; // Güncel (resimli) veriyi al
-              }
-          } catch (uploadErr) {
-              console.error("Sunucu oluştu ama resim yüklenemedi:", uploadErr);
-              // Kritik hata değil, devam et
-          }
+              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+              if (iconRes.data.data) newServer = iconRes.data.data;
+          } catch (uploadErr) { console.error("Resim yüklenemedi:", uploadErr); }
       }
-
-      // 3. Listeye ekle ve detayları çek
       dispatch({ type: 'ADD_SERVER', payload: newServer });
       await fetchServerDetails(newServer._id);
-
       return newServer;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Sunucu oluşturma başarısız');

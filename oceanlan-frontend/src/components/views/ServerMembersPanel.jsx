@@ -64,7 +64,8 @@ const ServerMembersPanel = () => {
         }
 
         // Rolü yoksa duruma göre ayır
-        if (!assigned) {
+       if (!assigned) {
+            // "online" stringi veritabanından küçük harfle gelir, dikkat et!
             if (member.user?.onlineStatus === 'online') {
                 onlineList.push(member);
             } else {
