@@ -11,6 +11,8 @@ import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
 import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
+import { getImageUrl } from '../../utils/urlHelper';
+
 import '../../styles/ServerView.css';
 
 
@@ -179,7 +181,12 @@ const ServerView = () => {
         <div className="server-header-top">
             <div className="server-avatar-chip">
                 {serverIconUrl ? (
-                <img src={serverIconUrl} alt={activeServer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerText = serverInitial; }} />
+<img
+                    src={getImageUrl(activeServer.iconUrl)}
+                    alt={activeServer.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerText = serverInitial; }}
+                />
                 ) : (serverInitial)}
             </div>
             <h2 className="server-name">{activeServer.name}</h2>
@@ -281,7 +288,7 @@ const ServerView = () => {
                       let rawAvatar = member?.user?.avatarUrl || member?.user?.avatar;
                       if (!rawAvatar && isSelf) rawAvatar = user.avatarUrl;
                       if (!rawAvatar) rawAvatar = DEFAULT_AVATAR;
-                      const absoluteAvatarSrc = rawAvatar.startsWith('/uploads') ? `${API_URL_BASE}${rawAvatar}` : rawAvatar;
+                      const absoluteAvatarSrc = getImageUrl(rawAvatar);
 
                       // 🟢 YEŞİL IŞIK KONTROLÜ
                       const isSpeaking = speakingUsers && speakingUsers[voiceUser.userId];

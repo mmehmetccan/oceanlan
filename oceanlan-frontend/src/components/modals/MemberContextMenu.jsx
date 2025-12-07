@@ -204,7 +204,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
                         min="0"
                         max="200"
                         value={currentVolume}
-                        onChange={(e) => setUserVolume(member.user._id, parseInt(e.target.value))}
+                        onChange={(e) => setUserVolume(member.user._id || member.user, parseInt(e.target.value))}
                         className="volume-slider"
                     />
                 </div>

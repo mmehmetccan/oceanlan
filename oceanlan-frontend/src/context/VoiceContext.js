@@ -20,6 +20,8 @@ export const VoiceProvider = ({ children }) => {
   const processedStreamRef = useRef(null); // İşlenmiş (Temiz) Ses
   const audioElementsRef = useRef({});
 
+  const userSocketMapRef = useRef({});
+
   // Ses İşleme ve Analiz Refleri
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -88,8 +90,44 @@ export const VoiceProvider = ({ children }) => {
         setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }));
     });
 
+
+
+    socket.on('voiceStateUpdate', (serverState) => {
+        if (!serverState) return;
+        // Tüm kanalları gez ve haritayı güncelle
+        Object.values(serverState).forEach(channelUsers => {
+            channelUsers.forEach(u => {
+                // userId -> socketId eşleşmesi
+                userSocketMapRef.current[u.userId] = u.socketId;
+            });
+        });
+
+        // Ses ayarlarını hemen uygula (Yeni girenler için)
+        applyVolumeSettings();
+    });
+
     return () => {};
   }, [token]);
+
+  const applyVolumeSettings = () => {
+      if (!userVolumes || !audioElementsRef.current) return;
+
+      // Kayıtlı tüm kullanıcıların ses ayarlarını uygula
+      Object.keys(userVolumes).forEach(targetUserId => {
+          const targetSocketId = userSocketMapRef.current[targetUserId];
+          const volume = userVolumes[targetUserId]; // 0 ile 100 arası
+
+          if (targetSocketId && audioElementsRef.current[targetSocketId]) {
+              // HTML Audio elementinin volume özelliği 0.0 ile 1.0 arasındadır
+              const normalizedVolume = Math.max(0, Math.min(1, volume / 100));
+              audioElementsRef.current[targetSocketId].volume = normalizedVolume;
+          }
+      });
+  };
+
+useEffect(() => {
+      applyVolumeSettings();
+  }, [userVolumes]);
 
 
   useEffect(() => {
@@ -394,10 +432,9 @@ export const VoiceProvider = ({ children }) => {
 
   // WebRTC Handlers
   const handleUserJoined = ({ socketId }) => {
-    // İşlenmiş (Temiz) sesi gönder
-    const streamToSend = processedStreamRef.current || localStreamRef.current;
-    const streams = [streamToSend, myScreenStream].filter(Boolean);
-    createPeer(socketId, true, streams);
+      const stream = processedStreamRef.current || localStreamRef.current;
+      const streams = [stream, myScreenStream].filter(Boolean);
+      createPeer(socketId, true, streams);
   };
 
   const handleOffer = ({ socketId, sdp }) => {
@@ -429,18 +466,23 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const handleRemoteStream = (stream, id) => {
-    if (stream.getVideoTracks().length > 0) {
-        setPeersWithVideo(prev => ({ ...prev, [id]: stream }));
-    } else {
-        if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
-        const audio = document.createElement('audio');
-        audio.srcObject = stream;
-        audio.autoplay = true;
-        audio.style.display = 'none';
-        document.body.appendChild(audio);
-        if (outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(()=>{});
-        audioElementsRef.current[id] = audio;
-    }
+      if (stream.getVideoTracks().length > 0) {
+          setPeersWithVideo(prev => ({ ...prev, [id]: stream }));
+      } else {
+          if (audioElementsRef.current[id]) audioElementsRef.current[id].remove();
+          const audio = document.createElement('audio');
+          audio.srcObject = stream;
+          audio.autoplay = true;
+          audio.style.display = 'none';
+          document.body.appendChild(audio);
+
+          if (outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(()=>{});
+
+          audioElementsRef.current[id] = audio;
+
+          // İlk açılışta ses seviyesini uygula
+          applyVolumeSettings();
+      }
   };
 
   // Screen Share

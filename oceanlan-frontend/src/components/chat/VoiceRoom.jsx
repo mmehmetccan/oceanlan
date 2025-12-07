@@ -4,6 +4,7 @@ import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
 import '../../styles/VoiceRoom.css';
+import { getImageUrl } from '../../utils/urlHelper';
 import {
     MicrophoneIcon,
     SpeakerWaveIcon,
@@ -50,11 +51,7 @@ const VoiceRoom = () => {
 
   // Eğer user verisi henüz gelmediyse geçici bir "Misafir" objesi oluşturuyoruz.
   // Böylece kart anında görünür, veri gelince ismi güncellenir.
-  const safeUser = user || {
-      username: 'Yükleniyor...',
-      id: 'loading',
-      avatarUrl: null
-  };
+  const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
 
   const handleScreenShareToggle = () => {
       if (myScreenStream) stopScreenShare();
@@ -123,17 +120,18 @@ const VoiceRoom = () => {
         <div className="voice-user-section">
             <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
                 <img
-                    src={toAbsolute(safeUser.avatarUrl || safeUser.avatar)}
+                    src={getImageUrl(safeUser.avatarUrl || safeUser.avatar)}
                     alt="Me"
                     className="voice-user-img"
+                    onError={(e) => e.target.src = getImageUrl(null)} // Hata olursa defaulta dön
                 />
-          </div>
+            </div>
 
-          <div className="voice-user-info-mini">
+            <div className="voice-user-info-mini">
               <span className="voice-username">
                   {safeUser.username}
               </span>
-              <span className="voice-status-micro">
+                <span className="voice-status-micro">
                   {isMicMuted ? 'Muted' : 'Open'}
               </span>
           </div>
