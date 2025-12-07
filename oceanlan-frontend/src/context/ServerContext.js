@@ -23,19 +23,36 @@ const ServerReducer = (state, action) => {
       return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
-    case 'UPDATE_MEMBER_PRESENCE':
-      if (!state.activeServer || !state.activeServer.members) return state;
-      const updatedMembers = state.activeServer.members.map(member => {
-        const mUserId = member.user?._id || member.user;
+    case 'UPDATE_MEMBER_STATUS':
+        if (!state.activeServer || !state.activeServer.members) return state;
+
+
+        const updatedMembers = state.activeServer.members.map(member => {
+            const mUserId = member.user?._id || member.user;
+
         if (String(mUserId) === String(action.payload.userId)) {
-          return {
-            ...member,
-            user: { ...member.user, onlineStatus: action.payload.status, lastSeenAt: action.payload.lastSeenAt }
-          };
-        }
-        return member;
-      });
-      return { ...state, activeServer: { ...state.activeServer, members: updatedMembers } };
+                // Eğer member.user bir obje ise (Populate edilmişse) koru
+                // Eğer string ise (Sadece ID), yapıyı bozma
+                const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
+
+                return {
+                    ...member,
+                    user: {
+                        ...oldUserObj, // Eski verileri koru (username, avatar vb.)
+                        onlineStatus: action.payload.status, // Yeni durumu yaz
+                        lastSeenAt: action.payload.lastSeenAt
+                    }
+                };
+            }
+            return member;
+        });
+
+
+
+      return { ...state,
+        activeServer: {
+        ...state.activeServer,
+          members: updatedMembers } };
     case 'RESET_SERVER_STATE':
       return initialState;
     default:

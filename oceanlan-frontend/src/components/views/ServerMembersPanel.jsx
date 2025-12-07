@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
 import MemberContextMenu from '../modals/MemberContextMenu';
+// URL Helper'ı koruduk
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 
@@ -23,15 +24,17 @@ const ServerMembersPanel = () => {
 
   const isOnServerRoute = location.pathname.includes('/dashboard/server/');
 
+  // 🛠️ GRUPLAMA MANTIĞI (DÜZELTİLDİ)
   const groupedMembers = useMemo(() => {
     if (!activeServer || !isOnServerRoute) return [];
 
     const members = activeServer.members || [];
     const roles = activeServer.roles || [];
 
+    // 1. Özel rolleri al (everyone hariç)
     const specialRoles = roles
         .filter(r => r.name !== '@everyone')
-        .sort((a, b) => (b.position || 0) - (a.position || 0));
+        .sort((a, b) => (b.position || 0) - (a.position || 0)); // Yüksek yetki üstte
 
     const groupsMap = new Map();
     specialRoles.forEach(role => {
@@ -46,18 +49,21 @@ const ServerMembersPanel = () => {
     const onlineList = [];
     const offlineList = [];
 
+    // 2. Üyeleri dağıt
     members.forEach(member => {
         let assigned = false;
-        const memberRoleIds = member.roles.map(r => r._id || r);
+        // Rol ID'lerini string'e çevirerek karşılaştır (Garanti olsun)
+        const memberRoleIds = member.roles.map(r => String(r._id || r));
 
         for (const role of specialRoles) {
-            if (memberRoleIds.includes(role._id)) {
+            if (memberRoleIds.includes(String(role._id))) {
                 groupsMap.get(role._id).members.push(member);
                 assigned = true;
-                break;
+                break; // En yüksek role koyduk, bitir.
             }
         }
 
+        // Rolü yoksa duruma göre ayır
         if (!assigned) {
             if (member.user?.onlineStatus === 'online') {
                 onlineList.push(member);
@@ -67,6 +73,7 @@ const ServerMembersPanel = () => {
         }
     });
 
+    // 3. Sonuç listesini oluştur
     const result = [];
 
     specialRoles.forEach(role => {
@@ -100,51 +107,52 @@ const ServerMembersPanel = () => {
   };
 
   return (
-    <div className="members-sidebar" onClick={() => setContextMenu(null)}>
-      <h3 className="members-sidebar-title">Üyeler — {activeServer.members?.length || 0}</h3>
+    <div className="smp-sidebar" onClick={() => setContextMenu(null)}>
+      <h3 className="smp-title">Üyeler — {activeServer.members?.length || 0}</h3>
 
-      <div className="members-scroll-area">
+      <div className="smp-scroll-area">
         {groupedMembers.map((group, index) => (
-            <div key={group.title + index} className="member-group">
-                <h4 className="role-header" style={{ color: group.color || '#96989d' }}>
+            <div key={group.title + index} className="smp-group">
+                <h4 className="smp-role-header" style={{ color: group.color || '#96989d' }}>
                     {group.title.toUpperCase()} — {group.members.length}
                 </h4>
 
-                <div className="members-list">
+                <div className="smp-list">
                     {group.members.map((member) => {
                         const isOwner = activeServer.owner && member.user && (
-                            activeServer.owner._id === member.user._id || activeServer.owner === member.user._id
+                            String(activeServer.owner._id || activeServer.owner) === String(member.user._id)
                         );
-                        // 🟢 ONLINE DURUMU KONTROLÜ
+
+                        // 🟢 ONLINE KONTROLÜ
                         const isOnline = member.user?.onlineStatus === 'online';
                         const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
 
                         return (
                             <div
                                 key={member._id}
-                                className={`member-item ${!isOnline ? 'offline' : ''}`}
+                                className={`smp-item ${!isOnline ? 'offline' : ''}`}
                                 onContextMenu={(e) => handleContextMenu(e, member)}
                             >
-                                {/* 🟢 RESİM VE NOKTA KAPSAYICISI */}
-                                <div className="member-avatar-wrapper">
+                                {/* 🟢 RESİM VE NOKTA */}
+                                <div className="smp-avatar-wrapper">
                                     <img
                                         src={avatarSrc}
                                         alt={member.user?.username}
                                         onError={handleAvatarError}
-                                        className="member-avatar-img"
+                                        className="smp-avatar-img"
                                     />
-                                    {/* 🟢 YEŞİL NOKTA (Sadece online ise yeşil, değilse gri) */}
-                                    <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
+                                    {/* Sadece online ise nokta göster (Veya istersen her zaman) */}
+                                    <span className={`smp-status-dot ${isOnline ? 'online' : 'offline'}`} />
                                 </div>
 
-                                <div className="member-info">
+                                <div className="smp-info">
                                     <span
-                                        className="member-name"
+                                        className="smp-name"
                                         style={{ color: isOnline ? '#fff' : '#96989d' }}
                                     >
                                         {member.user?.username || 'Bilinmeyen'}
                                     </span>
-                                    {isOwner && <span className="member-badge" title="Sunucu Sahibi">👑</span>}
+                                    {isOwner && <span className="smp-badge" title="Sunucu Sahibi">👑</span>}
                                 </div>
                             </div>
                         );

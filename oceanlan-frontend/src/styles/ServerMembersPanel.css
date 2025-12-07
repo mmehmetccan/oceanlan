@@ -1,6 +1,6 @@
 /* src/styles/ServerMembersPanel.css */
 
-.members-sidebar {
+.smp-sidebar {
     width: 240px;
     min-width: 240px;
     background-color: #2f3136;
@@ -10,45 +10,49 @@
     border-left: 1px solid #202225;
 }
 
-.members-sidebar-title {
-    padding: 16px 16px 8px 16px;
+.smp-title {
+    padding: 16px;
     font-size: 12px;
     font-weight: 700;
-    color: #fff;
+    color: #96989d;
     text-transform: uppercase;
     margin: 0;
     background-color: #2f3136;
     border-bottom: 1px solid #202225;
 }
 
-.members-scroll-area {
+.smp-scroll-area {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 10px 8px;
+    padding: 0 8px 20px 8px;
 }
 
-.role-header {
-    font-size: 11px;
-    font-weight: 700;
+/* Rol Başlıkları */
+.smp-role-header {
+    font-size: 12px;
+    font-weight: 600;
     color: #96989d;
     text-transform: uppercase;
     margin-bottom: 4px;
-    margin-top: 16px;
+    margin-top: 20px;
     padding-left: 8px;
+    display: flex;
+    align-items: center;
 }
 
-.member-group:first-child .role-header {
-    margin-top: 0;
+.smp-group:first-child .smp-role-header {
+    margin-top: 10px;
 }
 
-.members-list {
+.smp-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 }
 
-.member-item {
+/* Kart */
+.smp-item {
     display: flex;
     align-items: center;
     padding: 6px 8px;
@@ -57,66 +61,72 @@
     transition: background-color 0.1s;
     user-select: none;
     position: relative;
+    height: 42px;
 }
 
-.member-item:hover {
-    background-color: #36393f;
+.smp-item:hover {
+    background-color: #35373c;
 }
 
-.member-item.offline {
-    opacity: 0.6; /* Offline kullanıcılar biraz soluk */
+.smp-item.offline {
+    opacity: 0.4; /* Offline üyeler soluk */
 }
 
-.member-item.offline:hover {
+.smp-item.offline:hover {
     opacity: 1;
 }
 
-/* 🟢 AVATAR VE NOKTA KAPSAYICISI */
-.member-avatar-wrapper {
-    position: relative; /* Nokta buna göre konumlanacak */
+/* 🟢 AVATAR VE NOKTA KONUMLANDIRMA */
+.smp-avatar-wrapper {
+    position: relative;
     width: 32px;
     height: 32px;
-    margin-right: 10px;
+    margin-right: 12px;
+    flex-shrink: 0;
 }
 
-.member-avatar-img {
+.smp-avatar-img {
     width: 32px;
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
-    background-color: #36393f;
+    background-color: #f6f6f6;
 }
 
-/* 🟢 DURUM NOKTASI (Online/Offline) */
-.status-dot {
+/* 🟢 DURUM NOKTASI (Online) */
+.smp-status-dot {
     position: absolute;
-    bottom: -2px;
-    right: -2px;
+    bottom: -3px;
+    right: -3px;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    border: 3px solid #2f3136; /* Arka plan rengiyle aynı çerçeve (Kesik görünümü verir) */
+    /* Kesik görünüm için kenarlık */
+    border: 3px solid #2f3136;
     z-index: 10;
+    pointer-events: none;
 }
 
-.status-dot.online {
+.smp-status-dot.online {
     background-color: #3ba55c; /* Yeşil */
 }
 
-.status-dot.offline {
-    background-color: #747f8d; /* Gri (Offline) */
-    /* Eğer offline'da nokta istemiyorsan: display: none; yapabilirsin */
+.smp-status-dot.offline {
+    background-color: #fafcff; /* Gri */
+    /* Offline ise gösterme (Discord stili) */
+    /* İstersen display: block yapıp gri nokta gösterebilirsin */
+    display: none;
 }
 
-.member-info {
+/* İsim */
+.smp-info {
     display: flex;
     align-items: center;
-    gap: 6px;
     overflow: hidden;
     flex: 1;
 }
 
-.member-name {
+.smp-name {
     font-size: 14px;
     font-weight: 500;
     color: #fff;
@@ -125,7 +135,12 @@
     text-overflow: ellipsis;
 }
 
-.member-badge {
-    font-size: 12px;
+.smp-badge {
+    font-size: 10px;
     margin-left: auto;
+    background-color: #faa61a;
+    color: black;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: bold;
 }
