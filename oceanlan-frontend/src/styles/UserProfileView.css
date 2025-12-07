@@ -213,21 +213,40 @@
 }
 
 .friend-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background-color: #202225; /* Kart arka planı */
-  border: 1px solid transparent;
-  transition: background-color 0.2s;
+    cursor: pointer; /* Tıklanabilir olduğunu göster */
+    transition: background-color 0.2s;
+    border-radius: 4px;
+    padding: 5px;
 }
 
 .friend-item:hover {
-  background-color: #36393f;
-  border-color: #40444b;
+    background-color: #40444b; /* Hover efekti */
 }
 
+/* Basit Sağ Tık Menüsü */
+.custom-context-menu {
+    position: absolute;
+    background-color: #18191c;
+    border: 1px solid #000;
+    border-radius: 4px;
+    padding: 6px 0;
+    min-width: 180px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    z-index: 9999;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    color: #b9bbbe;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.context-menu-item:hover {
+    background-color: #5865f2;
+    color: white;
+}
 /* 👇 RESİM BOYUTUNU KÜÇÜLTEN KISIM */
 .friend-avatar {
   width: 36px !important;  /* Sabit Genişlik */

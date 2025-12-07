@@ -1,136 +1,105 @@
 // src/components/modals/CreateServerModal.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
+import { ServerContext } from '../../context/ServerContext';
+import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/solid';
+import '../../styles/ModalStyles.css';
 
-const CreateServerModal = ({ onClose, createServer, onCreated }) => {
-  const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [file, setFile] = useState(null);
+const CreateServerModal = ({ onClose }) => {
+  const { createNewServer } = useContext(ServerContext);
+  const [serverName, setServerName] = useState('');
+  const [serverIcon, setServerIcon] = useState(null);
   const [preview, setPreview] = useState(null);
-  const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Dosya seçildiğinde çalışır
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      // Modern tarayıcılar için daha hızlı önizleme oluşturma yöntemi
-      const objectUrl = URL.createObjectURL(selectedFile);
-      setPreview(objectUrl);
+    const file = e.target.files[0];
+    if (file) {
+        setServerIcon(file);
+        setPreview(URL.createObjectURL(file));
     }
   };
 
-  // Component unmount olduğunda (kapandığında) veya preview değiştiğinde belleği temizle
-  useEffect(() => {
-    return () => {
-      if (preview) {
-        URL.revokeObjectURL(preview);
-      }
-    };
-  }, [preview]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    if (!serverName.trim()) return;
 
-    if (!name.trim()) {
-      setError('Lütfen bir sunucu adı girin.');
-      return;
-    }
+    setLoading(true);
+    setError(null);
 
     try {
-      setLoading(true);
-
-      const formData = new FormData();
-      formData.append('name', name.trim());
-      if (file) {
-        formData.append('icon', file);
-      }
-
-      // createServer fonksiyonu (Context'ten gelen)
-      const newServer = await createServer(formData);
-
-      if (onCreated) onCreated(newServer);
-      onClose();
-
+      // İki parametre gönderiyoruz: İsim ve Dosya
+      await createNewServer(serverName, serverIcon);
+      onClose(); // Başarılıysa kapat
     } catch (err) {
-      console.error(err);
-      setError(err?.message || 'Sunucu oluşturulamadı');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>Yeni Sunucu Oluştur</h3>
-
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-          <div
-            onClick={() => fileInputRef.current.click()}
-            style={{
-              width: '100px', // Boyutu biraz büyüttük
-              height: '100px',
-              borderRadius: '50%',
-              backgroundColor: '#36393f',
-              border: '2px dashed #4f545c',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              overflow: 'hidden',
-              position: 'relative' // İkon ortalamak için
-            }}
-          >
-            {preview ? (
-              <img
-                src={preview}
-                alt="Sunucu Önizleme"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover' // Resmin çerçeveye sığmasını sağlar
-                }}
-              />
-            ) : (
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '24px', display: 'block' }}>📷</span>
-                <span style={{ fontSize: '10px', color: '#b9bbbe', textTransform: 'uppercase', marginTop: '4px' }}>Yükle</span>
-              </div>
-            )}
-          </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-            accept="image/*"
-          />
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '400px', textAlign:'center'}}>
+        <div className="modal-header" style={{justifyContent:'center'}}>
+          <h3>Sunucunu Özelleştir</h3>
+          {/* Kapat butonu absolute olsun */}
+          <button className="close-btn" onClick={onClose} style={{position:'absolute', right:'20px'}}><XMarkIcon width={24} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="create-server-form">
-          <label style={{ color: '#b9bbbe', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
-            Sunucu Adı
-          </label>
-          <input
-            type="text"
-            placeholder="Sunucunun adı ne olsun?"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={loading}
-            autoFocus
-          />
+        <p style={{color:'#b9bbbe', marginBottom:'20px'}}>Sunucuna bir isim ve simge vererek ona bir kişilik kazandır. Bunları daha sonra değiştirebilirsin.</p>
 
-          {error && <p className="error-message" style={{ color: '#f04747', fontSize: '14px', marginTop: '10px' }}>{error}</p>}
+        <form onSubmit={handleSubmit} className="modal-body">
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-            <button type="button" onClick={onClose} className="pill-btn ghost" disabled={loading} style={{ marginRight: '10px' }}>
-              Geri
-            </button>
-            <button type="submit" disabled={loading} className="pill-btn primary">
-              {loading ? 'Oluşturuluyor...' : 'Oluştur'}
-            </button>
+          {/* RESİM YÜKLEME ALANI */}
+          <div style={{display:'flex', justifyContent:'center', marginBottom:'20px'}}>
+              <label
+                htmlFor="server-icon-upload"
+                style={{
+                    width: '80px', height: '80px', borderRadius: '50%',
+                    border: '2px dashed #b9bbbe', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', overflow: 'hidden', position: 'relative'
+                }}
+              >
+                  {preview ? (
+                      <img src={preview} alt="Preview" style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                  ) : (
+                      <div style={{display:'flex', flexDirection:'column', alignItems:'center', color:'#b9bbbe', fontSize:'10px'}}>
+                          <PhotoIcon width={24} />
+                          <span>YÜKLE</span>
+                      </div>
+                  )}
+                  {/* Gizli Input */}
+                  <input
+                      id="server-icon-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      style={{display:'none'}}
+                  />
+              </label>
+          </div>
+
+          <div className="input-group" style={{textAlign:'left'}}>
+              <label style={{fontSize:'12px', fontWeight:'bold', color:'#b9bbbe', marginBottom:'5px', display:'block'}}>SUNUCU ADI</label>
+              <input
+                  type="text"
+                  value={serverName}
+                  onChange={(e) => setServerName(e.target.value)}
+                  placeholder="Sunucum"
+                  required
+                  className="invite-code-input" // Mevcut stilini kullan
+                  style={{width: '100%', boxSizing:'border-box', backgroundColor: '#202225', padding:'10px', borderRadius:'4px', border:'none', color:'white'}}
+              />
+          </div>
+
+          {error && <div className="error-message" style={{color:'#ed4245', marginTop:'10px'}}>{error}</div>}
+
+          <div className="modal-footer" style={{marginTop:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <button type="button" onClick={onClose} style={{background:'transparent', border:'none', color:'white', cursor:'pointer'}}>Vazgeç</button>
+              <button type="submit" className="copy-btn" disabled={loading} style={{width:'auto', padding:'10px 24px'}}>
+                  {loading ? 'Oluşturuluyor...' : 'Oluştur'}
+              </button>
           </div>
         </form>
       </div>

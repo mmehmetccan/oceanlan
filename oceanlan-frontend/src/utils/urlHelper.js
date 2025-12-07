@@ -4,18 +4,19 @@
 const API_BASE_URL = 'https://oceanlan.com';
 
 export const getImageUrl = (path) => {
-  // 1. Resim yoksa varsayılanı döndür
+  // 1. Resim yoksa, Backend'deki garanti yola yönlendir
   if (!path) {
     return `${API_BASE_URL}/uploads/default-avatar.png`;
   }
 
-  // 2. Eğer zaten tam bir link ise (https://...) dokunma
-  if (path.startsWith('http') || path.startsWith('blob:')) {
-    return path;
+  // 2. 🛠️ ÖZEL DÜZELTME: Veritabanında "/default-avatar.png" yazıyorsa
+  // Bunu Backend'deki "uploads" klasörüne yönlendir.
+  if (path === '/default-avatar.png' || path === 'default-avatar.png') {
+      return `${API_BASE_URL}/uploads/default-avatar.png`;
   }
 
-  // 3. Eğer base64 ise dokunma
-  if (path.startsWith('data:image')) {
+  // 3. Eğer zaten tam bir link, blob veya base64 ise dokunma
+  if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) {
     return path;
   }
 

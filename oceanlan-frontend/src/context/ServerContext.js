@@ -23,35 +23,19 @@ const ServerReducer = (state, action) => {
       return { ...state, servers: [...state.servers, action.payload] };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
-
-    // 👇 ONLINE DURUMU GÜNCELLEME (BU EKSİKTİ)
-    case 'UPDATE_MEMBER_STATUS':
-        if (!state.activeServer || !state.activeServer.members) return state;
-
-        const updatedMembers = state.activeServer.members.map(member => {
-            // Member objesinin içindeki user._id ile gelen userId eşleşiyor mu?
-            const mUserId = member.user?._id || member.user;
-            if (String(mUserId) === String(action.payload.userId)) {
-                return {
-                    ...member,
-                    user: {
-                        ...member.user,
-                        onlineStatus: action.payload.status, // 'online' veya 'offline'
-                        lastSeenAt: action.payload.lastSeenAt
-                    }
-                };
-            }
-            return member;
-        });
-
-        return {
-            ...state,
-            activeServer: {
-                ...state.activeServer,
-                members: updatedMembers
-            }
-        };
-
+    case 'UPDATE_MEMBER_PRESENCE':
+      if (!state.activeServer || !state.activeServer.members) return state;
+      const updatedMembers = state.activeServer.members.map(member => {
+        const mUserId = member.user?._id || member.user;
+        if (String(mUserId) === String(action.payload.userId)) {
+          return {
+            ...member,
+            user: { ...member.user, onlineStatus: action.payload.status, lastSeenAt: action.payload.lastSeenAt }
+          };
+        }
+        return member;
+      });
+      return { ...state, activeServer: { ...state.activeServer, members: updatedMembers } };
     case 'RESET_SERVER_STATE':
       return initialState;
     default:
@@ -86,22 +70,12 @@ export const ServerProvider = ({ children }) => {
     } catch (error) { console.error(error); }
   }, [token]);
 
-  // 👇 SOCKET DINLEYICISI (ONLINE/OFFLINE İÇİN)
+  // Presence Dinleyicisi
   useEffect(() => {
       if (!socket) return;
-
-      const handleStatusChange = ({ userId, status, lastSeenAt }) => {
-          dispatch({
-              type: 'UPDATE_MEMBER_STATUS',
-              payload: { userId, status, lastSeenAt }
-          });
-      };
-
+      const handleStatusChange = (data) => dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
       socket.on('userStatusChanged', handleStatusChange);
-
-      return () => {
-          socket.off('userStatusChanged', handleStatusChange);
-      };
+      return () => socket.off('userStatusChanged', handleStatusChange);
   }, [socket]);
 
   useEffect(() => {
@@ -109,7 +83,49 @@ export const ServerProvider = ({ children }) => {
     else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
-  const createNewServer = useCallback(async (serverData) => { /* ... Eski kodun aynısı ... */ }, [token, fetchServerDetails]);
+  // 📢 DÜZELTİLEN FONKSİYON: createNewServer
+  // Artık (name, file) alıyor. Önce oluşturuyor, sonra resim yüklüyor.
+  const createNewServer = useCallback(async (serverName, file = null) => {
+    if (!token) throw new Error('Oturum sonlandı.');
+
+    // Yükleme ekranını açmıyoruz ki modal kapanıp kullanıcı arkaplanda görsün
+    // Veya istersen dispatch({ type: 'SET_LOADING', payload: true }); yapabilirsin
+
+    try {
+      // 1. Sunucuyu oluştur (Sadece JSON) - Bu adım Web'de de Electron'da da sorunsuz çalışır
+      const res = await axiosInstance.post('/servers', { name: serverName });
+      let newServer = res.data.data;
+
+      // 2. Eğer resim seçildiyse, oluşturulan sunucuya PUT isteği at
+      if (file) {
+          try {
+              const formData = new FormData();
+              formData.append('icon', file);
+
+              // İkon güncelleme endpointi
+              const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, formData, {
+                  headers: { "Content-Type": "multipart/form-data" }
+              });
+
+              if (iconRes.data.data) {
+                  newServer = iconRes.data.data; // Güncel (resimli) veriyi al
+              }
+          } catch (uploadErr) {
+              console.error("Sunucu oluştu ama resim yüklenemedi:", uploadErr);
+              // Kritik hata değil, devam et
+          }
+      }
+
+      // 3. Listeye ekle ve detayları çek
+      dispatch({ type: 'ADD_SERVER', payload: newServer });
+      await fetchServerDetails(newServer._id);
+
+      return newServer;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Sunucu oluşturma başarısız');
+    }
+  }, [token, dispatch, fetchServerDetails]);
+
   const setActiveChannel = useCallback((channel) => { dispatch({ type: 'SELECT_CHANNEL', payload: channel }); }, []);
 
   return (
