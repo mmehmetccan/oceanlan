@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
 import MemberContextMenu from '../modals/MemberContextMenu';
-// 👇 URL Helper
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 
@@ -22,78 +21,109 @@ const ServerMembersPanel = () => {
   const location = useLocation();
   const [contextMenu, setContextMenu] = useState(null);
 
-  // Sadece sunucu rotalarındaysa göster
   const isOnServerRoute = location.pathname.includes('/dashboard/server/');
 
+  // 🟢 DÜZELTİLEN GRUPLAMA MANTIĞI
   const groupedMembers = useMemo(() => {
     if (!activeServer || !isOnServerRoute) return [];
 
     const members = activeServer.members || [];
     const roles = activeServer.roles || [];
 
-    // Rolleri en yüksek pozisyona göre sırala
-    const sortedRoles = [...roles].sort((a, b) => (b.position || 0) - (a.position || 0));
+    // 1. "@everyone" hariç diğer rolleri al ve sıraya diz (En yüksek en üstte)
+    const specialRoles = roles
+        .filter(r => r.name !== '@everyone')
+        .sort((a, b) => (b.position || 0) - (a.position || 0));
 
-    // Grupları hazırla
-    const groups = sortedRoles.map(role => ({
-      roleId: role._id,
-      roleName: role.name,
-      color: role.color,
-      members: []
-    }));
-
-    const memberSet = new Set();
-
-    // Her kullanıcıyı en yüksek rolüne ata
-    groups.forEach(group => {
-      group.members = members.filter(member => {
-        if (memberSet.has(member._id)) return false;
-
-        const hasRole = member.roles.some(r => r._id === group.roleId || r === group.roleId);
-        if (hasRole) {
-            memberSet.add(member._id);
-            return true;
-        }
-        return false;
-      });
+    // 2. Grupları oluştur
+    const groupsMap = new Map();
+    specialRoles.forEach(role => {
+        groupsMap.set(role._id, {
+            id: role._id,
+            name: role.name,
+            color: role.color,
+            members: []
+        });
     });
 
-    // Rolsüzler (veya @everyone)
-    const noRoleMembers = members.filter(m => !memberSet.has(m._id));
+    // 3. Online / Offline Listeleri (Rolsüzler için)
+    const onlineList = [];
+    const offlineList = [];
 
-    // Online / Offline
-    const onlineNoRole = noRoleMembers.filter(m => m.user?.onlineStatus === 'online');
-    const offlineNoRole = noRoleMembers.filter(m => m.user?.onlineStatus !== 'online');
+    // 4. Her üyeyi tara ve en yüksek rolüne ata
+    members.forEach(member => {
+        let assigned = false;
 
-    const result = [
-        ...groups.filter(g => g.members.length > 0 && g.roleName !== '@everyone'),
-        { roleName: 'Çevrimiçi', members: onlineNoRole },
-        { roleName: 'Çevrimdışı', members: offlineNoRole }
-    ];
+        // Üyenin rollerini kontrol et
+        // (Backend bazen role objesi, bazen ID gönderir, ikisini de kapsayalım)
+        const memberRoleIds = member.roles.map(r => r._id || r);
 
-    return result.filter(g => g.members.length > 0);
+        // En yüksekten en düşüğe doğru özel rolleri kontrol et
+        for (const role of specialRoles) {
+            if (memberRoleIds.includes(role._id)) {
+                groupsMap.get(role._id).members.push(member);
+                assigned = true;
+                break; // En yüksek role atadık, döngüden çık (Bir kişi bir yerde görünsün)
+            }
+        }
+
+        // Eğer hiçbir özel role girmediyse, durumuna göre listeye at
+        if (!assigned) {
+            if (member.user?.onlineStatus === 'online') {
+                onlineList.push(member);
+            } else {
+                offlineList.push(member);
+            }
+        }
+    });
+
+    // 5. Sonuç dizisini oluştur
+    const result = [];
+
+    // Önce Rol Grupları (Boş olanları gösterme)
+    specialRoles.forEach(role => {
+        const group = groupsMap.get(role._id);
+        if (group && group.members.length > 0) {
+            // Üyeleri isme göre sırala
+            group.members.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
+            result.push({ title: group.name, color: group.color, members: group.members });
+        }
+    });
+
+    // Sonra Çevrimiçi
+    if (onlineList.length > 0) {
+        onlineList.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
+        result.push({ title: 'Çevrimiçi', color: '#43b581', members: onlineList });
+    }
+
+    // Sonra Çevrimdışı
+    if (offlineList.length > 0) {
+        offlineList.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
+        result.push({ title: 'Çevrimdışı', color: '#747f8d', members: offlineList });
+    }
+
+    return result;
 
   }, [activeServer, isOnServerRoute]);
 
-  // Eğer sunucuda değilsek hiç render etme
   if (!isOnServerRoute || !activeServer) return null;
 
   const handleContextMenu = (e, member) => {
     e.preventDefault();
-    if (!member || !member.user) return;
+    if (!member || !member.user || member.user._id === user.id) return;
     setContextMenu({ x: e.pageX, y: e.pageY, member });
   };
 
   return (
     <div className="members-sidebar" onClick={() => setContextMenu(null)}>
-      {/* BAŞLIK KISMI */}
-      <h3 className="members-title">Üyeler ({activeServer.members?.length || 0})</h3>
+      {/* Başlık */}
+      <h3 className="members-sidebar-title">Üyeler — {activeServer.members?.length || 0}</h3>
 
       <div className="members-scroll-area">
         {groupedMembers.map((group, index) => (
-            <div key={group.roleName + index} className="member-group">
+            <div key={group.title + index} className="member-group">
                 <h4 className="role-header" style={{ color: group.color || '#96989d' }}>
-                    {group.roleName.toUpperCase()} — {group.members.length}
+                    {group.title.toUpperCase()} — {group.members.length}
                 </h4>
 
                 <div className="members-list">
@@ -102,8 +132,6 @@ const ServerMembersPanel = () => {
                             activeServer.owner._id === member.user._id || activeServer.owner === member.user._id
                         );
                         const isOnline = member.user?.onlineStatus === 'online';
-
-                        // Resim düzeltmesi
                         const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
 
                         return (
@@ -113,20 +141,19 @@ const ServerMembersPanel = () => {
                                 onContextMenu={(e) => handleContextMenu(e, member)}
                             >
                                 <div className="member-avatar-container">
-                                    <div className="member-avatar">
-                                        <img
-                                            src={avatarSrc}
-                                            alt={member.user?.username}
-                                            onError={handleAvatarError}
-                                        />
-                                    </div>
+                                    <img
+                                        src={avatarSrc}
+                                        alt={member.user?.username}
+                                        onError={handleAvatarError}
+                                        className="member-avatar-img"
+                                    />
                                     <div className={`status-indicator ${isOnline ? 'online' : 'offline'}`} />
                                 </div>
 
                                 <div className="member-info">
                                     <span
                                         className="member-name"
-                                        style={{ color: isOnline ? '#fff' : '#8e9297' }}
+                                        style={{ color: isOnline ? '#fff' : '#96989d' }}
                                     >
                                         {member.user?.username || 'Bilinmeyen'}
                                     </span>
