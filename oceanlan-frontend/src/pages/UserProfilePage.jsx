@@ -1,20 +1,28 @@
 // src/pages/UserProfilePage.jsx
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { ToastContext } from '../context/ToastContext'; // 🔔 Toast Eklendi
+import { ToastContext } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
-import ContactModal from '../components/modals/ContactModal';
-import { EnvelopeIcon } from '@heroicons/react/24/outline'; // 👈 İKON
+import { EnvelopeIcon } from '@heroicons/react/24/outline';
+// 👇 URL Helper Importu (Resim sorununu çözen kısım)
+import { getImageUrl } from '../utils/urlHelper';
+
 import '../styles/ProfileSettings.css';
 
-const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const DEFAULT_AVATAR = '/default-avatar.png';
+// Varsayılan avatarı helper ile al
+const handleAvatarError = (e) => {
+    if (e?.target?.dataset?.fallbackApplied === 'true') return;
+    if (e?.target) {
+        e.target.dataset.fallbackApplied = 'true';
+        e.target.src = getImageUrl(null); // Helper'dan varsayılanı al
+    }
+};
 
 const UserProfilePage = () => {
     const { user, dispatch, logout } = useContext(AuthContext);
-    const { addToast } = useContext(ToastContext); // 🔔
+    const { addToast } = useContext(ToastContext);
     const navigate = useNavigate();
 
     // Local state'ler
@@ -25,9 +33,7 @@ const UserProfilePage = () => {
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState(null);
 
-    // 🔔 Onay Modalı State'i
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
-const [showContact, setShowContact] = useState(false);
 
     // 1. Sayfa açıldığında veritabanından güncel veriyi çek
     useEffect(() => {
@@ -57,18 +63,11 @@ const [showContact, setShowContact] = useState(false);
         }
     }, []);
 
-    // Avatar URL Hesaplaması
-    const rawAvatarUrl = useMemo(
-        () => user?.avatarUrl || user?.avatar || DEFAULT_AVATAR,
-        [user]
-    );
-
+    // Avatar URL Hesaplaması (DÜZELTİLDİ)
     const displayAvatarUrl = useMemo(() => {
-        if (rawAvatarUrl && rawAvatarUrl.startsWith('/uploads')) {
-            return `${API_URL_BASE}${rawAvatarUrl}`;
-        }
-        return rawAvatarUrl || DEFAULT_AVATAR;
-    }, [rawAvatarUrl]);
+        // getImageUrl helper'ı hem Electron hem Web için doğru adresi verir
+        return getImageUrl(user?.avatarUrl || user?.avatar);
+    }, [user]);
 
     // 2. Çıkış Yapma (Onaylı)
     const handleLogoutClick = () => {
@@ -81,7 +80,7 @@ const [showContact, setShowContact] = useState(false);
             onConfirm: () => {
                 logout();
                 navigate('/login');
-                addToast('Başarıyla çıkış yapıldı.', 'success'); // 🔔
+                addToast('Başarıyla çıkış yapıldı.', 'success');
             }
         });
     };
@@ -110,7 +109,7 @@ const [showContact, setShowContact] = useState(false);
             }
 
             if (Object.keys(updateData).length === 0) {
-                addToast('Değiştirilecek ayar yok.', 'info'); // 🔔
+                addToast('Değiştirilecek ayar yok.', 'info');
                 setLoading(false);
                 return;
             }
@@ -118,7 +117,7 @@ const [showContact, setShowContact] = useState(false);
             const res = await axiosInstance.put('/users/me', updateData);
 
             if (newPassword) {
-                addToast('Şifreniz güncellendi. Lütfen tekrar giriş yapın.', 'success'); // 🔔
+                addToast('Şifreniz güncellendi. Lütfen tekrar giriş yapın.', 'success');
                 performLogout();
                 return;
             }
@@ -128,11 +127,11 @@ const [showContact, setShowContact] = useState(false);
                 payload: { token: localStorage.getItem('token'), user: res.data.user },
             });
 
-            addToast(res.data.message, 'success'); // 🔔
+            addToast(res.data.message, 'success');
             setCurrentPassword('');
             setNewPassword('');
         } catch (err) {
-            addToast(err.response?.data?.message || 'Güncelleme başarısız.', 'error'); // 🔔
+            addToast(err.response?.data?.message || 'Güncelleme başarısız.', 'error');
         } finally {
             setLoading(false);
         }
@@ -152,11 +151,11 @@ const [showContact, setShowContact] = useState(false);
 
             const backendUser = res.data.user;
             const currentToken = localStorage.getItem('token');
-            const cacheBustingAvatarUrl = `${backendUser.avatarUrl}?v=${Date.now()}`;
 
+            // Cache busting için versiyon ekle
             const updatedUserForContext = {
                 ...backendUser,
-                avatarUrl: cacheBustingAvatarUrl,
+                avatarUrl: `${backendUser.avatarUrl}?v=${Date.now()}`,
             };
 
             dispatch({
@@ -167,11 +166,11 @@ const [showContact, setShowContact] = useState(false);
                 }
             });
 
-            addToast(res.data.message || 'Fotoğraf başarıyla yüklendi!', 'success'); // 🔔
+            addToast(res.data.message || 'Fotoğraf başarıyla yüklendi!', 'success');
             setAvatarFile(null);
 
         } catch (error) {
-            addToast(error.response?.data?.message || 'Fotoğraf yükleme başarısız.', 'error'); // 🔔
+            addToast(error.response?.data?.message || 'Fotoğraf yükleme başarısız.', 'error');
         } finally {
             setLoading(false);
         }
@@ -185,7 +184,8 @@ const [showContact, setShowContact] = useState(false);
                     <p>Kullanıcı bilgilerini, parolanı ve profil görselini buradan düzenle.</p>
                 </div>
                 <div className="profile-header-avatar">
-                    <img src={displayAvatarUrl} alt={`${user.username} avatarı`}/>
+                    {/* Hata Yakalayıcı Eklendi */}
+                    <img src={displayAvatarUrl} alt={`${user.username} avatarı`} onError={handleAvatarError}/>
                     <div>
                         <strong>{user.username}</strong>
                         <span>{user.email}</span>
@@ -200,10 +200,7 @@ const [showContact, setShowContact] = useState(false);
                         <img
                             src={displayAvatarUrl}
                             alt={`${user.username} avatarı`}
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = DEFAULT_AVATAR;
-                            }}
+                            onError={handleAvatarError} // Hata yakalayıcı eklendi
                         />
                     </div>
 
@@ -287,11 +284,11 @@ const [showContact, setShowContact] = useState(false);
                     <p>Başka bir kullanıcıyla oturum açmak için mevcut oturumunu sonlandır.</p>
                 </div>
 
-                {/* 🔔 MODAL TETİKLEYİCİ */}
                 <button className="logout-button" onClick={handleLogoutClick}>
                     Çıkış Yap
                 </button>
             </div>
+
             <div className="settings-card" style={{border: '1px solid #5865f2', marginTop: '20px'}}>
                 <div style={{
                     display: 'flex',
@@ -307,7 +304,7 @@ const [showContact, setShowContact] = useState(false);
                         </p>
                     </div>
                     <button
-                        onClick={() => navigate('/dashboard/contact')} // 👈 DÜZELTME: Sayfaya git
+                        onClick={() => navigate('/dashboard/contact')}
                         style={{
                             background: '#5865f2', color: 'white', border: 'none',
                             padding: '10px 16px', borderRadius: '8px', cursor: 'pointer',
@@ -320,7 +317,6 @@ const [showContact, setShowContact] = useState(false);
                 </div>
             </div>
 
-            {/* 🔔 ONAY PENCERESİ */}
             <ConfirmationModal
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal(p => ({...p, isOpen: false}))}

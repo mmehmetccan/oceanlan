@@ -132,14 +132,7 @@ const VoiceRoom = () => {
                 />
             </div>
 
-            <div className="voice-user-info-mini">
-              <span className="voice-username">
-                  {safeUser.username}
-              </span>
-                <span className="voice-status-micro">
-                  {isMicMuted ? 'Muted' : 'Open'}
-              </span>
-          </div>
+
       </div>
     </div>
   );

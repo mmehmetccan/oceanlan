@@ -10,7 +10,7 @@ import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { useSocket } from '../hooks/useSocket';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
-// 👇 YENİ URL HELPER
+// URL Helper
 import { getImageUrl } from '../utils/urlHelper';
 
 import '../styles/FeedPage.css';
@@ -24,12 +24,11 @@ const handleAvatarErrorWrapper = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
   if (e?.target) {
     e.target.dataset.fallbackApplied = 'true';
-    e.target.src = getImageUrl(null); // Helper'dan varsayılan resmi al
+    e.target.src = getImageUrl(null);
   }
 };
 
 const FeedPage = () => {
-  // --- STATE ---
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -37,18 +36,15 @@ const FeedPage = () => {
   const [recipientUsername, setRecipientUsername] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
 
-  // Modallar
   const [contextMenu, setContextMenu] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
 
-  // Context & Hooks
   const { socket } = useSocket();
   const { user, unreadDmConversations } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
   const navigate = useNavigate();
 
-  // --- API VERİ ÇEKME ---
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -71,7 +67,6 @@ const FeedPage = () => {
     loadData();
   }, []);
 
-  // --- SOCKET DİNLEYİCİLERİ ---
   useEffect(() => {
     if (!socket || !user) return;
 
@@ -157,11 +152,8 @@ const FeedPage = () => {
 
   const handleContextMenu = (e, userObj, type) => {
       e.preventDefault();
-      // 🛑 HATA ÇIKARAN KISIM DÜZELTİLDİ
-      // getImageUrl helper'ı kullanarak güvenli URL üretiyoruz
       const avatarUrl = getImageUrl(userObj.avatarUrl || userObj.avatar);
-      const correctedUser = { ...userObj, avatarUrl };
-
+      const correctedUser = { ...userObj, avatarUrl, _id: userObj._id || userObj.id };
       setContextMenu({ x: e.pageX, y: e.pageY, user: correctedUser, type });
   };
 
@@ -176,16 +168,8 @@ const FeedPage = () => {
   const onPostCreated = (newPost) => setPosts(prev => [newPost, ...prev]);
   const onPostUpdated = (upd) => setPosts(prev => prev.map(p => p._id === upd._id ? upd : p));
 
-  // --- LİSTELER ---
   const friendSuggestions = useMemo(() => {
-      return friends
-        .filter(f => f?._id && f._id !== user?.id)
-        .map(f => ({
-            ...f,
-            // Avatar URL'sini güvenli helper ile oluşturuyoruz
-            avatar: getImageUrl(f.avatarUrl || f.avatar)
-        }))
-        .slice(0, 7);
+      return friends.filter(f => f?._id && f._id !== user?.id).map(f => ({ ...f, avatar: getImageUrl(f.avatarUrl || f.avatar) })).slice(0, 7);
   }, [friends, user]);
 
   const dmShortlist = useMemo(() => friends.slice(0, 7), [friends]);
@@ -208,20 +192,22 @@ const FeedPage = () => {
                   post={post}
                   onPostUpdated={onPostUpdated}
                   onPostDeleted={handlePostDeletedLocal}
-                  getAvatarUrl={getAvatarUrlWrapper} // Wrapper kullanıldı
-                  handleAvatarError={handleAvatarErrorWrapper} // Wrapper kullanıldı
+                  getAvatarUrl={getAvatarUrlWrapper}
+                  handleAvatarError={handleAvatarErrorWrapper}
               />
           )}
         </div>
       </div>
 
       <aside className="feed-rail">
+        {/* PROFİL KARTI */}
         <div className="rail-card rail-profile">
           <div className="rail-profile-avatar"><img src={getImageUrl(user?.avatarUrl || user?.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" /></div>
           <div className="rail-profile-meta"><p className="rail-profile-name">{user?.username}</p><span className="rail-profile-sub">{onlineCount} çevrimiçi arkadaş</span></div>
           <button className="rail-btn rail-btn-outline" onClick={goProfile}>Profil</button>
         </div>
 
+        {/* ARKADAŞ EKLE */}
         <div className="rail-card">
           <div className="rail-card-header"><h4>Arkadaş Ekle</h4></div>
           <form className="rail-form" onSubmit={handleSendFriendRequest}>
@@ -231,6 +217,7 @@ const FeedPage = () => {
           </form>
         </div>
 
+        {/* ARKADAŞLAR */}
         <div className="rail-card">
           <div className="rail-card-header clickable-header" onClick={goToFriendsPage} title="Tümünü Gör"><h4>Arkadaşlar</h4><span className="rail-chip">{onlineCount}</span></div>
           <div className="rail-list">
@@ -244,20 +231,36 @@ const FeedPage = () => {
           </div>
         </div>
 
+        {/* DM KUTUSU */}
         <div className="rail-card">
           <div className="rail-card-header"><h4 onClick={goToAllDmsPage} style={{ cursor: 'pointer' }}>DM Kutusu</h4><button className="rail-link" type="button" onClick={goToAllDmsPage}>Tümünü gör</button></div>
           <div className="rail-list dm-list">
             {dmShortlist.length === 0 ? <p className="rail-empty">DM geçmişi yok.</p> : dmShortlist.map((dmUser) => {
                 const hasUnread = unreadDmConversations.some(id => String(id) === String(dmUser.conversationId));
+
+                // 🟢 DÜZELTME: Online durumu için nokta eklendi
+                const isOnline = dmUser.onlineStatus === 'online';
+
                 return (
                   <div key={dmUser._id} className="rail-user dm-user">
                     <div className="rail-user-avatar" style={{position:'relative'}}>
                         <img src={getImageUrl(dmUser.avatarUrl || dmUser.avatar)} onError={handleAvatarErrorWrapper} alt={dmUser.username} />
-                        {hasUnread && <span className="unread-badge" title="Yeni Mesaj" style={{position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%', backgroundColor: '#ed4245', border: '3px solid #2f3136'}} />}
+                        {hasUnread && <span className="unread-badge" title="Yeni Mesaj" style={{position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%', backgroundColor: '#6ded42', border: '3px solid #2f3136'}} />}
                     </div>
                     <div className="rail-user-meta">
                         <span className="rail-user-name" style={{ fontWeight: hasUnread ? 'bold' : 'normal', color: hasUnread ? '#fff' : '' }}>{dmUser.username}</span>
-                        <span className="rail-user-status">{hasUnread ? <span style={{color:'#ed4245', fontWeight:'bold', fontSize:'11px'}}>YENİ MESAJ</span> : getStatusText(dmUser)}</span>
+
+                        <span className="rail-user-status">
+                            {hasUnread ? (
+                                <span style={{color:'#6ded42', fontWeight:'bold', fontSize:'11px'}}>YENİ MESAJ</span>
+                            ) : (
+                                // 🟢 YEŞİL NOKTA BURAYA EKLENDİ
+                                <>
+                                    <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
+                                    {getStatusText(dmUser)}
+                                </>
+                            )}
+                        </span>
                     </div>
                     <button className="rail-btn rail-btn-primary" onClick={() => startDmFromRail(dmUser._id)}>Mesaj</button>
                   </div>
@@ -266,6 +269,7 @@ const FeedPage = () => {
           </div>
         </div>
 
+        {/* İSTEKLER */}
         <div className="rail-card">
           <div className="rail-card-header"><h4>İstekler</h4><span className="rail-chip">{pendingRequests.length}</span></div>
           <div className="rail-list">

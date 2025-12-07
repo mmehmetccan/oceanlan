@@ -1,104 +1,91 @@
 // src/components/modals/FeedContextMenu.jsx
-import React, { useRef, useState, useLayoutEffect } from 'react';
-import '../../styles/MemberContextMenu.css';
+import React, { useRef, useLayoutEffect, useState } from 'react';
+// 👇 HELPER IMPORT
+import { getImageUrl } from '../../utils/urlHelper';
+import '../../styles/MemberContextMenu.css'; // Veya kendi CSS dosyan
 
-const FeedContextMenu = ({ x, y, user, relationshipType, onClose, onAction }) => {
+const FeedContextMenu = ({ x, y, user, type, onClose, onAction }) => {
   const menuRef = useRef(null);
-  const [position, setPosition] = useState({ top: y, left: x, opacity: 0 });
+  const [menuStyle, setMenuStyle] = useState({ top: y, left: x, opacity: 0 });
 
+  // Ekran taşmasını önleyen akıllı konumlandırma
   useLayoutEffect(() => {
-      if (menuRef.current) {
-          const rect = menuRef.current.getBoundingClientRect();
-          const { innerWidth, innerHeight } = window;
+    if (menuRef.current) {
+      const { offsetWidth: width, offsetHeight: height } = menuRef.current;
+      let newTop = y;
+      let newLeft = x;
 
-          let newTop = y;
-          let newLeft = x;
+      // Sağa taşıyorsa sola al
+      if (x + width > window.innerWidth) newLeft = x - width;
+      // Aşağı taşıyorsa yukarı al
+      if (y + height > window.innerHeight) newTop = y - height;
 
-          if (x + rect.width > innerWidth) {
-              newLeft = x - rect.width;
-          }
-          if (y + rect.height > innerHeight) {
-              newTop = y - rect.height;
-          }
+      // Negatif değerleri engelle
+      if (newLeft < 0) newLeft = 10;
+      if (newTop < 0) newTop = 10;
 
-          setPosition({ top: newTop, left: newLeft, opacity: 1 });
-      }
+      setMenuStyle({ top: newTop, left: newLeft, opacity: 1 });
+    }
   }, [x, y]);
 
   if (!user) return null;
 
-  const handleOpenProfile = () => {
-      onAction('profile', user);
+  // 👇 GÜVENLİ RESİM URL (Çökme sorununu çözen yer)
+  const avatarSrc = getImageUrl(user.avatarUrl || user.avatar);
+
+  const handleAvatarError = (e) => {
+    if (e.target.dataset.fallbackApplied) return;
+    e.target.dataset.fallbackApplied = 'true';
+    e.target.src = getImageUrl(null);
   };
 
   return (
-    <>
-      <div className="member-menu-overlay" onClick={onClose} />
+    <div className="member-menu-overlay" onClick={onClose}>
       <div
         ref={menuRef}
         className="member-menu-panel"
-        style={{
-            top: position.top,
-            left: position.left,
-            opacity: position.opacity,
-            position: 'fixed',
-            zIndex: 1000
-        }}
+        style={{ top: menuStyle.top, left: menuStyle.left, opacity: menuStyle.opacity }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Üst Bilgi Kısmı */}
         <div className="member-menu-header">
-          <div
-            className="member-menu-avatar"
-            onClick={handleOpenProfile}
-            style={{ cursor: 'pointer' }}
-          >
+          <div className="member-menu-avatar">
             <img
-              src={user.avatarUrl}
-              alt={user.username}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                src={avatarSrc}
+                alt={user.username}
+                onError={handleAvatarError}
+                style={{width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover'}}
             />
           </div>
           <div className="member-menu-info">
-            <div
-                className="member-menu-name clickable"
-                onClick={handleOpenProfile}
-                style={{ cursor: 'pointer', fontWeight: 'bold' }}
-                title="Profili Görüntüle"
-            >
-                {user.username}
-            </div>
-            <div className="member-menu-sub">
-                {relationshipType === 'friend' ? 'Arkadaş' : 'Kullanıcı'}
+            <div className="member-menu-name">{user.username}</div>
+            <div className="member-menu-sub" style={{textTransform:'capitalize'}}>
+                {type === 'friend' ? 'Arkadaş' : 'Kullanıcı'}
             </div>
           </div>
         </div>
 
+        {/* Aksiyon Butonları */}
         <div className="member-menu-actions">
-          {relationshipType === 'friend' && (
-            <button className="member-menu-btn" onClick={() => onAction('message', user)}>
-              Mesaj Gönder
-            </button>
-          )}
+          <button className="member-menu-btn" onClick={() => onAction('profile', user)}>
+            Profili Görüntüle
+          </button>
 
-          {(relationshipType === 'friend' || relationshipType.startsWith('pending')) && (
-             <hr className="menu-divider" />
-          )}
+          <button className="member-menu-btn" onClick={() => onAction('message', user)}>
+            Mesaj Gönder
+          </button>
 
-          {relationshipType === 'friend' && (
+          <hr className="menu-divider" />
+
+          {type === 'friend' && (
             <button className="member-menu-btn danger" onClick={() => onAction('remove', user)}>
               Arkadaşlıktan Çıkar
             </button>
           )}
 
-          {relationshipType === 'pending_outgoing' && (
-            <button className="member-menu-btn danger" onClick={() => onAction('cancel', user)}>
-              İsteği İptal Et
-            </button>
-          )}
-
-          {relationshipType === 'pending_incoming' && (
+          {type === 'pending_incoming' && (
             <>
-                <button className="member-menu-btn" style={{color:'#3ba55c'}} onClick={() => onAction('accept', user)}>
+                <button className="member-menu-btn success" onClick={() => onAction('accept', user)}>
                 Kabul Et
                 </button>
                 <button className="member-menu-btn danger" onClick={() => onAction('reject', user)}>
@@ -106,9 +93,15 @@ const FeedContextMenu = ({ x, y, user, relationshipType, onClose, onAction }) =>
                 </button>
             </>
           )}
+
+          {type === 'pending_outgoing' && (
+            <button className="member-menu-btn danger" onClick={() => onAction('cancel', user)}>
+              İsteği İptal Et
+            </button>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
