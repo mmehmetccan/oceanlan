@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
 import MemberContextMenu from '../modals/MemberContextMenu';
-// 👇 URL Helper eklendi (Kırık resim sorunu için)
+// 👇 URL Helper
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 
@@ -12,7 +12,6 @@ const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
   if (e?.target) {
     e.target.dataset.fallbackApplied = 'true';
-    // Helper'dan default resmi al
     e.target.src = getImageUrl(null);
   }
 };
@@ -23,20 +22,19 @@ const ServerMembersPanel = () => {
   const location = useLocation();
   const [contextMenu, setContextMenu] = useState(null);
 
+  // Sadece sunucu rotalarındaysa göster
   const isOnServerRoute = location.pathname.includes('/dashboard/server/');
 
-  // 1. ÜYELERİ ROLLERE GÖRE GRUPLA
   const groupedMembers = useMemo(() => {
     if (!activeServer || !isOnServerRoute) return [];
 
     const members = activeServer.members || [];
     const roles = activeServer.roles || [];
 
-    // Rolleri pozisyona göre sırala (Yüksek yetki en üstte)
-    // Eğer position yoksa varsayılan sırayı kullan
+    // Rolleri en yüksek pozisyona göre sırala
     const sortedRoles = [...roles].sort((a, b) => (b.position || 0) - (a.position || 0));
 
-    // Her rol için bir grup oluştur
+    // Grupları hazırla
     const groups = sortedRoles.map(role => ({
       roleId: role._id,
       roleName: role.name,
@@ -44,20 +42,14 @@ const ServerMembersPanel = () => {
       members: []
     }));
 
-    // "Çevrimiçi" ve "Çevrimdışı" (Rolü olmayanlar veya @everyone) için varsayılan gruplar
-    // İstersen sadece "Online" ve "Offline" diye de ayırabilirsin.
-    // Biz Discord gibi en yüksek role göre atama yapacağız.
+    const memberSet = new Set();
 
-    const memberSet = new Set(); // Bir üyeyi birden fazla gruba koymamak için
-
+    // Her kullanıcıyı en yüksek rolüne ata
     groups.forEach(group => {
-      // Bu role sahip üyeleri bul
       group.members = members.filter(member => {
-        if (memberSet.has(member._id)) return false; // Zaten bir gruba eklendiyse geç
+        if (memberSet.has(member._id)) return false;
 
-        // Üyenin bu rolü var mı?
         const hasRole = member.roles.some(r => r._id === group.roleId || r === group.roleId);
-
         if (hasRole) {
             memberSet.add(member._id);
             return true;
@@ -66,14 +58,13 @@ const ServerMembersPanel = () => {
       });
     });
 
-    // Hiçbir özel rolü olmayanlar (veya sadece @everyone olanlar)
+    // Rolsüzler (veya @everyone)
     const noRoleMembers = members.filter(m => !memberSet.has(m._id));
 
-    // Online / Offline diye ayırabiliriz
+    // Online / Offline
     const onlineNoRole = noRoleMembers.filter(m => m.user?.onlineStatus === 'online');
     const offlineNoRole = noRoleMembers.filter(m => m.user?.onlineStatus !== 'online');
 
-    // Grupları birleştir (Boş grupları filtrele)
     const result = [
         ...groups.filter(g => g.members.length > 0 && g.roleName !== '@everyone'),
         { roleName: 'Çevrimiçi', members: onlineNoRole },
@@ -84,63 +75,70 @@ const ServerMembersPanel = () => {
 
   }, [activeServer, isOnServerRoute]);
 
+  // Eğer sunucuda değilsek hiç render etme
   if (!isOnServerRoute || !activeServer) return null;
 
   const handleContextMenu = (e, member) => {
     e.preventDefault();
-    if (!member || !member.user || member.user._id === user.id) return;
+    if (!member || !member.user) return;
     setContextMenu({ x: e.pageX, y: e.pageY, member });
   };
 
   return (
     <div className="members-sidebar" onClick={() => setContextMenu(null)}>
+      {/* BAŞLIK KISMI */}
+      <h3 className="members-title">Üyeler ({activeServer.members?.length || 0})</h3>
 
-      {groupedMembers.map((group, index) => (
-        <div key={group.roleName + index} className="member-group">
-            <h3 className="role-header" style={{ color: group.color || '#96989d' }}>
-                {group.roleName.toUpperCase()} — {group.members.length}
-            </h3>
+      <div className="members-scroll-area">
+        {groupedMembers.map((group, index) => (
+            <div key={group.roleName + index} className="member-group">
+                <h4 className="role-header" style={{ color: group.color || '#96989d' }}>
+                    {group.roleName.toUpperCase()} — {group.members.length}
+                </h4>
 
-            <div className="members-list">
-                {group.members.map((member) => {
-                    const isOwner = activeServer.owner && member.user && activeServer.owner._id === member.user._id;
-                    const isOnline = member.user?.onlineStatus === 'online';
+                <div className="members-list">
+                    {group.members.map((member) => {
+                        const isOwner = activeServer.owner && member.user && (
+                            activeServer.owner._id === member.user._id || activeServer.owner === member.user._id
+                        );
+                        const isOnline = member.user?.onlineStatus === 'online';
 
-                    // 👇 RESİM URL DÜZELTME
-                    const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
+                        // Resim düzeltmesi
+                        const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
 
-                    return (
-                        <div
-                            key={member._id}
-                            className={`member-item ${!isOnline ? 'offline' : ''}`}
-                            onContextMenu={(e) => handleContextMenu(e, member)}
-                        >
-                            <div className="member-avatar-container">
-                                <div className="member-avatar">
-                                    <img
-                                        src={avatarSrc}
-                                        alt={member.user?.username}
-                                        onError={handleAvatarError}
-                                    />
+                        return (
+                            <div
+                                key={member._id}
+                                className={`member-item ${!isOnline ? 'offline' : ''}`}
+                                onContextMenu={(e) => handleContextMenu(e, member)}
+                            >
+                                <div className="member-avatar-container">
+                                    <div className="member-avatar">
+                                        <img
+                                            src={avatarSrc}
+                                            alt={member.user?.username}
+                                            onError={handleAvatarError}
+                                        />
+                                    </div>
+                                    <div className={`status-indicator ${isOnline ? 'online' : 'offline'}`} />
                                 </div>
-                                <div className={`status-indicator ${isOnline ? 'online' : 'offline'}`} />
-                            </div>
 
-                            <div className="member-info">
-                                <span
-                                    className="member-name"
-                                    style={{ color: isOnline ? '#fff' : '#8e9297' }}
-                                >
-                                    {member.user?.username || 'Bilinmeyen'}
-                                </span>
-                                {isOwner && <span className="member-badge">👑</span>}
+                                <div className="member-info">
+                                    <span
+                                        className="member-name"
+                                        style={{ color: isOnline ? '#fff' : '#8e9297' }}
+                                    >
+                                        {member.user?.username || 'Bilinmeyen'}
+                                    </span>
+                                    {isOwner && <span className="member-badge" title="Sunucu Sahibi">👑</span>}
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {contextMenu && (
           <MemberContextMenu
