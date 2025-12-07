@@ -10,23 +10,22 @@ import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { useSocket } from '../hooks/useSocket';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
-// 👇 URL Helper Importu (Resim sorununu çözen kısım)
+// 👇 YENİ URL HELPER
 import { getImageUrl } from '../utils/urlHelper';
 
 import '../styles/FeedPage.css';
 
-// Hata durumunda varsayılan resmi yükle
-export const handleAvatarError = (e) => {
+// PostCard ve diğer bileşenler için güvenli helper fonksiyonlar
+const getAvatarUrlWrapper = (entity) => {
+    return getImageUrl(entity?.avatarUrl || entity?.avatar);
+};
+
+const handleAvatarErrorWrapper = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
   if (e?.target) {
     e.target.dataset.fallbackApplied = 'true';
-    e.target.src = getImageUrl(null); // Helper'dan varsayılanı al
+    e.target.src = getImageUrl(null); // Helper'dan varsayılan resmi al
   }
-};
-
-// Avatar URL'sini güvenli hale getir
-export const getAvatarUrl = (entity) => {
-    return getImageUrl(entity?.avatarUrl || entity?.avatar);
 };
 
 const FeedPage = () => {
@@ -158,8 +157,11 @@ const FeedPage = () => {
 
   const handleContextMenu = (e, userObj, type) => {
       e.preventDefault();
-      // Burada da helper kullanıyoruz
-      const correctedUser = { ...userObj, avatarUrl: getAvatarUrl(userObj) };
+      // 🛑 HATA ÇIKARAN KISIM DÜZELTİLDİ
+      // getImageUrl helper'ı kullanarak güvenli URL üretiyoruz
+      const avatarUrl = getImageUrl(userObj.avatarUrl || userObj.avatar);
+      const correctedUser = { ...userObj, avatarUrl };
+
       setContextMenu({ x: e.pageX, y: e.pageY, user: correctedUser, type });
   };
 
@@ -174,7 +176,18 @@ const FeedPage = () => {
   const onPostCreated = (newPost) => setPosts(prev => [newPost, ...prev]);
   const onPostUpdated = (upd) => setPosts(prev => prev.map(p => p._id === upd._id ? upd : p));
 
-  const friendSuggestions = useMemo(() => friends.filter(f => f?._id && f._id !== user?.id).map(f => ({ ...f, avatar: getAvatarUrl(f) })).slice(0, 7), [friends, user]);
+  // --- LİSTELER ---
+  const friendSuggestions = useMemo(() => {
+      return friends
+        .filter(f => f?._id && f._id !== user?.id)
+        .map(f => ({
+            ...f,
+            // Avatar URL'sini güvenli helper ile oluşturuyoruz
+            avatar: getImageUrl(f.avatarUrl || f.avatar)
+        }))
+        .slice(0, 7);
+  }, [friends, user]);
+
   const dmShortlist = useMemo(() => friends.slice(0, 7), [friends]);
   const onlineCount = useMemo(() => friendSuggestions.filter(f => f.onlineStatus === 'online').length, [friendSuggestions]);
 
@@ -195,8 +208,8 @@ const FeedPage = () => {
                   post={post}
                   onPostUpdated={onPostUpdated}
                   onPostDeleted={handlePostDeletedLocal}
-                  getAvatarUrl={getAvatarUrl}
-                  handleAvatarError={handleAvatarError}
+                  getAvatarUrl={getAvatarUrlWrapper} // Wrapper kullanıldı
+                  handleAvatarError={handleAvatarErrorWrapper} // Wrapper kullanıldı
               />
           )}
         </div>
@@ -204,7 +217,7 @@ const FeedPage = () => {
 
       <aside className="feed-rail">
         <div className="rail-card rail-profile">
-          <div className="rail-profile-avatar"><img src={getAvatarUrl(user)} onError={handleAvatarError} alt="Avatar" /></div>
+          <div className="rail-profile-avatar"><img src={getImageUrl(user?.avatarUrl || user?.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" /></div>
           <div className="rail-profile-meta"><p className="rail-profile-name">{user?.username}</p><span className="rail-profile-sub">{onlineCount} çevrimiçi arkadaş</span></div>
           <button className="rail-btn rail-btn-outline" onClick={goProfile}>Profil</button>
         </div>
@@ -223,7 +236,7 @@ const FeedPage = () => {
           <div className="rail-list">
             {friendSuggestions.map(friend => (
               <div key={friend._id} className="rail-user" onContextMenu={(e) => handleContextMenu(e, friend, 'friend')}>
-                <div className="rail-user-avatar"><img src={friend.avatar} onError={handleAvatarError} alt={friend.username} /></div>
+                <div className="rail-user-avatar"><img src={friend.avatar} onError={handleAvatarErrorWrapper} alt={friend.username} /></div>
                 <div className="rail-user-meta"><span className="rail-user-name">{friend.username}</span><span className="rail-user-status"><span className={`status-dot ${friend.onlineStatus === 'online' ? 'online' : 'offline'}`} />{getStatusText(friend)}</span></div>
                 <button className="rail-btn rail-btn-primary" onClick={() => startDmFromRail(friend._id)}>Mesaj</button>
               </div>
@@ -239,8 +252,8 @@ const FeedPage = () => {
                 return (
                   <div key={dmUser._id} className="rail-user dm-user">
                     <div className="rail-user-avatar" style={{position:'relative'}}>
-                        <img src={getAvatarUrl(dmUser)} onError={handleAvatarError} alt={dmUser.username} />
-                        {hasUnread && <span className="unread-badge" title="Yeni Mesaj" />}
+                        <img src={getImageUrl(dmUser.avatarUrl || dmUser.avatar)} onError={handleAvatarErrorWrapper} alt={dmUser.username} />
+                        {hasUnread && <span className="unread-badge" title="Yeni Mesaj" style={{position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%', backgroundColor: '#ed4245', border: '3px solid #2f3136'}} />}
                     </div>
                     <div className="rail-user-meta">
                         <span className="rail-user-name" style={{ fontWeight: hasUnread ? 'bold' : 'normal', color: hasUnread ? '#fff' : '' }}>{dmUser.username}</span>
@@ -262,7 +275,7 @@ const FeedPage = () => {
                const otherUser = isOutgoing ? req.recipient : req.requester;
                return (
                  <div key={req._id} className="rail-user" onContextMenu={(e) => handleContextMenu(e, otherUser, isOutgoing ? 'pending_outgoing' : 'pending_incoming')}>
-                   <div className="rail-user-avatar"><img src={getAvatarUrl(otherUser)} onError={handleAvatarError} alt="Avatar" /></div>
+                   <div className="rail-user-avatar"><img src={getImageUrl(otherUser.avatarUrl || otherUser.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" /></div>
                    <div className="rail-user-meta"><span className="rail-user-name">{otherUser?.username}</span><span className="rail-user-status" style={{color: isOutgoing ? '#faa61a' : '#3ba55c', fontWeight:'600'}}>{isOutgoing ? 'İstek gönderildi' : 'Sana istek gönderdi'}</span></div>
                    <div className="rail-actions">
                       {isOutgoing ? <span style={{ fontSize: '11px', color: '#b9bbbe', fontStyle: 'italic' }}>Bekleniyor...</span> : (
