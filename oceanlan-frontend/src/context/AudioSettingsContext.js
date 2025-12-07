@@ -18,6 +18,10 @@ export const AudioSettingsProvider = ({ children }) => {
   const [isDeafened, setIsDeafened] = useState(false);
   const [userVolumes, setUserVolumes] = useState({});
 
+  const [isNoiseSuppression, setIsNoiseSuppression] = useState(
+    localStorage.getItem('isNoiseSuppression') !== 'false' // String kontrolü, varsayılan true
+  );
+
   useEffect(() => {
     localStorage.setItem('inputMode', inputMode);
     localStorage.setItem('pttKey', pttKey);
@@ -25,7 +29,8 @@ export const AudioSettingsProvider = ({ children }) => {
     // 👇 Ayarları kaydet
     localStorage.setItem('outputDeviceId', outputDeviceId);
     localStorage.setItem('inputDeviceId', inputDeviceId);
-  }, [inputMode, pttKey, pttKeyCode, outputDeviceId, inputDeviceId]);
+    localStorage.setItem('isNoiseSuppression', isNoiseSuppression);
+  }, [inputMode, pttKey, pttKeyCode, outputDeviceId, inputDeviceId,isNoiseSuppression]);
 
   const setUserVolume = (userId, volume) => {
     setUserVolumes(prev => ({
@@ -40,7 +45,7 @@ export const AudioSettingsProvider = ({ children }) => {
 
   const toggleMic = () => setIsMicMuted((prev) => !prev);
   const toggleDeafen = () => setIsDeafened((prev) => !prev);
-
+const toggleNoiseSuppression = () => setIsNoiseSuppression(prev => !prev);
   return (
     <AudioSettingsContext.Provider
       value={{
@@ -51,7 +56,8 @@ export const AudioSettingsProvider = ({ children }) => {
         inputDeviceId, setInputDeviceId,   // 👈 Mikrofon
         isMicMuted, toggleMic, setIsMicMuted,
         isDeafened, toggleDeafen,
-        userVolumes, setUserVolume, getUserVolume
+        userVolumes, setUserVolume, getUserVolume,
+          isNoiseSuppression, toggleNoiseSuppression
       }}
     >
       {children}

@@ -9,7 +9,8 @@ import {
     SpeakerWaveIcon,
     ComputerDesktopIcon,
     PhoneXMarkIcon,
-    SignalIcon
+    SignalIcon,
+    SparklesIcon
 } from '@heroicons/react/24/solid';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -38,7 +39,7 @@ const VoiceRoom = () => {
       isConnected
   } = useContext(VoiceContext);
 
-  const { isMicMuted, toggleMic, isDeafened, toggleDeafen } = useContext(AudioSettingsContext);
+  const { isMicMuted, toggleMic, isDeafened, toggleDeafen,isNoiseSuppression, toggleNoiseSuppression } = useContext(AudioSettingsContext);
   const { user } = useContext(AuthContext);
 
   // 1. Kanal seçilmediyse gösterme (Bu doğru)
@@ -89,34 +90,43 @@ const VoiceRoom = () => {
         </div>
       </div>
 
-      <div className="voice-controls-actions">
-        <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
-            <MicrophoneIcon className="voice-icon" />
-            {isMicMuted && <div className="strike-line" />}
-        </button>
+        <div className="voice-controls-actions">
+            <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
+                <MicrophoneIcon className="voice-icon"/>
+                {isMicMuted && <div className="strike-line"/>}
+            </button>
 
-        <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`}>
-            <SpeakerWaveIcon className="voice-icon" />
-            {isDeafened && <div className="strike-line" />}
-        </button>
+            <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`}>
+                <SpeakerWaveIcon className="voice-icon"/>
+                {isDeafened && <div className="strike-line"/>}
+            </button>
+            <button
+                onClick={toggleNoiseSuppression}
+                className={`voice-control-btn ${isNoiseSuppression ? 'active-purple' : ''}`}
+                title="Gürültü Engelleme (Krisp)"
+                style={isNoiseSuppression ? {color: '#a588ff'} : {}}
+            >
+                <SparklesIcon className="voice-icon"/>
+            </button>
 
-        <button onClick={handleScreenShareToggle} className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
-            <ComputerDesktopIcon className="voice-icon" />
-        </button>
+            <button onClick={handleScreenShareToggle}
+                    className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
+                <ComputerDesktopIcon className="voice-icon"/>
+            </button>
 
-        <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">
-            <PhoneXMarkIcon className="voice-icon" />
-        </button>
-      </div>
+            <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">
+                <PhoneXMarkIcon className="voice-icon"/>
+            </button>
+        </div>
 
-      {/* Kullanıcı Kartı - Anlık Güncelleme */}
-      <div className="voice-user-section">
-          <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
-             <img
-                src={toAbsolute(safeUser.avatarUrl || safeUser.avatar)}
-                alt="Me"
-                className="voice-user-img"
-             />
+        {/* Kullanıcı Kartı - Anlık Güncelleme */}
+        <div className="voice-user-section">
+            <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
+                <img
+                    src={toAbsolute(safeUser.avatarUrl || safeUser.avatar)}
+                    alt="Me"
+                    className="voice-user-img"
+                />
           </div>
 
           <div className="voice-user-info-mini">

@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import Peer from 'simple-peer';
 import { AuthContext } from './AuthContext';
 import { AudioSettingsContext } from './AudioSettingsContext';
+import { ToastContext } from './ToastContext';
 
 export const VoiceContext = createContext();
 
@@ -15,19 +16,21 @@ export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
 
   const peersRef = useRef({});
-  const localStreamRef = useRef(null);
+  const localStreamRef = useRef(null); // Ham (Raw) Mikrofon
+  const processedStreamRef = useRef(null); // İşlenmiş (Temiz) Ses
   const audioElementsRef = useRef({});
 
-  // Ses Analiz Refleri
+  // Ses İşleme ve Analiz Refleri
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const checkIntervalRef = useRef(null);
   const isSpeakingRef = useRef(false);
+  const processingNodesRef = useRef(null); // Filtreler burada tutulacak
 
   const { user, token } = useContext(AuthContext);
+  const { addToast } = useContext(ToastContext);
   const audioSettings = useContext(AudioSettingsContext);
-  const { inputDeviceId, outputDeviceId, isMicMuted, isDeafened, userVolumes } = audioSettings || {};
-
+  const { inputDeviceId, outputDeviceId, isMicMuted, isDeafened, userVolumes,isNoiseSuppression } = audioSettings || {};
   // --- STATES ---
   const [isConnected, setIsConnected] = useState(false);
   const [currentVoiceChannelId, setCurrentVoiceChannelId] = useState(null);
@@ -35,9 +38,7 @@ export const VoiceProvider = ({ children }) => {
   const [currentVoiceChannelName, setCurrentVoiceChannelName] = useState(null);
   const [currentServerName, setCurrentServerName] = useState(null);
 
-  // 🟢 KONUŞANLAR LİSTESİ: { "userId": true, "baskaUserId": false }
   const [speakingUsers, setSpeakingUsers] = useState({});
-
   const [micError, setMicError] = useState(null);
   const [stayConnected, setStayConnected] = useState(false);
   const [peersWithVideo, setPeersWithVideo] = useState({});
@@ -47,25 +48,22 @@ export const VoiceProvider = ({ children }) => {
   useEffect(() => {
     if (!token || socketRef.current) return;
 
-    // 1. Electron Kontrolü (User Agent üzerinden)
     const isElectron = navigator.userAgent.toLowerCase().indexOf(' electron/') > -1;
-
-    // 2. Canlı Sunucu Kontrolü (Domain üzerinden)
     const isProductionUrl = window.location.hostname.includes('oceanlan.com');
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    // 3. KARAR MEKANİZMASI:
-    // Eğer Electron ise VEYA Web'de oceanlan.com üzerindeysek -> CANLIYA BAĞLAN
-    // Sadece tarayıcıda localhost'taysak -> LOCALHOST'A BAĞLAN
-    const backendUrl = (isElectron || isProductionUrl)
-        ? 'https://oceanlan.com'
-        : 'http://localhost:4000';
+    let backendUrl = 'http://localhost:4000';
 
-    console.log(`[VoiceContext] Hedef Sunucu: ${backendUrl} (Electron: ${isElectron})`);
+    if (isElectron || isProductionUrl) {
+        backendUrl = 'https://oceanlan.com';
+    } else if (!isLocalhost) {
+        backendUrl = `http://${window.location.hostname}:4000`;
+    }
 
     socketRef.current = io(backendUrl, {
       auth: { token },
       transports: ['polling', 'websocket'],
-      secure: true, // Her zaman güvenli dene, localhost ise zaten http çalışır
+      secure: true,
       reconnection: true,
       autoConnect: true,
     });
@@ -86,33 +84,140 @@ export const VoiceProvider = ({ children }) => {
     socket.on('webrtc-ice-candidate', handleIce);
     socket.on('user-left-voice', handleUserLeft);
     socket.on('voice-channel-moved', handleChannelMoved);
-
-    // 🟢 DİĞER KULLANICILARIN KONUŞMA DURUMUNU DİNLE
     socket.on('user-speaking-change', ({ userId, isSpeaking }) => {
-        setSpeakingUsers(prev => ({
-            ...prev,
-            [userId]: isSpeaking // UserId anahtarı ile güncelle
-        }));
+        setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }));
     });
 
     return () => {};
   }, [token]);
 
+
+  useEffect(() => {
+      // Sadece bağlıysak ve bir kanaldaysak çalışsın
+      if (!currentVoiceChannelId || !socketRef.current) return;
+
+      const switchAudioMode = async () => {
+          console.log(`[Voice] Gürültü Engelleme: ${isNoiseSuppression ? 'AÇIK' : 'KAPALI'}`);
+
+          try {
+              // 1. Yeni Ham Akışı Al
+              const newRawStream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                      deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+                      // Eğer kapalıysa donanımsal özellikleri de kapatabiliriz, ama genelde açık tutmak iyidir
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                      autoGainControl: true
+                  },
+                  video: false
+              });
+
+              // 2. İşle (veya İşleme)
+              let finalStream = newRawStream;
+              if (isNoiseSuppression) {
+                  finalStream = await processAudioStream(newRawStream);
+              }
+
+              // Mute durumunu koru
+              finalStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+
+              // 3. Eski Analizi Durdur ve Yenisini Başlat
+              stopAudioAnalysis();
+              startAudioAnalysis(finalStream);
+
+              // 4. Peer Bağlantılarını Güncelle (Replace Track)
+              const oldTrack = processedStreamRef.current?.getAudioTracks()[0] || localStreamRef.current?.getAudioTracks()[0];
+              const newTrack = finalStream.getAudioTracks()[0];
+
+              if (oldTrack && newTrack) {
+                  Object.values(peersRef.current).forEach(peer => {
+                      if (!peer.destroyed) {
+                          // Simple-peer replaceTrack: (oldTrack, newTrack, newStream)
+                          peer.replaceTrack(oldTrack, newTrack, finalStream);
+                      }
+                  });
+              }
+
+              // 5. Eski streamleri durdur
+              if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+
+              // 6. Refleri Güncelle
+              localStreamRef.current = newRawStream;
+              processedStreamRef.current = finalStream;
+
+          } catch (e) {
+              console.error("Audio switch error:", e);
+          }
+      };
+
+      switchAudioMode();
+
+      // Cleanup
+      return () => {
+          // Buraya cleanup koymuyoruz, aksi takdirde her toggle'da bağlantı kopar
+      };
+  }, [isNoiseSuppression]);
+
   // ----------------------------------------------------------------
-  // 🔊 MİKROFON ANALİZİ (YEŞİL IŞIK TETİKLEYİCİSİ)
+  // 🎛️ SES İŞLEME MOTORU (NOISE CANCELLATION)
   // ----------------------------------------------------------------
-  const startAudioAnalysis = async (stream) => { // 👈 async yaptık
+  const processAudioStream = async (rawStream) => {
       try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
-          if (!AudioContext) return;
+          if (!AudioContext) return rawStream; // Desteklemiyorsa ham sesi döndür
 
           const audioCtx = new AudioContext();
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-          // 🔥 KRİTİK DÜZELTME: Tarayıcıda AudioContext 'suspended' başlar.
-          // Onu zorla uyandırmamız lazım.
-          if (audioCtx.state === 'suspended') {
-              await audioCtx.resume();
+          const source = audioCtx.createMediaStreamSource(rawStream);
+          const destination = audioCtx.createMediaStreamDestination();
+
+          // 1. High-Pass Filter (Uğultu ve Fan seslerini keser - 100Hz altı)
+          const highPassFilter = audioCtx.createBiquadFilter();
+          highPassFilter.type = 'highpass';
+          highPassFilter.frequency.value = 85; // İnsan sesi genelde 85Hz üstüdür
+          highPassFilter.Q.value = 0.7;
+
+          // 2. Compressor (Ani patlamaları engeller ve sesi dengeler)
+          const compressor = audioCtx.createDynamicsCompressor();
+          compressor.threshold.value = -20;
+          compressor.knee.value = 40;
+          compressor.ratio.value = 12;
+          compressor.attack.value = 0;
+          compressor.release.value = 0.25;
+
+          // Bağlantıları Kur: Kaynak -> Filtre -> Compressor -> Çıkış
+          source.connect(highPassFilter);
+          highPassFilter.connect(compressor);
+          compressor.connect(destination);
+
+          // Referansları sakla (Temizlik için)
+          audioContextRef.current = audioCtx;
+          processingNodesRef.current = { source, highPassFilter, compressor, destination };
+
+          return destination.stream; // Temizlenmiş ses akışı
+      } catch (e) {
+          console.error("Ses işleme hatası:", e);
+          return rawStream; // Hata olursa ham sesi kullan
+      }
+  };
+
+  // ----------------------------------------------------------------
+  // 🔊 MİKROFON ANALİZİ (YEŞİL IŞIK)
+  // ----------------------------------------------------------------
+  const startAudioAnalysis = async (stream) => {
+      try {
+          // Analiz için mevcut context'i kullan veya yeni oluştur
+          let audioCtx = audioContextRef.current;
+
+          if (!audioCtx) {
+              const AudioContext = window.AudioContext || window.webkitAudioContext;
+              if (!AudioContext) return;
+              audioCtx = new AudioContext();
+              audioContextRef.current = audioCtx;
           }
+
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
 
           const analyser = audioCtx.createAnalyser();
           analyser.fftSize = 512;
@@ -120,7 +225,6 @@ export const VoiceProvider = ({ children }) => {
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(analyser);
 
-          audioContextRef.current = audioCtx;
           analyserRef.current = analyser;
 
           if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
@@ -131,11 +235,7 @@ export const VoiceProvider = ({ children }) => {
                   updateSpeakingStatus(false);
                   return;
               }
-
-              // Context hala suspended ise tekrar uyandırmayı dene (Garanti olsun)
-              if (audioCtx.state === 'suspended') {
-                  audioCtx.resume();
-              }
+              if (audioCtx.state === 'suspended') audioCtx.resume();
 
               const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
               analyserRef.current.getByteFrequencyData(dataArray);
@@ -144,11 +244,9 @@ export const VoiceProvider = ({ children }) => {
               for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
               const average = sum / dataArray.length;
 
-              // Eşik Değeri (10 idealdir)
-              const threshold = 5;
-              const isNowSpeaking = average > threshold;
-
-              updateSpeakingStatus(isNowSpeaking);
+              // EŞİK DEĞERİ (Hassasiyet 10)
+              const threshold = 10;
+              updateSpeakingStatus(average > threshold);
 
           }, 100);
 
@@ -160,31 +258,22 @@ export const VoiceProvider = ({ children }) => {
   const updateSpeakingStatus = (isSpeaking) => {
       if (isSpeakingRef.current !== isSpeaking) {
           isSpeakingRef.current = isSpeaking;
-
-          // 1. Sunucuya bildir (Diğerleri görsün)
           if (currentServerId && user) {
               const event = isSpeaking ? 'speaking-start' : 'speaking-stop';
               socketRef.current?.emit(event, { serverId: currentServerId, userId: user.id });
           }
-
-          // 2. Kendim de anında göreyim (Socket gecikmesini bekleme)
-          if (user) {
-              setSpeakingUsers(prev => ({ ...prev, [user.id]: isSpeaking }));
-          }
+          if (user) setSpeakingUsers(prev => ({ ...prev, [user.id]: isSpeaking }));
       }
   };
 
   const stopAudioAnalysis = () => {
       if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
-      if (audioContextRef.current) {
-          audioContextRef.current.close().catch(()=>{});
-          audioContextRef.current = null;
-      }
+      // Context'i hemen kapatmıyoruz, işleme motoru da kullanıyor olabilir
       isSpeakingRef.current = false;
   };
 
   // ----------------------------------------------------------------
-  // TEMİZLİK VE YÖNETİM
+  // TEMİZLİK
   // ----------------------------------------------------------------
   const cleanupMediaOnly = () => {
       Object.keys(peersRef.current).forEach(id => {
@@ -195,15 +284,25 @@ export const VoiceProvider = ({ children }) => {
       audioElementsRef.current = {};
       setPeersWithVideo({});
       setSpeakingUsers({});
-      stopAudioAnalysis(); // Analizi durdur
+      stopAudioAnalysis();
 
       if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach(t => t.stop());
           localStreamRef.current = null;
       }
+      if (processedStreamRef.current) {
+          // İşlenmiş akışı da temizle
+          processedStreamRef.current = null;
+      }
       if (myScreenStream) {
           myScreenStream.getTracks().forEach(t => t.stop());
           setMyScreenStream(null);
+      }
+
+      // AudioContext'i temizle
+      if (audioContextRef.current) {
+          audioContextRef.current.close().catch(()=>{});
+          audioContextRef.current = null;
       }
   };
 
@@ -215,15 +314,22 @@ export const VoiceProvider = ({ children }) => {
     joinVoiceChannel(serverId, newChannelId);
   };
 
+  // ----------------------------------------------------------------
+  // JOIN VOICE CHANNEL
+  // ----------------------------------------------------------------
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
 
-    if (currentVoiceChannelId === cId) return;
-    if (currentVoiceChannelId) {
-        cleanupMediaOnly();
-        socketRef.current?.emit('leave-voice-channel');
+    // HTTPS Kontrolü
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+        alert("Mikrofon kullanımı için sitenin HTTPS olması zorunludur!");
+        addToast('Mikrofon hatası: Güvenli bağlantı (HTTPS) gerekli.', 'error');
+        return;
     }
+
+    if (currentVoiceChannelId === cId) return;
+    if (currentVoiceChannelId) { cleanupMediaOnly(); socketRef.current?.emit('leave-voice-channel'); }
 
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
@@ -232,19 +338,33 @@ export const VoiceProvider = ({ children }) => {
     if(channel.name) setCurrentVoiceChannelName(channel.name);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // 1. Ham Mikrofonu Al (Gelişmiş Gürültü Engelleme Parametreleri ile)
+      const rawStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-          echoCancellation: true, noiseSuppression: true, autoGainControl: true
+          echoCancellation: true,      // Yankı Önleme (Donanımsal)
+          noiseSuppression: true,      // Gürültü Bastırma (Donanımsal)
+          autoGainControl: true,       // Otomatik Ses Seviyesi
+          channelCount: 1,             // Mono (Konuşma için daha iyidir)
+          sampleRate: 48000            // Yüksek kalite
         },
         video: false
       });
 
-      localStreamRef.current = stream;
-      stream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
+      localStreamRef.current = rawStream;
 
-      // 🎤 ANALİZİ BAŞLAT
-      startAudioAnalysis(stream);
+      // 2. Sesi İşle (Yazılımsal Gürültü Temizleme)
+      let streamToSend = rawStream;
+      if (isNoiseSuppression) {
+          streamToSend = await processAudioStream(rawStream);
+      }
+      processedStreamRef.current = streamToSend;
+
+      // Mute kontrolü (Hem ham hem işlenmiş akışta)
+      rawStream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
+      streamToSend.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
+
+      startAudioAnalysis(streamToSend);
 
       socketRef.current.emit('join-voice-channel', {
         serverId: sId,
@@ -255,6 +375,9 @@ export const VoiceProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Mikrofon hatası:", err);
+      if (err.name === 'NotAllowedError') addToast('Mikrofon izni reddedildi.', 'error');
+      else if (err.name === 'NotFoundError') addToast('Mikrofon bulunamadı.', 'error');
+      else addToast(`Mikrofon hatası: ${err.name}`, 'error');
       setMicError("Mikrofon hatası");
     }
   };
@@ -269,17 +392,23 @@ export const VoiceProvider = ({ children }) => {
 
   const rejoinChannel = () => {};
 
-  // WebRTC
+  // WebRTC Handlers
   const handleUserJoined = ({ socketId }) => {
-    const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
+    // İşlenmiş (Temiz) sesi gönder
+    const streamToSend = processedStreamRef.current || localStreamRef.current;
+    const streams = [streamToSend, myScreenStream].filter(Boolean);
     createPeer(socketId, true, streams);
   };
+
   const handleOffer = ({ socketId, sdp }) => {
     if(peersRef.current[socketId]) peersRef.current[socketId].destroy();
-    const streams = [localStreamRef.current, myScreenStream].filter(Boolean);
+    // İşlenmiş (Temiz) sesi gönder
+    const streamToSend = processedStreamRef.current || localStreamRef.current;
+    const streams = [streamToSend, myScreenStream].filter(Boolean);
     const p = createPeer(socketId, false, streams);
     p.signal(sdp);
   };
+
   const handleAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
   const handleIce = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
 
@@ -289,8 +418,6 @@ export const VoiceProvider = ({ children }) => {
       audioElementsRef.current[socketId]?.remove();
       delete audioElementsRef.current[socketId];
       setPeersWithVideo(prev => { const n={...prev}; delete n[socketId]; return n; });
-      // Konuşma listesinden silmek için userId bulmamız lazım ama socketId yeterli değil.
-      // Basitlik adına tüm listeyi sıfırlamıyoruz, backend zaten güncel listeyi atıyor.
   };
 
   const createPeer = (targetSocketId, initiator, streams = []) => {
@@ -316,6 +443,7 @@ export const VoiceProvider = ({ children }) => {
     }
   };
 
+  // Screen Share
   const startScreenShare = async (electronSourceId = null) => {
     try {
         let stream;
@@ -354,25 +482,17 @@ export const VoiceProvider = ({ children }) => {
       if (localStreamRef.current) {
           localStreamRef.current.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
       }
+      // İşlenmiş akışı da mute/unmute yap
+      if (processedStreamRef.current) {
+          processedStreamRef.current.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
+      }
   }, [isMicMuted]);
 
   return (
     <VoiceContext.Provider value={{
-      socket: socketRef.current,
-      isConnected,
-      currentVoiceChannelId,
-      currentServerId,
-      currentVoiceChannelName,
-      currentServerName,
-      joinVoiceChannel,
-      leaveVoiceChannel,
-      speakingUsers, // 🟢 DOLU VERİ
-      micError,
-      stayConnected,
-      peersWithVideo,
-      myScreenStream,
-      startScreenShare,
-      stopScreenShare
+      socket: socketRef.current, isConnected,
+        currentVoiceChannelId, currentServerId,
+        currentVoiceChannelName, currentServerName, joinVoiceChannel, leaveVoiceChannel, speakingUsers, micError, stayConnected, peersWithVideo, myScreenStream, startScreenShare, stopScreenShare
     }}>
       {children}
     </VoiceContext.Provider>
