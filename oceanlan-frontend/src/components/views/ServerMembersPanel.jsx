@@ -1,9 +1,9 @@
 // src/components/views/ServerMembersPanel.jsx
-import React, { useContext, useState, useMemo, useEffect } from 'react'; // useEffect eklendi
+import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
-import { useSocket } from '../../hooks/useSocket'; // 🟢 useSocket eklendi
+import { useSocket } from '../../hooks/useSocket';
 import MemberContextMenu from '../modals/MemberContextMenu';
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
@@ -19,45 +19,80 @@ const handleAvatarError = (e) => {
 const ServerMembersPanel = () => {
   const { activeServer } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
-  const { socket } = useSocket(); // 🟢 Socket bağlantısı alındı
+  const { socket } = useSocket();
   const location = useLocation();
   const [contextMenu, setContextMenu] = useState(null);
 
-  // 🟢 Anlık Online Durumlarını Tutacak State
-  const [onlineStates, setOnlineStates] = useState({});
+  // Anlık durumları tutacak map: { "userId123": "online", "userId456": "offline" }
+  const [onlineStatusMap, setOnlineStatusMap] = useState({});
 
   const isOnServerRoute = location.pathname.includes('/dashboard/server/');
 
-  // 1. Sunucu değiştiğinde veya sayfa açıldığında mevcut üyelerin durumunu kaydet
+  // 1. Sunucu değiştiğinde mevcut üyelerin statik durumunu başlangıç değeri olarak al
   useEffect(() => {
     if (activeServer?.members) {
-      const initialStates = {};
+      const initialMap = {};
       activeServer.members.forEach(member => {
         if (member.user) {
-          initialStates[member.user._id] = member.user.onlineStatus || 'offline';
+          // Eğer sunucudan gelen veride onlineStatus varsa onu kullan, yoksa offline
+          initialMap[member.user._id] = member.user.onlineStatus || 'offline';
         }
       });
-      setOnlineStates(initialStates);
+      setOnlineStatusMap(initialMap);
     }
   }, [activeServer]);
 
-  // 2. Socket üzerinden gelen anlık durum değişikliklerini dinle
+  // 2. Socket Eventlerini Dinle (Çoklu İsim Desteği)
   useEffect(() => {
     if (!socket) return;
 
-    const handleUserStatusChanged = ({ userId, status }) => {
-      setOnlineStates(prev => ({
+    // Kullanıcı bağlandığında
+    const handleUserConnected = (userId) => {
+      // Bazen userId direkt string gelir, bazen obje { userId: "..." } gelir. Kontrol edelim:
+      const id = typeof userId === 'object' ? userId.userId || userId.id : userId;
+
+      console.log("🟢 Socket: Kullanıcı Bağlandı:", id); // Debug için
+
+      setOnlineStatusMap(prev => ({
         ...prev,
-        [userId]: status
+        [id]: 'online'
       }));
     };
 
-    // Backend'de bu eventin adının 'userStatusChanged' olduğundan emin olun.
-    // Eğer 'userConnected' / 'userDisconnected' ayrı ayrıysa ona göre düzenlenmeli.
-    socket.on('userStatusChanged', handleUserStatusChanged);
+    // Kullanıcı ayrıldığında
+    const handleUserDisconnected = (userId) => {
+      const id = typeof userId === 'object' ? userId.userId || userId.id : userId;
+
+      console.log("🔴 Socket: Kullanıcı Ayrıldı:", id); // Debug için
+
+      setOnlineStatusMap(prev => ({
+        ...prev,
+        [id]: 'offline'
+      }));
+    };
+
+    // Alternatif event ismi (userStatusChanged)
+    const handleStatusChanged = (data) => {
+      const id = data.userId || data.id;
+      const status = data.status; // 'online' veya 'offline'
+
+      console.log("🟡 Socket: Durum Değişti:", id, status); // Debug için
+
+      setOnlineStatusMap(prev => ({
+        ...prev,
+        [id]: status
+      }));
+    };
+
+    // Olası tüm event isimlerini dinliyoruz
+    socket.on('userConnected', handleUserConnected);
+    socket.on('userDisconnected', handleUserDisconnected);
+    socket.on('userStatusChanged', handleStatusChanged); // Yedek olarak
 
     return () => {
-      socket.off('userStatusChanged', handleUserStatusChanged);
+      socket.off('userConnected', handleUserConnected);
+      socket.off('userDisconnected', handleUserDisconnected);
+      socket.off('userStatusChanged', handleStatusChanged);
     };
   }, [socket]);
 
@@ -85,52 +120,57 @@ const ServerMembersPanel = () => {
     const offlineList = [];
 
     members.forEach(member => {
-        if (!member.user) return; // Kullanıcı verisi yoksa atla
+        if (!member.user) return;
 
         let assigned = false;
         const memberRoleIds = member.roles.map(r => String(r._id || r));
 
-        // 🟢 Durumu local state'den kontrol et (Statik veriden değil)
-        const currentStatus = onlineStates[member.user._id] || member.user.onlineStatus || 'offline';
-        const isOnline = currentStatus === 'online';
+        // 🟢 KRİTİK NOKTA: Durumu Socket Map'inden çekiyoruz
+        // Eğer map'te varsa onu kullan, yoksa sunucudan gelen ilk veriyi kullan
+        const liveStatus = onlineStatusMap[member.user._id];
+        const initialStatus = member.user.onlineStatus || 'offline';
 
-        // Role göre gruplama
+        // Eğer socketten veri geldiyse liveStatus'u, gelmediyse initial'ı kullan
+        const isOnline = (liveStatus ? liveStatus === 'online' : initialStatus === 'online');
+
+        // Üye objesini güncelle (isOnline bilgisini ekle)
+        const memberWithStatus = { ...member, isOnline };
+
         for (const role of specialRoles) {
             if (memberRoleIds.includes(String(role._id))) {
-                groupsMap.get(role._id).members.push({ ...member, isOnline }); // Durumu objeye ekle
+                groupsMap.get(role._id).members.push(memberWithStatus);
                 assigned = true;
                 break;
             }
         }
 
-        // Eğer bir rol grubuna girmediyse Online/Offline listesine ekle
         if (!assigned) {
             if (isOnline) {
-                onlineList.push({ ...member, isOnline: true });
+                onlineList.push(memberWithStatus);
             } else {
-                offlineList.push({ ...member, isOnline: false });
+                offlineList.push(memberWithStatus);
             }
         }
     });
 
     const result = [];
 
-    // Rol Gruplarını Ekle
     specialRoles.forEach(role => {
         const group = groupsMap.get(role._id);
         if (group && group.members.length > 0) {
+            // İsim sırasına göre diz
             group.members.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
             result.push({ title: group.name, color: group.color, members: group.members });
         }
     });
 
-    // 🟢 Çevrimiçi Listesi
+    // Online Listesi
     if (onlineList.length > 0) {
         onlineList.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
         result.push({ title: 'Çevrimiçi', color: '#43b581', members: onlineList });
     }
 
-    // Çevrimdışı Listesi
+    // Offline Listesi
     if (offlineList.length > 0) {
         offlineList.sort((a, b) => (a.user?.username || '').localeCompare(b.user?.username || ''));
         result.push({ title: 'Çevrimdışı', color: '#747f8d', members: offlineList });
@@ -138,7 +178,7 @@ const ServerMembersPanel = () => {
 
     return result;
 
-  }, [activeServer, isOnServerRoute, onlineStates]); // 🟢 onlineStates bağımlılığı eklendi
+  }, [activeServer, isOnServerRoute, onlineStatusMap]); // onlineStatusMap değiştiğinde burası yeniden hesaplanır
 
   if (!isOnServerRoute || !activeServer) return null;
 
@@ -165,7 +205,7 @@ const ServerMembersPanel = () => {
                             String(activeServer.owner._id || activeServer.owner) === String(member.user._id)
                         );
 
-                        // 🟢 Artık durumu groupedMembers içinde hesaplayıp member objesine 'isOnline' olarak ekledik
+                        // useMemo içinde hesaplanan isOnline değerini kullanıyoruz
                         const isOnline = member.isOnline;
                         const avatarSrc = getImageUrl(member.user?.avatarUrl || member.user?.avatar);
 
@@ -182,7 +222,7 @@ const ServerMembersPanel = () => {
                                         onError={handleAvatarError}
                                         className="smp-avatar-img"
                                     />
-                                    {/* 🟢 Durum Noktası */}
+                                    {/* isOnline durumuna göre class ekle */}
                                     <span className={`smp-status-dot ${isOnline ? 'online' : 'offline'}`} />
                                 </div>
 
