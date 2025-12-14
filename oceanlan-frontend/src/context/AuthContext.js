@@ -67,7 +67,7 @@ const AuthReducer = (state, action) => {
       }
 
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      return { ...state, user, user, token, isAuthenticated: true, loading: false };
+      return { ...state, user, token, isAuthenticated: true, loading: false };
 
     case 'LOGOUT':
       localStorage.clear();
