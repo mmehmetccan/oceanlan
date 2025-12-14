@@ -20,7 +20,7 @@ const Sidebar = ({ unreadCount }) => {
   const handleJoinServer = () => { setIsModalOpen(true); };
   const handleServerClick = (serverId) => { navigate(`/dashboard/server/${serverId}`); };
 
-  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.setup.exe');
   const isApp = isElectron();
 
   useEffect(() => {
