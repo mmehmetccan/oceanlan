@@ -2,26 +2,48 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, session, systemPreferences
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
+// --- DEĞİŞKENLER ---
+let mainWindow;
+let splashWindow;
+
 // --- AYARLAR ---
 autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
-autoUpdater.autoDownload = true;
+autoUpdater.autoDownload = true; // Otomatik indirsin
 
 // Sesin kullanıcı etkileşimi olmadan çalabilmesi için kritik:
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
-// --- HELPER: GÜNCELLEME İLETİŞİMİ ---
-function sendStatusToWindow(type, text) {
-  BrowserWindow.getAllWindows().forEach(win => {
-    win.webContents.send('update-message', { type, text });
+// --- 1. SPLASH PENCERESİ OLUŞTURMA ---
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    transparent: false,
+    frame: false, // Çerçevesiz
+    alwaysOnTop: true,
+    resizable: false,
+    center: true,
+    icon: path.join(__dirname, 'ms-icon-310x310.png'),
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false, // Splash için basit yapı yeterli
+    },
+  });
+
+  // splash.html dosyasını yükle (Bu dosyayı oluşturmayı unutma!)
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
   });
 }
 
-// --- ANA PENCERE OLUŞTURMA ---
-function createWindow() {
+// --- 2. ANA PENCERE OLUŞTURMA (Senin eski createWindow fonksiyonun) ---
+function createMainWindow() {
   const isDev = !app.isPackaged;
 
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     icon: path.join(__dirname, 'ms-icon-310x310.png'),
@@ -37,23 +59,19 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
       contextIsolation: true,
-      // Güvenlik politikasını biraz gevşeterek WebRTC'nin rahat çalışmasını sağlar
       webSecurity: true,
-      backgroundThrottling: false // Pencere alta inince mikrofonun kesilmemesi için
+      backgroundThrottling: false
     },
   });
 
-  win.setMenuBarVisibility(false);
+  mainWindow.setMenuBarVisibility(false);
 
-
-  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+  // Ekran Paylaşımı İzni (Loopback Audio)
+  mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-      // Otomatik olarak Birinci Ekranı seç (Kullanıcıya sormadan başlatır)
-      // Eğer birden fazla ekran varsa listedeki ilkini alır.
       if (sources.length > 0) {
         callback({ video: sources[0], audio: 'loopback' });
       } else {
-        // Ekran bulunamazsa
         callback({ video: null, audio: null });
       }
     }).catch(err => {
@@ -62,64 +80,60 @@ function createWindow() {
     });
   });
 
-  // Pencere Kontrolleri
-  ipcMain.on('window-minimize', () => win.minimize());
-  ipcMain.on('window-maximize', () => {
-    if (win.isMaximized()) win.unmaximize();
-    else win.maximize();
-  });
-  ipcMain.on('window-close', () => win.close());
-
-  // Ekran Paylaşımı
-  ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: ['window', 'screen'],
-        thumbnailSize: { width: 300, height: 300 },
-        fetchWindowIcons: true
-      });
-      return sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL()
-      }));
-    } catch (error) {
-      console.error("Kaynaklar alınamadı:", error);
-      return [];
-    }
-  });
-
   // Yükleme
   if (isDev) {
-    const devUrl = 'http://localhost:5173/';
-    win.loadURL(devUrl);
+    mainWindow.loadURL('http://localhost:5173/');
   } else {
+    // Burada app.getAppPath() kullanımı bazen dist yolunu şaşırabilir,
+    // __dirname daha güvenli olabilir ama senin yapında çalışıyorsa kalsın.
+    // Eğer beyaz ekran alırsan burayı kontrol et.
     const appPath = app.getAppPath();
     const indexPath = path.join(appPath, 'dist', 'index.html');
-    win.loadFile(indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
-  win.webContents.on('did-finish-load', () => {
-    if (app.isPackaged) {
-       autoUpdater.checkForUpdatesAndNotify();
-    }
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 }
 
-// --- GÜNCELLEME OLAYLARI ---
-autoUpdater.on('checking-for-update', () => console.log('Güncelleme kontrol ediliyor...'));
-autoUpdater.on('update-available', (info) => sendStatusToWindow('info', 'Güncelleme indiriliyor...'));
-autoUpdater.on('update-not-available', (info) => console.log('Güncel.'));
-autoUpdater.on('error', (err) => sendStatusToWindow('error', 'Hata: ' + err.message));
-autoUpdater.on('update-downloaded', (info) => {
-  console.log('İndirildi, yükleniyor...');
-  autoUpdater.quitAndInstall(true, true);
+// --- PENCERE KONTROLLERİ (IPC) ---
+ipcMain.on('window-minimize', () => {
+    if(mainWindow) mainWindow.minimize();
+});
+ipcMain.on('window-maximize', () => {
+  if (mainWindow) {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+  }
+});
+ipcMain.on('window-close', () => {
+    if(mainWindow) mainWindow.close();
 });
 
-// --- APP READY (SIRALAMA DÜZELTİLDİ) ---
+// --- EKRAN PAYLAŞIMI KAYNAKLARI ---
+ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 300, height: 300 },
+      fetchWindowIcons: true
+    });
+    return sources.map(source => ({
+      id: source.id,
+      name: source.name,
+      thumbnail: source.thumbnail.toDataURL()
+    }));
+  } catch (error) {
+    console.error("Kaynaklar alınamadı:", error);
+    return [];
+  }
+});
+
+// --- APP READY (BAŞLANGIÇ NOKTASI) ---
 app.whenReady().then(async () => {
 
-  // 1. ADIM: macOS İZİNLERİ (Mac kullanmasan bile kodda durmalı)
+  // 1. İZİNLER
   if (process.platform === 'darwin') {
     const micStatus = await systemPreferences.getMediaAccessStatus('microphone');
     if (micStatus !== 'granted') {
@@ -127,40 +141,38 @@ app.whenReady().then(async () => {
     }
   }
 
-  // 2. ADIM: OTOMATİK İZİN YÖNETİCİSİ (Pencere açılmadan önce!)
-  // `session.defaultSession` tüm pencereleri kapsar.
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = [
-      'media',          // Mikrofon/Kamera
-      'display-capture', // Ekran Paylaşımı
-      'audio-capture',
-      'video-capture',
-      'notifications',
-      'mediaKeySystem'
-    ];
-
+    const allowedPermissions = ['media', 'display-capture', 'audio-capture', 'video-capture', 'notifications', 'mediaKeySystem'];
     if (allowedPermissions.includes(permission)) {
-      callback(true); // Otomatik onayla
+      callback(true);
     } else {
-      console.log(`İzin reddedildi: ${permission}`);
       callback(false);
     }
   });
 
-  // 3. ADIM: İZİN KONTROL (Check Handler)
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    if (permission === 'media' || permission === 'audio-capture' || permission === 'display-capture') {
-      return true;
-    }
+    if (permission === 'media' || permission === 'audio-capture' || permission === 'display-capture') return true;
     return false;
   });
 
-  // 4. ADIM: PENCEREYİ OLUŞTUR (Artık her şey hazır)
-  createWindow();
+  // 2. AÇILIŞ MANTIĞI
+  // Önce Splash ekranını açıyoruz
+  createSplashWindow();
+
+  // Eğer geliştirme ortamıysa güncellemeyi pas geç, 2 saniye sonra ana ekranı aç
+  if (!app.isPackaged) {
+      setTimeout(() => {
+          if(splashWindow) splashWindow.close();
+          createMainWindow();
+      }, 2000);
+  } else {
+      // Üretim ortamıysa (exe ise) güncellemeyi denetle
+      autoUpdater.checkForUpdates();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createMainWindow();
     }
   });
 });
@@ -169,4 +181,50 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// --- AUTO UPDATER OLAYLARI (Splash Screen ile İletişim) ---
+
+autoUpdater.on('checking-for-update', () => {
+    // Splash ekrana bilgi gönderilebilir (opsiyonel)
+});
+
+// Güncelleme VAR: Splash'e bilgi ver
+autoUpdater.on('update-available', (info) => {
+    if(splashWindow) splashWindow.webContents.send('message', 'Güncelleme bulundu, indiriliyor...');
+});
+
+// Güncelleme YOK: Splash'i kapat, Ana Ekranı Aç
+autoUpdater.on('update-not-available', (info) => {
+    if(splashWindow) {
+        splashWindow.webContents.send('message', 'Uygulama başlatılıyor...');
+        setTimeout(() => {
+            splashWindow.close();
+            createMainWindow();
+        }, 1000);
+    }
+});
+
+// Hata Oldu: Splash'i kapat, Ana Ekranı Aç (Kullanıcıyı engelleme)
+autoUpdater.on('error', (err) => {
+    if(splashWindow) {
+        splashWindow.webContents.send('message', 'Başlatılıyor...'); // Hatayı kullanıcıya göstermeyebiliriz
+        setTimeout(() => {
+            splashWindow.close();
+            createMainWindow();
+        }, 1000);
+    }
+});
+
+// İndirme İlerlemesi: Splash'e yüzdeyi gönder
+autoUpdater.on('download-progress', (progressObj) => {
+    if(splashWindow) {
+        splashWindow.webContents.send('download-progress', progressObj.percent);
+    }
+});
+
+// İndirme Bitti: Kur ve Yeniden Başlat
+autoUpdater.on('update-downloaded', (info) => {
+    if(splashWindow) splashWindow.webContents.send('message', 'Yükleniyor...');
+    autoUpdater.quitAndInstall(true, true);
 });
