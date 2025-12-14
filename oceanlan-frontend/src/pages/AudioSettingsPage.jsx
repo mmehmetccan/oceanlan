@@ -9,7 +9,9 @@ const AudioSettingsPage = () => {
     inputMode, setInputMode,
     pttKey, setPttKey, pttKeyCode, setPttKeyCode,
     outputDeviceId, setOutputDeviceId,
-    inputDeviceId, setInputDeviceId // 👈 Context'ten çekildi
+    inputDeviceId, setInputDeviceId,
+    // 🟢 YENİ: Context'ten ses seviyesi state'lerini çekiyoruz
+    inputVolume, setInputVolume
   } = useContext(AudioSettingsContext);
 
   const [isListening, setIsListening] = useState(false);
@@ -21,16 +23,12 @@ const AudioSettingsPage = () => {
   useEffect(() => {
     const getDevices = async () => {
       try {
-        // İzin iste (cihaz isimlerini görebilmek için gereklidir)
         await navigator.mediaDevices.getUserMedia({ audio: true });
-
         const devices = await navigator.mediaDevices.enumerateDevices();
 
-        // Çıkış cihazları (Hoparlör)
         const outputs = devices.filter(device => device.kind === 'audiooutput');
         setAudioOutputDevices(outputs);
 
-        // Giriş cihazları (Mikrofon)
         const inputs = devices.filter(device => device.kind === 'audioinput');
         setAudioInputDevices(inputs);
 
@@ -39,8 +37,6 @@ const AudioSettingsPage = () => {
       }
     };
     getDevices();
-
-    // Cihaz takıp çıkarınca listeyi güncelle
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
 
@@ -67,7 +63,7 @@ const AudioSettingsPage = () => {
           <button onClick={() => navigate(-1)} className="close-settings-btn">ESC ✕</button>
         </div>
 
-        {/* 👇 YENİ: GİRİŞ CİHAZI (MİKROFON) */}
+        {/* GİRİŞ CİHAZI (MİKROFON) */}
         <div className="settings-section">
             <h3>Giriş Cihazı (Mikrofon)</h3>
             <select
@@ -86,7 +82,33 @@ const AudioSettingsPage = () => {
             </select>
         </div>
 
-        {/* 👇 YENİ: ÇIKIŞ CİHAZI (HOPARLÖR) */}
+        {/* 🟢 YENİ: MİKROFON SES SEVİYESİ (SLIDER) */}
+        <div className="settings-section">
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}>
+                <h3>Giriş Sesi (Mikrofon Gücü)</h3>
+                <span style={{fontWeight:'bold', color:'#b9bbbe'}}>%{inputVolume}</span>
+            </div>
+
+            <input
+                type="range"
+                min="0"
+                max="200"
+                value={inputVolume}
+                onChange={(e) => setInputVolume(parseInt(e.target.value))}
+                style={{
+                    width: '100%',
+                    accentColor: '#5865F2', // Discord mavisi
+                    cursor: 'pointer'
+                }}
+            />
+            <p style={{fontSize:'12px', color:'#b9bbbe', marginTop:'5px'}}>
+                Normal seviye %100'dür. Sesiniz az gidiyorsa artırabilirsiniz.
+            </p>
+        </div>
+
+        <hr style={{borderColor:'#3f4147', margin:'20px 0', opacity: 0.5}}/>
+
+        {/* ÇIKIŞ CİHAZI (HOPARLÖR) */}
         <div className="settings-section">
             <h3>Çıkış Cihazı (Hoparlör / Kulaklık)</h3>
             <select

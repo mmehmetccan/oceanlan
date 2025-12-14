@@ -100,8 +100,20 @@ const VoiceRoom = () => {
             <button
                 onClick={toggleNoiseSuppression}
                 className={`voice-control-btn ${isNoiseSuppression ? 'active-purple' : ''}`}
-                title="Gürültü Engelleme (Krisp)"
-                style={isNoiseSuppression ? {color: '#a588ff'} : {}}
+                title={isNoiseSuppression ? "Gürültü Engelleme: AÇIK" : "Gürültü Engelleme: KAPALI"}
+    style={{
+        backgroundColor: isNoiseSuppression ? '#3ba55c' : '#36393f', // Yeşil veya Gri
+        color: 'white',
+        border: 'none',
+        borderRadius: '50%',
+        width: '40px',
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.2s'
+    }}
             >
                 <SparklesIcon className="voice-icon"/>
             </button>
