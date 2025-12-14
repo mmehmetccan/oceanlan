@@ -12,10 +12,11 @@ const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
-// 🛡️ HİBRİT GÜRÜLTÜ ENGELLEME AYARLARI
-const GATE_THRESHOLD = 0.05; // Hassas Kapı
-const LOW_CUT_FREQ = 200;    // Uğultu Kesici
-const HIGH_CUT_FREQ = 3000;  // Tıslama Kesici (Telsiz Modu)
+// 🛡️ STÜDYO AYARLARI (Klavye Düşmanı)
+// Threshold: Bu değerin altındaki sesler (tıkırtı, nefes) mikrofondan geçemez.
+const GATE_THRESHOLD = 0.08;
+const LOW_CUT_FREQ = 150;    // Bas gürültüleri kes
+const HIGH_CUT_FREQ = 6000;  // Tiz cızırtıları kes
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
@@ -24,14 +25,12 @@ export const VoiceProvider = ({ children }) => {
   const localStreamRef = useRef(null);
   const processedStreamRef = useRef(null);
   const audioElementsRef = useRef({});
-
-  // 🟢 KRİTİK: SocketID <-> UserID Eşleşmesi
   const socketUserMapRef = useRef({});
 
-  // Ses İşleme Refleri
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const inputGainNodeRef = useRef(null);
+  const gateGainNodeRef = useRef(null);
   const checkIntervalRef = useRef(null);
   const isSpeakingRef = useRef(false);
   const isPTTPressedRef = useRef(false);
@@ -93,12 +92,7 @@ export const VoiceProvider = ({ children }) => {
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    // 🟢 Eşleşmeleri Yakala
-    socket.on('user-joined-voice', ({ socketId, userId }) => {
-        if (userId) socketUserMapRef.current[socketId] = userId;
-        handleUserJoined({ socketId, userId });
-    });
-
+    socket.on('user-joined-voice', handleUserJoined);
     socket.on('webrtc-offer', handleOffer);
     socket.on('webrtc-answer', handleAnswer);
     socket.on('webrtc-ice-candidate', handleIce);
@@ -108,7 +102,6 @@ export const VoiceProvider = ({ children }) => {
         setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }));
     });
 
-    // Serverdan tüm listeyi alıp eşleştir
     socket.on('voiceStateUpdate', (serverState) => {
         if (!serverState) return;
         Object.values(serverState).forEach(channelUsers => {
@@ -116,40 +109,35 @@ export const VoiceProvider = ({ children }) => {
                 socketUserMapRef.current[u.socketId] = u.userId;
             });
         });
-        applyVolumeSettings(); // Harita güncellendi, sesleri uygula
+        applyVolumeSettings();
     });
 
     return () => { if (newSocket) newSocket.disconnect(); };
   }, [token, isAuthenticated]);
 
-  // 🟢 BAŞKALARININ SES AYARI (ARTIK ÇALIŞACAK)
+  // Başkalarının ses ayarı
   const applyVolumeSettings = () => {
-      // Audio elementlerini gez
-      Object.keys(audioElementsRef.current).forEach(socketId => {
-          const audioElement = audioElementsRef.current[socketId];
-          const ownerUserId = socketUserMapRef.current[socketId]; // ID'yi haritadan bul
+      if (!userVolumes || !audioElementsRef.current) return;
+      Object.keys(userVolumes).forEach(targetUserId => {
+          const targetSocketId = Object.keys(socketUserMapRef.current).find(key => socketUserMapRef.current[key] === targetUserId) ||
+                                 (audioElementsRef.current[targetUserId] ? targetUserId : null);
 
-          if (ownerUserId && audioElement && userVolumes[ownerUserId] !== undefined) {
-              const vol = userVolumes[ownerUserId];
-              // Volume 0-200 arası gelir. HTML Audio max 1.0 alır.
-              // %200 yapmak için sesi yazılımsal yükseltmemiz gerekir ama basit çözüm:
-              // 100 üstünü 1.0 kabul edelim (HTML limiti), 0-100 arasını kısalım.
-              // Eğer %200 ses istiyorsan GainNode eklememiz lazım herbiri için (Karmaşıklaşır).
-              // Şimdilik slider çalışsın diye: 0-100 arası çalışır.
-              audioElement.volume = vol === 0 ? 0 : Math.min(vol / 100, 1.0);
+          if (targetSocketId && audioElementsRef.current[targetSocketId]) {
+              const vol = userVolumes[targetUserId];
+              audioElementsRef.current[targetSocketId].volume = vol === 0 ? 0 : Math.min(vol / 100, 1.0);
           }
       });
   };
 
   useEffect(() => { applyVolumeSettings(); }, [userVolumes]);
 
-  // 🟢 KENDİ INPUT VOLUME (GÜÇLÜ GAIN)
+  // KENDİ SES SEVİYEMİZ (GAIN)
   useEffect(() => {
       if (inputGainNodeRef.current && audioContextRef.current) {
           let gainValue = 1.0;
           if (inputVolume === 0) gainValue = 0;
           else if (inputVolume <= 100) gainValue = inputVolume / 100;
-          else gainValue = 1.0 + ((inputVolume - 100) / 30); // 200'de 4.3 kat ses!
+          else gainValue = 1.0 + ((inputVolume - 100) / 30);
 
           inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.05);
       }
@@ -166,7 +154,7 @@ export const VoiceProvider = ({ children }) => {
   }, [isNoiseSuppression]);
 
   // ----------------------------------------------------------------
-  // 🎛️ SES İŞLEME MOTORU (TELSİZ MODU)
+  // 🎛️ SES İŞLEME MOTORU (KLAVYE VE TV FİLTRESİ)
   // ----------------------------------------------------------------
   const processAudioStream = async (rawStream) => {
       try {
@@ -179,7 +167,7 @@ export const VoiceProvider = ({ children }) => {
           const source = audioCtx.createMediaStreamSource(rawStream);
           const destination = audioCtx.createMediaStreamDestination();
 
-          // 1. INPUT GAIN (Ses Seviyesi)
+          // 1. SES YÜKSELTME (GAIN)
           const inputGain = audioCtx.createGain();
           const startVol = inputVolume > 100 ? 1.0 + ((inputVolume - 100) / 30) : inputVolume / 100;
           inputGain.gain.value = inputVolume === 0 ? 0 : startVol;
@@ -190,42 +178,44 @@ export const VoiceProvider = ({ children }) => {
           currentNode = inputGain;
 
           if (isNoiseSuppression) {
-              // 🟢 ASKERİ TELSİZ FİLTRESİ
+              // 🛡️ KLAVYE FİLTRELERİ
 
-              // 1. High-Pass (Bas gürültüleri kes)
+              // 2. High-Pass (Uğultu ve Masa Titreşimi)
               const highPass = audioCtx.createBiquadFilter();
               highPass.type = 'highpass';
               highPass.frequency.value = LOW_CUT_FREQ;
-              highPass.Q.value = 0.5;
+              highPass.Q.value = 0.7;
 
-              // 2. Low-Pass (Tıslama ve cızırtıları kes)
+              // 3. Low-Pass (Mekanik Switch Tıklaması ve Tıslama)
               const lowPass = audioCtx.createBiquadFilter();
               lowPass.type = 'lowpass';
               lowPass.frequency.value = HIGH_CUT_FREQ;
-              lowPass.Q.value = 0.5;
+              lowPass.Q.value = 0.6;
 
-              // 3. Compressor (Sesi dengeler, patlamaları önler)
-              const compressor = audioCtx.createDynamicsCompressor();
-              compressor.threshold.value = -30;
-              compressor.knee.value = 40;
-              compressor.ratio.value = 12;
-              compressor.attack.value = 0.003;
-              compressor.release.value = 0.25;
-
-              // 4. Noise Gate (Sert Kapanış)
+              // 4. Noise Gate (Konuşmadığında %100 Sessizlik)
               const gateGain = audioCtx.createGain();
               gateGain.gain.value = 0;
               gateGainNodeRef.current = gateGain;
 
-              // Bağlantı
+              // 5. Compressor (Ani Patlamaları Önle)
+              const compressor = audioCtx.createDynamicsCompressor();
+              compressor.threshold.value = -30;
+              compressor.knee.value = 30;
+              compressor.ratio.value = 12;
+              compressor.attack.value = 0.003;
+              compressor.release.value = 0.25;
+
+              // ZİNCİRİ BAĞLA:
+              // Kaynak -> Gain -> HighPass -> LowPass -> Gate -> Compressor -> Hedef
               currentNode.connect(highPass);
               highPass.connect(lowPass);
               lowPass.connect(gateGain);
               gateGain.connect(compressor);
               compressor.connect(destination);
 
+              // Analiz (Gate'i tetiklemek için filtrelenmiş sesi kullan)
               const analyser = audioCtx.createAnalyser();
-              lowPass.connect(analyser);
+              lowPass.connect(analyser); // Gate, klavye sesini duymasın diye LowPass çıkışını dinliyor
               startGateAnalysis(analyser, gateGain, audioCtx);
           } else {
               currentNode.connect(destination);
@@ -240,8 +230,11 @@ export const VoiceProvider = ({ children }) => {
       }
   };
 
+  // ----------------------------------------------------------------
+  // 🔊 AKILLI GATE ANALİZİ (KLAVYE ALGISI)
+  // ----------------------------------------------------------------
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-      // Basit Mod (Mobil vb.)
+      // Basit Mod
       if (rawStreamForSimpleMode) {
            try {
                const simpleCtx = new AudioContext();
@@ -268,23 +261,29 @@ export const VoiceProvider = ({ children }) => {
           if (!gateGainNode || audioCtx.state === 'closed') return;
 
           if (inputMode === 'PUSH_TO_TALK' && !isPTTPressedRef.current) {
-              gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+              gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
               updateSpeakingStatus(false);
               requestAnimationFrame(checkVolume);
               return;
           }
 
           analyser.getByteFrequencyData(dataArray);
+
+          // İNSAN SESİ FREKANSLARINA ODAKLAN
+          // Array'in başı (0-10) bas sesler/uğultu, sonu tiz sesler/klavye
+          // Biz ortadaki insan sesine (10-50 arası binlere) bakıyoruz.
           let sum = 0; let count = 0;
-          for (let i = 5; i < 60 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
+          for (let i = 10; i < 50 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
           const average = count > 0 ? sum / count : 0;
           const normalizedVol = average / 255;
 
           if (normalizedVol > GATE_THRESHOLD) {
-              gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.02);
+              // KONUŞMA BAŞLADI: Hızlı aç (0.01s)
+              gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.01);
               updateSpeakingStatus(true);
           } else {
-              gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.15);
+              // SESSİZLİK: Hızlı kapat (0.1s) - Klavye sesi uzamasın diye
+              gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
               updateSpeakingStatus(false);
           }
           requestAnimationFrame(checkVolume);
@@ -314,7 +313,7 @@ export const VoiceProvider = ({ children }) => {
       });
       peersRef.current = {};
       audioElementsRef.current = {};
-      socketUserMapRef.current = {}; // Haritayı temizle
+      socketUserMapRef.current = {};
       setPeersWithVideo({});
       setSpeakingUsers({});
       stopAudioAnalysis();
@@ -361,24 +360,39 @@ export const VoiceProvider = ({ children }) => {
     if(channel.name) setCurrentVoiceChannelName(channel.name);
 
     try {
-      // 🟢 GÜRÜLTÜ ENGELLEME İÇİN ÖZEL CONSTRAINTS
+      // 🟢 GOOGLE TARAYICI AYARLARI (Gürültü için ZORUNLU)
+      // Bu ayarlar Chrome/Electron'un yapay zeka gürültü engelleyicisini açar.
       const constraints = {
           audio: {
             deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-            // Eğer Gürültü Engelleme AÇIKSA -> Tarayıcınınkini de aç (Çift Koruma)
-            // Eğer KAPALIYSA -> Tarayıcınınkini de kapat (Saf Ses)
-            echoCancellation: !!isNoiseSuppression,
-            noiseSuppression: !!isNoiseSuppression,
-            autoGainControl: !!isNoiseSuppression,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false, // Bizim gain ile çakışmasın
+            // Özel Google Constraints
+            googEchoCancellation: true,
+            googAutoGainControl: false,
+            googNoiseSuppression: true,
+            googHighpassFilter: true,
+            googTypingNoiseDetection: true // Klavye sesi algılayıcı!
           },
           video: false
       };
+
+      // Eğer gürültü engelleme kapalıysa, hepsini kapat
+      if (!isNoiseSuppression) {
+          constraints.audio = {
+              deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false
+          };
+      }
 
       let rawStream;
       try {
           rawStream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (advancedErr) {
-          console.warn("Gelişmiş mod başarısız, basit moda geçiliyor...", advancedErr);
+          console.warn("Gelişmiş mod başarısız...", advancedErr);
           rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       }
 
@@ -417,18 +431,15 @@ export const VoiceProvider = ({ children }) => {
 
   const rejoinChannel = () => {};
 
-  // 🟢 UserID Eşleşmesini Garantiye Al
   const handleUserJoined = ({ socketId, userId }) => {
       if (userId) socketUserMapRef.current[socketId] = userId;
-
       const stream = processedStreamRef.current || localStreamRef.current;
       const streams = [stream, myScreenStream].filter(Boolean);
       createPeer(socketId, true, streams, userId);
   };
 
-  const handleOffer = ({ socketId, sdp, userId }) => { // Backendden userId gelmeli
+  const handleOffer = ({ socketId, sdp, userId }) => {
       if (userId) socketUserMapRef.current[socketId] = userId;
-
       if(peersRef.current[socketId]) peersRef.current[socketId].destroy();
       const streamToSend = processedStreamRef.current || localStreamRef.current;
       const streams = [streamToSend, myScreenStream].filter(Boolean);
@@ -450,15 +461,13 @@ export const VoiceProvider = ({ children }) => {
 
   const createPeer = (targetSocketId, initiator, streams = [], userId = null) => {
     const p = new Peer({ initiator, trickle: false, streams, config: rtcConfig });
-
     p.on('signal', data => {
         socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', {
             targetSocketId,
             sdp: data,
-            userId: user?.id // Kendi ID'ni gönder
+            userId: user?.id
         });
     });
-
     p.on('stream', stream => handleRemoteStream(stream, targetSocketId, userId));
     peersRef.current[targetSocketId] = p;
     return p;
@@ -480,7 +489,6 @@ export const VoiceProvider = ({ children }) => {
           if (outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(()=>{});
           audioElementsRef.current[socketId] = audio;
 
-          // Akış geldiği an ses ayarını uygula
           applyVolumeSettings();
       }
   };

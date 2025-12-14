@@ -1,10 +1,13 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
 import '../../styles/VoiceRoom.css';
 import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
+// 👇 1. MODAL IMPORT EDİLDİ
+import ScreenSharePickerModal from '../modals/ScreenSharePickerModal';
+
 import {
     MicrophoneIcon,
     SpeakerWaveIcon,
@@ -36,14 +39,34 @@ const VoiceRoom = () => {
 
   const { user } = useContext(AuthContext);
 
+  // 👇 2. MODAL GÖRÜNÜRLÜĞÜ İÇİN STATE
+  const [showScreenPicker, setShowScreenPicker] = useState(false);
+
   if (!currentVoiceChannelId) return null;
 
-  // Güvenli kullanıcı verisi
   const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
 
+  // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON (GÜNCELLENDİ)
   const handleScreenShareToggle = () => {
-      if (myScreenStream) stopScreenShare();
-      else startScreenShare();
+      // Eğer zaten paylaşım yapıyorsam durdur
+      if (myScreenStream) {
+          stopScreenShare();
+          return;
+      }
+
+      // Eğer Electron uygulamasındaysak Modalı aç
+      if (window.electronAPI) {
+          setShowScreenPicker(true);
+      } else {
+          // Web tarayıcısındaysak direkt başlat (Tarayıcı kendi seçtirir)
+          startScreenShare();
+      }
+  };
+
+  // 👇 4. MODALDAN SEÇİM YAPILINCA ÇALIŞAN FONKSİYON
+  const handleSourceSelect = (sourceId) => {
+      setShowScreenPicker(false); // Modalı kapat
+      startScreenShare(sourceId); // Seçilen ID ile başlat
   };
 
   const isVoiceConnected = isConnected;
@@ -70,43 +93,36 @@ const VoiceRoom = () => {
       </div>
 
         <div className="voice-controls-actions">
-            {/* MİKROFON */}
             <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
                 <MicrophoneIcon className="voice-icon"/>
                 {isMicMuted && <div className="strike-line"/>}
             </button>
 
-            {/* SAĞIRLAŞTIRMA */}
             <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`}>
                 <SpeakerWaveIcon className="voice-icon"/>
                 {isDeafened && <div className="strike-line"/>}
             </button>
 
-            {/* 🟢 GÜRÜLTÜ ENGELLEME (GÜNCELLENDİ) */}
-            {/* Açıkken Yeşil (active-green), Kapalıyken Çizgili */}
             <button
                 onClick={toggleNoiseSuppression}
                 className={`voice-control-btn ${isNoiseSuppression ? 'active-green' : ''}`}
                 title={isNoiseSuppression ? "Gürültü Engelleme: AÇIK" : "Gürültü Engelleme: KAPALI"}
             >
                 <SparklesIcon className="voice-icon"/>
-                {/* Kapalıysa üstüne çizgi çek */}
                 {!isNoiseSuppression && <div className="strike-line"/>}
             </button>
 
-            {/* EKRAN PAYLAŞIMI */}
+            {/* EKRAN PAYLAŞIMI BUTONU */}
             <button onClick={handleScreenShareToggle}
                     className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
                 <ComputerDesktopIcon className="voice-icon"/>
             </button>
 
-            {/* BAĞLANTIYI KES */}
             <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">
                 <PhoneXMarkIcon className="voice-icon"/>
             </button>
         </div>
 
-        {/* KULLANICI KARTI */}
         <div className="voice-user-section">
             <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
                 <img
@@ -121,6 +137,15 @@ const VoiceRoom = () => {
                 />
             </div>
       </div>
+
+      {/* 👇 5. MODAL BURAYA EKLENDİ */}
+      {showScreenPicker && (
+          <ScreenSharePickerModal
+              onClose={() => setShowScreenPicker(false)}
+              onSelect={handleSourceSelect}
+          />
+      )}
+
     </div>
   );
 };
