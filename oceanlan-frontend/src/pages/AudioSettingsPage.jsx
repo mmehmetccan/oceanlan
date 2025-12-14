@@ -7,10 +7,9 @@ import '../styles/AudioSettings.css';
 const AudioSettingsPage = () => {
   const {
     inputMode, setInputMode,
-    pttKey, setPttKey, pttKeyCode, setPttKeyCode,
+    pttKey, setPttKey, pttKeyCode, setPttKeyCode, // 🟢 Code eklendi
     outputDeviceId, setOutputDeviceId,
     inputDeviceId, setInputDeviceId,
-    // 🟢 YENİ: Context'ten ses seviyesi state'lerini çekiyoruz
     inputVolume, setInputVolume
   } = useContext(AudioSettingsContext);
 
@@ -19,111 +18,86 @@ const AudioSettingsPage = () => {
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const navigate = useNavigate();
 
-  // Cihazları Listele
   useEffect(() => {
     const getDevices = async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         const devices = await navigator.mediaDevices.enumerateDevices();
-
-        const outputs = devices.filter(device => device.kind === 'audiooutput');
-        setAudioOutputDevices(outputs);
-
-        const inputs = devices.filter(device => device.kind === 'audioinput');
-        setAudioInputDevices(inputs);
-
-      } catch (err) {
-        console.error("Cihazlar alınamadı:", err);
-      }
+        setAudioOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
+        setAudioInputDevices(devices.filter(d => d.kind === 'audioinput'));
+      } catch (err) { console.error("Cihaz hatası:", err); }
     };
     getDevices();
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
 
+  // 🟢 TUŞ DİNLEME (KLAVYE + MOUSE)
   useEffect(() => {
+    if (!isListening) return;
+
+    // Klavye Yakalama
     const handleKeyDown = (e) => {
-      if (isListening) {
-        e.preventDefault();
-        setPttKey(e.key.toUpperCase() === ' ' ? 'SPACE' : e.key.toUpperCase());
-        setPttKeyCode(e.code);
-        setIsListening(false);
-      }
+      e.preventDefault();
+      // Code: "Space", "KeyA" vb.
+      const code = e.code;
+      const name = e.key.toUpperCase() === ' ' ? 'SPACE' : e.key.toUpperCase();
+
+      setPttKey(name);
+      setPttKeyCode(code);
+      setIsListening(false);
     };
-    if (isListening) window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    // Mouse Yakalama (Makro Tuşları)
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      // Button: 0(Sol), 1(Orta), 2(Sağ), 3(Geri), 4(İleri)
+      const code = e.button;
+      let name = `MOUSE ${e.button}`;
+      if (code === 0) name = "SOL TIK";
+      if (code === 1) name = "ORTA TIK";
+      if (code === 2) name = "SAĞ TIK";
+      if (code === 3) name = "MOUSE 4 (GERİ)";
+      if (code === 4) name = "MOUSE 5 (İLERİ)";
+
+      setPttKey(name);
+      setPttKeyCode(code);
+      setIsListening(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handleMouseDown);
+    };
   }, [isListening, setPttKey, setPttKeyCode]);
 
   return (
       <div className="audio-settings-container">
-        <div className="settings-header-row" style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          borderBottom: '1px solid #3f4147', paddingBottom: '15px', marginBottom: '25px'
-        }}>
-          <h2 style={{borderBottom: 'none', margin: 0, padding: 0}}>Ses ve Görüntü Ayarları</h2>
-          <button onClick={() => navigate(-1)} className="close-settings-btn">ESC ✕</button>
+        <div className="settings-header-row" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px'}}>
+          <h2 style={{margin: 0}}>Ses ve Görüntü</h2>
+          <button onClick={() => navigate(-1)} className="close-settings-btn">✕</button>
         </div>
 
-        {/* GİRİŞ CİHAZI (MİKROFON) */}
         <div className="settings-section">
-            <h3>Giriş Cihazı (Mikrofon)</h3>
-            <select
-                value={inputDeviceId}
-                onChange={(e) => setInputDeviceId(e.target.value)}
-                style={{
-                    width: '100%', padding: '10px', borderRadius: '8px',
-                    background: '#2f3136', color: 'white', border: '1px solid #202225'
-                }}
-            >
-                {audioInputDevices.map(device => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Mikrofon ${device.deviceId.slice(0,5)}...`}
-                    </option>
-                ))}
+            <h3>Giriş Cihazı</h3>
+            <select value={inputDeviceId} onChange={(e) => setInputDeviceId(e.target.value)} style={{width: '100%', padding: '10px', background: '#2f3136', color: 'white', border: '1px solid #202225'}}>
+                {audioInputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mikrofon ${d.deviceId.slice(0,5)}`}</option>)}
             </select>
         </div>
 
-        {/* 🟢 YENİ: MİKROFON SES SEVİYESİ (SLIDER) */}
         <div className="settings-section">
-            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}>
-                <h3>Giriş Sesi (Mikrofon Gücü)</h3>
-                <span style={{fontWeight:'bold', color:'#b9bbbe'}}>%{inputVolume}</span>
-            </div>
-
-            <input
-                type="range"
-                min="0"
-                max="200"
-                value={inputVolume}
-                onChange={(e) => setInputVolume(parseInt(e.target.value))}
-                style={{
-                    width: '100%',
-                    accentColor: '#5865F2', // Discord mavisi
-                    cursor: 'pointer'
-                }}
-            />
-            <p style={{fontSize:'12px', color:'#b9bbbe', marginTop:'5px'}}>
-                Normal seviye %100'dür. Sesiniz az gidiyorsa artırabilirsiniz.
-            </p>
+            <div style={{display:'flex', justifyContent:'space-between'}}><h3>Giriş Sesi</h3><span>%{inputVolume}</span></div>
+            <input type="range" min="0" max="200" value={inputVolume} onChange={(e) => setInputVolume(parseInt(e.target.value))} style={{width: '100%', accentColor: '#5865F2'}} />
         </div>
 
         <hr style={{borderColor:'#3f4147', margin:'20px 0', opacity: 0.5}}/>
 
-        {/* ÇIKIŞ CİHAZI (HOPARLÖR) */}
         <div className="settings-section">
-            <h3>Çıkış Cihazı (Hoparlör / Kulaklık)</h3>
-            <select
-                value={outputDeviceId}
-                onChange={(e) => setOutputDeviceId(e.target.value)}
-                style={{
-                    width: '100%', padding: '10px', borderRadius: '8px',
-                    background: '#2f3136', color: 'white', border: '1px solid #202225'
-                }}
-            >
-                {audioOutputDevices.map(device => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Hoparlör ${device.deviceId.slice(0,5)}...`}
-                    </option>
-                ))}
+            <h3>Çıkış Cihazı</h3>
+            <select value={outputDeviceId} onChange={(e) => setOutputDeviceId(e.target.value)} style={{width: '100%', padding: '10px', background: '#2f3136', color: 'white', border: '1px solid #202225'}}>
+                {audioOutputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Hoparlör ${d.deviceId.slice(0,5)}`}</option>)}
             </select>
         </div>
 
@@ -132,18 +106,12 @@ const AudioSettingsPage = () => {
           <div className="radio-group">
             <label className={`radio-option ${inputMode === 'VOICE_ACTIVITY' ? 'selected' : ''}`}>
               <input type="radio" value="VOICE_ACTIVITY" checked={inputMode === 'VOICE_ACTIVITY'} onChange={() => setInputMode('VOICE_ACTIVITY')} />
-              <div className="radio-content">
-                <span>Ses Etkinliği</span>
-                <small>Konuştuğunuzda mikrofon otomatik açılır.</small>
-              </div>
+              <div className="radio-content"><span>Ses Etkinliği</span><small>Konuştuğunuzda otomatik açılır.</small></div>
             </label>
 
             <label className={`radio-option ${inputMode === 'PUSH_TO_TALK' ? 'selected' : ''}`}>
               <input type="radio" value="PUSH_TO_TALK" checked={inputMode === 'PUSH_TO_TALK'} onChange={() => setInputMode('PUSH_TO_TALK')} />
-              <div className="radio-content">
-                <span>Bas Konuş</span>
-                <small>Sadece atadığınız tuşa bastığınızda sesiniz gider.</small>
-              </div>
+              <div className="radio-content"><span>Bas Konuş</span><small>Atadığınız tuşa basılı tutunca ses gider.</small></div>
             </label>
           </div>
         </div>
@@ -153,9 +121,8 @@ const AudioSettingsPage = () => {
               <h3>Kısayol Tuşu</h3>
               <div className="keybind-wrapper">
                 <button className={`keybind-btn ${isListening ? 'listening' : ''}`} onClick={() => setIsListening(true)}>
-                  {isListening ? 'Tuşa Basın...' : pttKey}
+                  {isListening ? 'Tuşa veya Mouse Tuşuna Basın...' : pttKey}
                 </button>
-                <p className="hint">Değiştirmek için butona tıklayın ve klavyeden bir tuşa basın.</p>
               </div>
             </div>
         )}

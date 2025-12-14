@@ -1,12 +1,11 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { useVoiceChannel } from '../../hooks/useVoiceChannel';
 import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
-import '../../styles/VoiceRoom.css';
-import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
-// 👇 1. MODAL IMPORT EDİLDİ
 import ScreenSharePickerModal from '../modals/ScreenSharePickerModal';
+import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
+import '../../styles/VoiceRoom.css'; // CSS dosyanı güncellemen gerekebilir
 
 import {
     MicrophoneIcon,
@@ -17,13 +16,38 @@ import {
     SparklesIcon
 } from '@heroicons/react/24/solid';
 
+// 📹 VİDEO OYNATICI BİLEŞENİ (YENİ)
+const VideoPlayer = ({ stream, isLocal = false }) => {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        if (videoRef.current && stream) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    return (
+        <div className="video-container">
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted={isLocal} // Kendi sesini duyma (yankı yapar)
+                className="screen-share-video"
+            />
+            {isLocal && <span className="video-badge">Senin Ekranın</span>}
+        </div>
+    );
+};
+
 const VoiceRoom = () => {
   const { startScreenShare, stopScreenShare } = useVoiceChannel();
 
   const {
       currentVoiceChannelId,
       leaveVoiceChannel,
-      myScreenStream,
+      myScreenStream, // Kendi yayınımız
+      peersWithVideo, // Başkalarının yayını (YENİ)
       currentVoiceChannelName,
       currentServerName,
       micError,
@@ -38,35 +62,27 @@ const VoiceRoom = () => {
   } = useContext(AudioSettingsContext);
 
   const { user } = useContext(AuthContext);
-
-  // 👇 2. MODAL GÖRÜNÜRLÜĞÜ İÇİN STATE
-  const [showScreenPicker, setShowScreenPicker] = useState(false);
+  const [showScreenPicker, setShowScreenPicker] = React.useState(false);
 
   if (!currentVoiceChannelId) return null;
 
   const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
 
-  // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON (GÜNCELLENDİ)
   const handleScreenShareToggle = () => {
-      // Eğer zaten paylaşım yapıyorsam durdur
       if (myScreenStream) {
           stopScreenShare();
           return;
       }
-
-      // Eğer Electron uygulamasındaysak Modalı aç
       if (window.electronAPI) {
           setShowScreenPicker(true);
       } else {
-          // Web tarayıcısındaysak direkt başlat (Tarayıcı kendi seçtirir)
           startScreenShare();
       }
   };
 
-  // 👇 4. MODALDAN SEÇİM YAPILINCA ÇALIŞAN FONKSİYON
   const handleSourceSelect = (sourceId) => {
-      setShowScreenPicker(false); // Modalı kapat
-      startScreenShare(sourceId); // Seçilen ID ile başlat
+      setShowScreenPicker(false);
+      startScreenShare(sourceId);
   };
 
   const isVoiceConnected = isConnected;
@@ -74,11 +90,26 @@ const VoiceRoom = () => {
   const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
   const amISpeaking = speakingUsers && safeUser.id && speakingUsers[safeUser.id];
 
+  // 🟢 AKTİF YAYIN VAR MI KONTROLÜ
+  const hasVideo = myScreenStream || (peersWithVideo && Object.keys(peersWithVideo).length > 0);
+
   return (
-    <div className="voice-room-controls">
-        {micError && (
-          <div className="voice-error-banner">❗ {micError}</div>
+    <div className={`voice-room-controls ${hasVideo ? 'video-mode' : ''}`}>
+
+        {/* 🟢 VİDEO ALANI (YENİ) */}
+        {hasVideo && (
+            <div className="voice-video-grid">
+                {/* Kendi Yayınımız */}
+                {myScreenStream && <VideoPlayer stream={myScreenStream} isLocal={true} />}
+
+                {/* Başkalarının Yayını */}
+                {Object.entries(peersWithVideo).map(([socketId, stream]) => (
+                    <VideoPlayer key={socketId} stream={stream} />
+                ))}
+            </div>
         )}
+
+        {micError && <div className="voice-error-banner">❗ {micError}</div>}
 
       <div className="voice-room-info">
         <div className={`voice-connection-status ${connectionClass}`}>
@@ -106,13 +137,12 @@ const VoiceRoom = () => {
             <button
                 onClick={toggleNoiseSuppression}
                 className={`voice-control-btn ${isNoiseSuppression ? 'active-green' : ''}`}
-                title={isNoiseSuppression ? "Gürültü Engelleme: AÇIK" : "Gürültü Engelleme: KAPALI"}
+                title="Gürültü Engelleme"
             >
                 <SparklesIcon className="voice-icon"/>
                 {!isNoiseSuppression && <div className="strike-line"/>}
             </button>
 
-            {/* EKRAN PAYLAŞIMI BUTONU */}
             <button onClick={handleScreenShareToggle}
                     className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
                 <ComputerDesktopIcon className="voice-icon"/>
@@ -123,29 +153,27 @@ const VoiceRoom = () => {
             </button>
         </div>
 
-        <div className="voice-user-section">
-            <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
-                <img
-                    src={getImageUrl(safeUser.avatarUrl || safeUser.avatar)}
-                    alt="Me"
-                    className="voice-user-img"
-                    onError={(e) => {
-                            if (e.target.dataset.fallbackApplied) return;
-                            e.target.dataset.fallbackApplied = 'true';
-                            e.target.src = DEFAULT_AVATAR_URL;
-                        }}
-                />
+        {/* Kullanıcı Kartı (Video varken gizlenebilir veya küçültülebilir) */}
+        {!hasVideo && (
+            <div className="voice-user-section">
+                <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
+                    <img
+                        src={getImageUrl(safeUser.avatarUrl || safeUser.avatar)}
+                        alt="Me"
+                        className="voice-user-img"
+                        onError={(e) => {
+                                if (e.target.dataset.fallbackApplied) return;
+                                e.target.dataset.fallbackApplied = 'true';
+                                e.target.src = DEFAULT_AVATAR_URL;
+                            }}
+                    />
+                </div>
             </div>
-      </div>
+        )}
 
-      {/* 👇 5. MODAL BURAYA EKLENDİ */}
       {showScreenPicker && (
-          <ScreenSharePickerModal
-              onClose={() => setShowScreenPicker(false)}
-              onSelect={handleSourceSelect}
-          />
+          <ScreenSharePickerModal onClose={() => setShowScreenPicker(false)} onSelect={handleSourceSelect} />
       )}
-
     </div>
   );
 };
