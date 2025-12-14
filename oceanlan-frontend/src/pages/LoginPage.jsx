@@ -1,51 +1,47 @@
 // src/pages/LoginPage.jsx
-import React, { useState, useContext,useEffect } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline'; // İkonlar
-import { isElectron } from '../utils/platformHelper'; // 👈 IMPORT
-import '../styles/Auth.css'; // Yeni CSS
+import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { isElectron } from '../utils/platformHelper';
+import '../styles/Auth.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // 🟢 YENİ: Beni Hatırla State'i
+  const [rememberMe, setRememberMe] = useState(false);
 
+  const [error, setError] = useState('');
   const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
 
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
-
-
   const isApp = isElectron();
 
-
   useEffect(() => {
-    // Eğer uygulama içindeysek versiyon kontrolüne gerek yok, boşuna internet harcamayalım
     if (!isApp) {
-      // version.json dosyasını sitenden okuyoruz
       fetch('https://oceanlan.com/version.json')
         .then(response => response.json())
         .then(data => {
-          // Gelen versiyon numarasıyla linki oluşturuyoruz
           const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
           setDownloadUrl(newLink);
           console.log("Güncel sürüm linki ayarlandı:", newLink);
         })
         .catch(err => {
-          console.error("Versiyon bilgisi alınamadı, varsayılan link kullanılıyor.", err);
+          console.error("Versiyon bilgisi alınamadı.", err);
         });
     }
   }, [isApp]);
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     try {
-      await login(email, password);
+      // 🟢 login fonksiyonuna rememberMe değerini gönderiyoruz
+      await login(email, password, rememberMe);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
@@ -57,7 +53,6 @@ const LoginPage = () => {
       <div className="auth-box">
         <div className="auth-header">
           <h2>Hoş Geldin!</h2>
-
         </div>
 
         {error && (
@@ -91,8 +86,20 @@ const LoginPage = () => {
             />
           </div>
 
-          <div className="forgot-password">
-            <Link to="/forgot-password" className="forgot-link">
+          {/* 🟢 BENİ HATIRLA ve ŞİFREMİ UNUTTUM SATIRI */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', fontSize: '14px', width: '100%' }}>
+
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#b9bbbe' }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ marginRight: '8px', cursor: 'pointer' }}
+              />
+              Beni Hatırla
+            </label>
+
+            <Link to="/forgot-password" style={{ color: '#00aff4', textDecoration: 'none' }}>
               Şifreni mi unuttun?
             </Link>
           </div>
@@ -106,6 +113,7 @@ const LoginPage = () => {
           Hesabın yok mu?
           <Link to="/register" className="auth-link">Kaydol</Link>
         </div>
+
         {!isApp && (
             <div style={{marginTop: '20px', textAlign: 'center', borderTop: '1px solid #444', paddingTop: '15px'}}>
                 <p style={{fontSize: '13px', color: '#949ba4', marginBottom: '10px'}}>
@@ -116,14 +124,14 @@ const LoginPage = () => {
                     rel="noopener noreferrer"
                     className="auth-button"
                     target="_blank"
-
                     style={{
                         background: '#23a559',
                         textDecoration: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '8px',
-                        padding: '10px 20px'
+                        padding: '10px 20px',
+                        justifyContent: 'center'
                     }}
                 >
                     Masaüstü Uygulamasını İndir
