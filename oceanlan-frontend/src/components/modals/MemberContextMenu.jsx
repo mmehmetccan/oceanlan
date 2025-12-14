@@ -129,14 +129,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
             {!isSelf && (
                 <div className="volume-control-group">
                     <label className="volume-label">Ses Seviyesi: %{currentVolume}</label>
-                    <input type="range"
-  min="0"
-  max="200"
-  value={currentVolume}
-  onChange={(e) =>
-    setUserVolume(member.user._id, parseInt(e.target.value))
-  }
-                           className="volume-slider" />
+                    <input type="range" min="0" max="200" value={currentVolume} onChange={(e) => setUserVolume(member.user._id || member.user, parseInt(e.target.value))} className="volume-slider" />
                 </div>
             )}
 
