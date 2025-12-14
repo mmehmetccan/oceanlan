@@ -12,9 +12,9 @@ const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
-// 🛡️ Gürültü Engelleme Sabitleri
-const LOW_CUT_FREQ = 200;   // 200Hz altı (Klima, Uğultu) kesilir
-const HIGH_CUT_FREQ = 4000; // 4000Hz üstü (Klavye tıkırtısı, Cızırtı) kesilir
+// 🛡️ FİLTRE AYARLARI
+const LOW_CUT_FREQ = 200;
+const HIGH_CUT_FREQ = 4000;
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
@@ -25,10 +25,9 @@ export const VoiceProvider = ({ children }) => {
   const audioElementsRef = useRef({});
   const socketUserMapRef = useRef({});
 
-  // Ses İşleme Refleri
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
-  const inputGainNodeRef = useRef(null); // Ses Seviyesi Kontrolü için
+  const inputGainNodeRef = useRef(null); // 🔊 SES YÜKSELTİCİ DÜĞÜM
   const checkIntervalRef = useRef(null);
   const isSpeakingRef = useRef(false);
   const processingNodesRef = useRef(null);
@@ -37,7 +36,6 @@ export const VoiceProvider = ({ children }) => {
   const { addToast } = useContext(ToastContext);
   const audioSettings = useContext(AudioSettingsContext);
 
-  // inputVolume (Mikrofon seviyesi) eklendi, yoksa 100 varsayılır
   const {
       inputDeviceId, outputDeviceId, isMicMuted, isDeafened,
       userVolumes, isNoiseSuppression, inputVolume = 100
@@ -57,7 +55,6 @@ export const VoiceProvider = ({ children }) => {
 
   // 1. SOCKET BAĞLANTISI
   useEffect(() => {
-    // Güvenlik: Token yoksa bağlanma
     if (!token || !isAuthenticated) {
         if (socketRef.current) {
             socketRef.current.disconnect();
@@ -108,7 +105,6 @@ export const VoiceProvider = ({ children }) => {
         setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }));
     });
 
-    // Ses haritası güncellemesi
     socket.on('voiceStateUpdate', (serverState) => {
         if (!serverState) return;
         Object.values(serverState).forEach(channelUsers => {
@@ -119,42 +115,51 @@ export const VoiceProvider = ({ children }) => {
         applyVolumeSettings();
     });
 
-    return () => {};
+    return () => { if (newSocket) newSocket.disconnect(); };
   }, [token, isAuthenticated]);
 
-  // Başkalarının ses ayarını uygula
+  // Başkalarının ses ayarını uygula (HTML Audio Max 1.0 destekler)
   const applyVolumeSettings = () => {
       if (!userVolumes || !audioElementsRef.current) return;
       Object.keys(userVolumes).forEach(targetUserId => {
-          // Socket ID'sini bulmak için haritayı kullanıyoruz, yoksa doğrudan ID deniyoruz
           const targetSocketId = Object.keys(socketUserMapRef.current).find(key => socketUserMapRef.current[key] === targetUserId) ||
                                  (audioElementsRef.current[targetUserId] ? targetUserId : null);
 
-          // Not: socketUserMapRef ters (userId -> socketId) olmalıydı, yukarıdaki kodda düzeltme gerekebilir ama
-          // mevcut yapıyı bozmamak için socket'ten gelen veriyle ilerliyoruz.
-
-          // Daha basit yaklaşım: Audio elementlerini gezip, kime ait olduğuna bakmak
-          // Ancak şimdilik senin yapını koruyoruz.
+          if (targetSocketId && audioElementsRef.current[targetSocketId]) {
+              const vol = userVolumes[targetUserId];
+              // 0 ise tam sessiz, değilse max 1.0
+              audioElementsRef.current[targetSocketId].volume = vol === 0 ? 0 : Math.min(vol / 100, 1.0);
+          }
       });
   };
 
   useEffect(() => { applyVolumeSettings(); }, [userVolumes]);
 
-  // Kendi Mikrofon Ses Seviyemiz (Gain)
+  // 🟢 KENDİ MİKROFON SES SEVİYEMİZ (GAIN) - BURASI ÖNEMLİ
   useEffect(() => {
       if (inputGainNodeRef.current && audioContextRef.current) {
-          // 100 = 1.0, 200 = 2.0
-          const gainValue = (inputVolume || 100) / 100;
+          // Input Volume 0-200 arası gelir.
+          // 0 -> 0.0 (Tam Sessizlik)
+          // 100 -> 1.0 (Normal)
+          // 200 -> 2.0 (İki Kat Ses)
+
+          let gainValue = 1.0;
+
+          if (inputVolume === 0) {
+              gainValue = 0; // Mutlak Sessizlik
+          } else {
+              gainValue = inputVolume / 100; // Örn: 150/100 = 1.5
+          }
+
+          // Sesi yumuşak geçişle ayarla (pıtırtı olmasın diye 0.1sn gecikme)
           inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.1);
       }
   }, [inputVolume]);
 
-  // Gürültü Engelleme Açılıp/Kapanınca
+  // Gürültü Engelleme Toggle
   useEffect(() => {
       if (!currentVoiceChannelId || !socketRef.current) return;
       const switchAudioMode = async () => {
-          // Bu kısım joinVoiceChannel içindeki mantığı tekrar tetikler
-          // Mevcut akışı kapatıp yenisini açmak en sağlıklısıdır
           if (localStreamRef.current) {
              joinVoiceChannel({ _id: currentServerId }, { _id: currentVoiceChannelId });
           }
@@ -163,7 +168,7 @@ export const VoiceProvider = ({ children }) => {
   }, [isNoiseSuppression]);
 
   // ----------------------------------------------------------------
-  // 🎛️ SES İŞLEME MOTORU (Geliştirilmiş)
+  // 🎛️ SES İŞLEME MOTORU
   // ----------------------------------------------------------------
   const processAudioStream = async (rawStream) => {
       try {
@@ -176,30 +181,33 @@ export const VoiceProvider = ({ children }) => {
           const source = audioCtx.createMediaStreamSource(rawStream);
           const destination = audioCtx.createMediaStreamDestination();
 
-          // 🟢 1. SES SEVİYESİ (GAIN)
+          // 🟢 1. SES SEVİYESİ (GAIN NODE)
           const inputGain = audioCtx.createGain();
-          inputGain.gain.value = (inputVolume || 100) / 100;
+
+          // İlk açılışta volume ayarını uygula
+          const initialVolume = inputVolume !== undefined ? inputVolume : 100;
+          inputGain.gain.value = initialVolume === 0 ? 0 : (initialVolume / 100);
+
           inputGainNodeRef.current = inputGain;
 
-          // Zinciri Başlat: Source -> Gain
           let currentNode = source;
           currentNode.connect(inputGain);
           currentNode = inputGain;
 
           if (isNoiseSuppression) {
-              // 🟢 2. High-Pass (Uğultu Kesici)
+              // 2. High-Pass (Uğultu Kesici)
               const highPass = audioCtx.createBiquadFilter();
               highPass.type = 'highpass';
               highPass.frequency.value = LOW_CUT_FREQ;
               highPass.Q.value = 0.7;
 
-              // 🟢 3. Low-Pass (Klavye Tıkırtısı Kesici)
+              // 3. Low-Pass (Cızırtı Kesici)
               const lowPass = audioCtx.createBiquadFilter();
               lowPass.type = 'lowpass';
               lowPass.frequency.value = HIGH_CUT_FREQ;
               lowPass.Q.value = 0.7;
 
-              // 🟢 4. Compressor
+              // 4. Compressor
               const compressor = audioCtx.createDynamicsCompressor();
               compressor.threshold.value = -20;
               compressor.knee.value = 40;
@@ -207,13 +215,13 @@ export const VoiceProvider = ({ children }) => {
               compressor.attack.value = 0;
               compressor.release.value = 0.25;
 
-              // Bağlantı: Gain -> HighPass -> LowPass -> Compressor -> Çıkış
+              // Bağlantı
               currentNode.connect(highPass);
               highPass.connect(lowPass);
               lowPass.connect(compressor);
               compressor.connect(destination);
           } else {
-              // Gürültü engelleme yoksa sadece Gain uygula
+              // Gürültü engelleme yoksa sadece Gain ile çıkışa ver
               currentNode.connect(destination);
           }
 
@@ -225,9 +233,7 @@ export const VoiceProvider = ({ children }) => {
       }
   };
 
-  // ----------------------------------------------------------------
-  // 🔊 MİKROFON ANALİZİ (YEŞİL IŞIK)
-  // ----------------------------------------------------------------
+  // 🔊 ANALİZ
   const startAudioAnalysis = async (stream) => {
       try {
           let audioCtx = audioContextRef.current;
@@ -293,9 +299,7 @@ export const VoiceProvider = ({ children }) => {
           localStreamRef.current.getTracks().forEach(t => t.stop());
           localStreamRef.current = null;
       }
-      if (processedStreamRef.current) {
-          processedStreamRef.current = null;
-      }
+      if (processedStreamRef.current) processedStreamRef.current = null;
       if (myScreenStream) {
           myScreenStream.getTracks().forEach(t => t.stop());
           setMyScreenStream(null);
@@ -314,9 +318,7 @@ export const VoiceProvider = ({ children }) => {
     joinVoiceChannel(serverId, newChannelId);
   };
 
-  // ----------------------------------------------------------------
-  // JOIN VOICE CHANNEL (MOBİL DÜZELTMESİ EKLENDİ)
-  // ----------------------------------------------------------------
+  // 🟢 MOBİL FALLBACK UYUMLU JOIN
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
@@ -347,26 +349,22 @@ export const VoiceProvider = ({ children }) => {
           video: false
       };
 
-      // 🟢 MOBİL FALLBACK (YEDEK PLAN)
       try {
-          // Önce gelişmiş ayarları dene
           if (!isNoiseSuppression) {
              constraints.audio = { deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined };
           }
           rawStream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (advancedErr) {
-          console.warn("Gelişmiş mikrofon başarısız, basit moda geçiliyor (Mobil/Tablet)...", advancedErr);
-          // Hata verirse en basit haliyle dene (Mobil uyumlu)
+          console.warn("Gelişmiş mod başarısız, basit moda geçiliyor...", advancedErr);
           rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       }
 
       localStreamRef.current = rawStream;
 
-      // Sesi İşle (Gürültü Engelleme ve Gain)
+      // İşlenmiş Sesi Hazırla
       let streamToSend = await processAudioStream(rawStream);
       processedStreamRef.current = streamToSend;
 
-      // Mute Kontrolü
       const shouldEnable = !isMicMuted;
       rawStream.getAudioTracks().forEach(track => { track.enabled = shouldEnable; });
       streamToSend.getAudioTracks().forEach(track => { track.enabled = shouldEnable; });
@@ -381,9 +379,9 @@ export const VoiceProvider = ({ children }) => {
       });
 
     } catch (err) {
-      console.error("Mikrofon hatası (Tüm yöntemler başarısız):", err);
+      console.error("Mikrofon hatası:", err);
       setMicError("Mikrofon açılamadı");
-      addToast('Mikrofon hatası: İzin verilmedi veya cihaz bulunamadı.', 'error');
+      addToast('Mikrofon hatası: İzin verilmedi.', 'error');
     }
   };
 

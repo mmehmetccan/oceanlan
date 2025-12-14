@@ -274,15 +274,48 @@ const FeedPage = () => {
           <div className="rail-card-header"><h4>İstekler</h4><span className="rail-chip">{pendingRequests.length}</span></div>
           <div className="rail-list">
             {pendingRequests.map(req => {
+               // 1. İstek gönderen ve alan ID'leri
                const requesterId = req.requester?._id || req.requester;
-               const isOutgoing = String(requesterId) === String(user?.id);
+
+               // 2. Kontrol: Bu isteği BEN mi gönderdim? (ID eşleşmesi garanti olsun diye String'e çevirdik)
+               const isOutgoing = String(requesterId) === String(user?.id || user?._id);
+
+               // 3. Listede gösterilecek diğer kullanıcı
                const otherUser = isOutgoing ? req.recipient : req.requester;
+
                return (
                  <div key={req._id} className="rail-user" onContextMenu={(e) => handleContextMenu(e, otherUser, isOutgoing ? 'pending_outgoing' : 'pending_incoming')}>
-                   <div className="rail-user-avatar"><img src={getImageUrl(otherUser.avatarUrl || otherUser.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" /></div>
-                   <div className="rail-user-meta"><span className="rail-user-name">{otherUser?.username}</span><span className="rail-user-status" style={{color: isOutgoing ? '#faa61a' : '#3ba55c', fontWeight:'600'}}>{isOutgoing ? 'İstek gönderildi' : 'Sana istek gönderdi'}</span></div>
+
+                   {/* Avatar */}
+                   <div className="rail-user-avatar">
+                     <img src={getImageUrl(otherUser.avatarUrl || otherUser.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" />
+                   </div>
+
+                   {/* İsim ve Durum Yazısı */}
+                   <div className="rail-user-meta">
+                     <span className="rail-user-name">{otherUser?.username}</span>
+
+                     {/* 👇 DURUM YAZISI AYARI */}
+                     {isOutgoing ? (
+                        // EĞER BEN GÖNDERDİYSEM: SARI YAZI
+                        <span className="rail-user-status" style={{color: '#faa61a', fontWeight:'600', fontSize:'12px'}}>
+                           ⏳ İstek Gönderildi
+                        </span>
+                     ) : (
+                        // EĞER BANA GELDİYSE: YEŞİL YAZI
+                        <span className="rail-user-status" style={{color: '#3ba55c', fontWeight:'600', fontSize:'12px'}}>
+                           Sana istek gönderdi
+                        </span>
+                     )}
+                   </div>
+
+                   {/* Butonlar */}
                    <div className="rail-actions">
-                      {isOutgoing ? <span style={{ fontSize: '11px', color: '#b9bbbe', fontStyle: 'italic' }}>Bekleniyor...</span> : (
+                      {isOutgoing ? (
+                        // 👇 EĞER BEN GÖNDERDİYSEM BUTONLARI GİZLE
+                        <span style={{ fontSize: '11px', color: '#72767d', fontStyle: 'italic' }}>Bekleniyor</span>
+                      ) : (
+                        // 👇 EĞER BANA GELDİYSE BUTONLARI GÖSTER
                         <>
                           <button className="rail-btn rail-btn-primary" style={{padding:'4px 8px', background:'#3ba55c'}} onClick={() => handleFriendResponse(req._id, 'accepted')}>✓</button>
                           <button className="rail-btn" style={{padding:'4px 8px', background:'#ed4245'}} onClick={() => { setConfirmModal({ isOpen: true, title: 'İsteği Reddet', message: 'Emin misin?', isDanger: true, confirmText: 'Reddet', onConfirm: () => handleFriendResponse(req._id, 'rejected') }); }}>✕</button>

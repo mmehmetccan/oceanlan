@@ -62,8 +62,8 @@
 
 .create-post-input:focus {
   outline: none;
-  border-color: rgba(88, 101, 242, 0.6);
-  box-shadow: 0 12px 28px rgba(88, 101, 242, 0.25);
+  border-color: rgba(88, 242, 137, 0.6);
+  box-shadow: 0 12px 28px rgba(88, 242, 124, 0.25);
 }
 
 .create-post-actions {
