@@ -1,4 +1,3 @@
-// src/components/modals/MemberContextMenu.jsx
 import React, { useContext, useState, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
@@ -7,7 +6,6 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useSocket } from '../../hooks/useSocket';
 import UserProfileModal from '../profile/UserProfileModal';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
-// 👇 YENİ HELPER EKLENDİ
 import { getImageUrl } from '../../utils/urlHelper';
 
 import "../../styles/MemberContextMenu.css";
@@ -24,7 +22,6 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const menuRef = useRef(null);
   const [menuStyle, setMenuStyle] = useState({ top: y, left: x, opacity: 0 });
 
-  // Konumlandırma mantığı
   useLayoutEffect(() => {
     if (menuRef.current) {
         const { offsetWidth: width, offsetHeight: height } = menuRef.current;
@@ -41,37 +38,39 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
     }
   }, [x, y]);
 
-  if (!member || !member.user) return null;
+  if (!member) return null;
 
-  // 👇 AVATAR URL DÜZELTME (Helper Kullanıldı)
-  // Bu sayede default avatar hem Web'de hem Electron'da görünür
-  const displayAvatarSrc = getImageUrl(member.user.avatarUrl || member.user.avatar);
+  // 🛠️ ID ÇÖZÜMLEME (Populated veya String kontrolü)
+  // user objesi bazen dolu gelir, bazen sadece ID stringi gelir. İkisini de kapsayalım.
+  const targetUser = member.user || {};
+  const targetUserId = targetUser._id || (typeof member.user === 'string' ? member.user : null);
 
-  // Avatar yüklenemezse helper'daki default'u kullan
+  if (!targetUserId) return null; // ID yoksa render etme
+
+  const displayAvatarSrc = getImageUrl(targetUser.avatarUrl || targetUser.avatar);
+
   const handleAvatarError = (e) => {
     if (e.target.dataset.fallbackApplied) return;
     e.target.dataset.fallbackApplied = 'true';
     e.target.src = getImageUrl(null);
   };
 
-  const currentVolume = userVolumes[member.user._id] !== undefined ? userVolumes[member.user._id] : 100;
-  const isSelf = user?.id === member.user._id;
+  // Ses Seviyesi Kontrolü
+  const currentVolume = userVolumes[targetUserId] !== undefined ? userVolumes[targetUserId] : 100;
 
-  // 🛡️ YETKİ KONTROLLERİ
-  const userId = user?.id || user?._id;
-  const canKick = checkUserPermission(activeServer, userId, 'KICK_MEMBERS');
-  const canBan = checkUserPermission(activeServer, userId, 'BAN_MEMBERS');
+  const isSelf = user?.id === targetUserId;
 
-  // 📢 İSTEDİĞİN ÖZELLİK: Mute/Deafen sadece yetkisi varsa görünür
-  const canMute = checkUserPermission(activeServer, userId, 'MUTE_MEMBERS');
-  const canDeafen = checkUserPermission(activeServer, userId, 'DEAFEN_MEMBERS');
-
-  const canDisconnect = checkUserPermission(activeServer, userId, 'MOVE_MEMBERS') || checkUserPermission(activeServer, userId, 'ADMINISTRATOR');
+  const currentUserId = user?.id || user?._id;
+  const canKick = checkUserPermission(activeServer, currentUserId, 'KICK_MEMBERS');
+  const canBan = checkUserPermission(activeServer, currentUserId, 'BAN_MEMBERS');
+  const canMute = checkUserPermission(activeServer, currentUserId, 'MUTE_MEMBERS');
+  const canDeafen = checkUserPermission(activeServer, currentUserId, 'DEAFEN_MEMBERS');
+  const canDisconnect = checkUserPermission(activeServer, currentUserId, 'MOVE_MEMBERS') || checkUserPermission(activeServer, currentUserId, 'ADMINISTRATOR');
 
   const MEMBER_API_URL = `${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}`;
 
   const handleKick = async () => {
-    if (!window.confirm(`${member.user.username} üyesini atmak istiyor musun?`)) return;
+    if (!window.confirm(`${targetUser.username} üyesini atmak istiyor musun?`)) return;
     try { await axios.delete(MEMBER_API_URL); fetchServerDetails(serverId); onClose(); }
     catch (e) { alert('Hata: ' + e.message); }
   };
@@ -95,7 +94,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
 
   const handleDisconnect = () => {
       if (!window.confirm('Bağlantıyı kesmek istiyor musun?')) return;
-      socket.emit('disconnect-voice-user', { serverId, targetUserId: member.user._id });
+      socket.emit('disconnect-voice-user', { serverId, targetUserId: targetUserId });
       onClose();
   };
 
@@ -108,15 +107,15 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
           <div className="member-menu-header">
             <div className="member-menu-avatar">
               <img
-                src={displayAvatarSrc} // ✅ Düzeltilmiş URL
-                alt={member.user.username}
-                onError={handleAvatarError} // ✅ Düzeltilmiş Hata Yönetimi
+                src={displayAvatarSrc}
+                alt={targetUser.username}
+                onError={handleAvatarError}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
               />
             </div>
             <div className="member-menu-info">
-              <div className="member-menu-name clickable" onClick={() => setShowProfile(true)}>{member.user.username}</div>
-              <div className="member-menu-sub">{activeServer?.owner?._id === member.user._id && <span style={{color:'#faa61a'}}>👑 Sunucu Sahibi</span>}</div>
+              <div className="member-menu-name clickable" onClick={() => setShowProfile(true)}>{targetUser.username || 'Kullanıcı'}</div>
+              <div className="member-menu-sub">{activeServer?.owner?._id === targetUserId && <span style={{color:'#faa61a'}}>👑 Sunucu Sahibi</span>}</div>
               <div className="member-menu-roles">
                   {displayRoles.length > 0 ? displayRoles.map(r => (
                       <span key={r._id} className="menu-role-badge" style={{color:r.color||'#b9bbbe', borderColor:r.color||'#4f545c'}}>{r.name}</span>
@@ -128,14 +127,23 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
           <div className="member-menu-actions">
             {!isSelf && (
                 <div className="volume-control-group">
-                    <label className="volume-label">Ses Seviyesi: %{currentVolume}</label>
-                    <input type="range" min="0" max="200" value={currentVolume} onChange={(e) => setUserVolume(member.user._id || member.user, parseInt(e.target.value))} className="volume-slider" />
+                    <label className="volume-label" style={{display:'flex', justifyContent:'space-between'}}>
+                        <span>Ses Seviyesi</span>
+                        <span>%{currentVolume}</span>
+                    </label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={currentVolume}
+                        onChange={(e) => setUserVolume(targetUserId, parseInt(e.target.value))}
+                        className="volume-slider"
+                    />
                 </div>
             )}
 
             {!isSelf && <hr className="menu-divider" />}
 
-            {/* 🛡️ SADECE YETKİSİ OLAN GÖRÜR */}
             {canMute && (
               <button className="member-menu-btn" onClick={() => handleStatusUpdate('mute')}>
                 {member.isMuted ? 'Susturmayı Kaldır' : 'Sustur'}
@@ -158,7 +166,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
           </div>
         </div>
       </div>
-      {showProfile && <UserProfileModal userId={member.user._id} initialName={member.user.username} onClose={() => { onClose(); setShowProfile(false); }} />}
+      {showProfile && <UserProfileModal userId={targetUserId} initialName={targetUser.username} onClose={() => { onClose(); setShowProfile(false); }} />}
     </>
   );
 };
