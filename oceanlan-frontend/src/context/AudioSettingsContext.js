@@ -47,12 +47,7 @@ export const AudioSettingsProvider = ({ children }) => {
   };
 
   const toggleDeafen = () => {
-      setIsDeafened(prev => {
-          const newState = !prev;
-          // Sağırlaştırınca otomatik olarak mikrofonu da sustur (Discord mantığı)
-          if (newState) setIsMicMuted(true);
-          return newState;
-      });
+      setIsDeafened(prev => !prev);
   };
 
   const toggleNoiseSuppression = () => {

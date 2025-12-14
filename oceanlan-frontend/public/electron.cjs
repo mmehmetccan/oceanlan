@@ -32,10 +32,27 @@ function createSplashWindow() {
     },
   });
 
-  const splashPath = path.join(__dirname, 'splash.html');
-  splashWindow.loadFile(splashPath);
+  let splashPath;
 
-  // İçerik yüklenince göster
+  if (app.isPackaged) {
+      // Production (Build alınmış hali):
+      // Genellikle 'dist/splash.html' içindedir.
+      splashPath = path.join(app.getAppPath(), 'dist', 'splash.html');
+  } else {
+      // Development (Localhost):
+      // Dosyanın yanındaki splash.html
+      splashPath = path.join(__dirname, 'splash.html');
+  }
+
+  // Yüklemeyi dene, hata verirse konsola bas (Beyaz ekranın sebebi anlaşılır)
+  splashWindow.loadFile(splashPath).catch(err => {
+      console.error("Splash Yükleme Hatası:", err);
+      // Yedek Plan: Eğer dist içinde bulamazsa bir üst dizine bak
+      if (app.isPackaged) {
+          splashWindow.loadFile(path.join(app.getAppPath(), 'splash.html'));
+      }
+  });
+
   splashWindow.once('ready-to-show', () => {
     splashWindow.show();
   });

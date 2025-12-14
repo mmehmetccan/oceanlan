@@ -3,7 +3,7 @@
   "homepage": "./",
   "name": "oceanlan",
   "private": true,
-  "version": "1.3.2",
+  "version": "1.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -57,7 +57,8 @@
     "files": [
       "dist/**/*",
       "public/electron.cjs",
-      "public/preload.cjs"
+      "public/preload.cjs",
+      "public/splash.html"
     ],
     "win": {
       "target": [

@@ -4,7 +4,7 @@ import { VoiceContext } from '../../context/VoiceContext';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
 import '../../styles/VoiceRoom.css';
-import { getImageUrl ,DEFAULT_AVATAR_URL} from '../../utils/urlHelper';
+import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
 import {
     MicrophoneIcon,
     SpeakerWaveIcon,
@@ -13,18 +13,6 @@ import {
     SignalIcon,
     SparklesIcon
 } from '@heroicons/react/24/solid';
-
-const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-const toAbsolute = (src) => {
-    if (!src) return `${API_URL_BASE}/uploads/default-avatar.png`;
-
-    // Eğer zaten tam link ise dokunma
-    if (src.startsWith('http')) return src;
-
-    // Değilse sunucu yolunu ekle
-    return `${API_URL_BASE}${src.startsWith('/') ? src : '/' + src}`;
-};
 
 const VoiceRoom = () => {
   const { startScreenShare, stopScreenShare } = useVoiceChannel();
@@ -40,17 +28,17 @@ const VoiceRoom = () => {
       isConnected
   } = useContext(VoiceContext);
 
-  const { isMicMuted, toggleMic, isDeafened, toggleDeafen,isNoiseSuppression, toggleNoiseSuppression } = useContext(AudioSettingsContext);
+  const {
+      isMicMuted, toggleMic,
+      isDeafened, toggleDeafen,
+      isNoiseSuppression, toggleNoiseSuppression
+  } = useContext(AudioSettingsContext);
+
   const { user } = useContext(AuthContext);
 
-  // 1. Kanal seçilmediyse gösterme (Bu doğru)
   if (!currentVoiceChannelId) return null;
 
-  // 🛑 2. ESKİ HATALI KOD BURADAYDI (if (!user) return null;)
-  // O satırı sildik! Yerine aşağıdaki "safeUser" mantığını kullanıyoruz.
-
-  // Eğer user verisi henüz gelmediyse geçici bir "Misafir" objesi oluşturuyoruz.
-  // Böylece kart anında görünür, veri gelince ismi güncellenir.
+  // Güvenli kullanıcı verisi
   const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
 
   const handleScreenShareToggle = () => {
@@ -61,24 +49,18 @@ const VoiceRoom = () => {
   const isVoiceConnected = isConnected;
   const connectionText = isVoiceConnected ? 'Ses Bağlı' : 'Bağlanıyor...';
   const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
-
-  // Konuşuyor mu kontrolü (safeUser.id kullanarak hata almayı engelliyoruz)
   const amISpeaking = speakingUsers && safeUser.id && speakingUsers[safeUser.id];
 
   return (
     <div className="voice-room-controls">
         {micError && (
-          <div className="voice-error-banner">
-            ❗ {micError}
-          </div>
+          <div className="voice-error-banner">❗ {micError}</div>
         )}
 
       <div className="voice-room-info">
         <div className={`voice-connection-status ${connectionClass}`}>
             <SignalIcon className="voice-icon-signal" />
-            <span className="voice-status-text">
-                {connectionText}
-            </span>
+            <span className="voice-status-text">{connectionText}</span>
         </div>
         <div className="voice-room-details">
             <span className="server-name">{currentServerName || 'Sunucu'}</span>
@@ -88,35 +70,43 @@ const VoiceRoom = () => {
       </div>
 
         <div className="voice-controls-actions">
+            {/* MİKROFON */}
             <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
                 <MicrophoneIcon className="voice-icon"/>
                 {isMicMuted && <div className="strike-line"/>}
             </button>
 
+            {/* SAĞIRLAŞTIRMA */}
             <button onClick={toggleDeafen} className={`voice-control-btn ${isDeafened ? 'active-red' : ''}`}>
                 <SpeakerWaveIcon className="voice-icon"/>
                 {isDeafened && <div className="strike-line"/>}
             </button>
+
+            {/* 🟢 GÜRÜLTÜ ENGELLEME (GÜNCELLENDİ) */}
+            {/* Açıkken Yeşil (active-green), Kapalıyken Çizgili */}
             <button
                 onClick={toggleNoiseSuppression}
-                className={`voice-control-btn ${isNoiseSuppression ? 'active-purple' : ''}`}
-                title="Gürültü Engelleme (Krisp)"
-                style={isNoiseSuppression ? {color: '#a588ff'} : {}}
+                className={`voice-control-btn ${isNoiseSuppression ? 'active-green' : ''}`}
+                title={isNoiseSuppression ? "Gürültü Engelleme: AÇIK" : "Gürültü Engelleme: KAPALI"}
             >
                 <SparklesIcon className="voice-icon"/>
+                {/* Kapalıysa üstüne çizgi çek */}
+                {!isNoiseSuppression && <div className="strike-line"/>}
             </button>
 
+            {/* EKRAN PAYLAŞIMI */}
             <button onClick={handleScreenShareToggle}
                     className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
                 <ComputerDesktopIcon className="voice-icon"/>
             </button>
 
+            {/* BAĞLANTIYI KES */}
             <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">
                 <PhoneXMarkIcon className="voice-icon"/>
             </button>
         </div>
 
-        {/* Kullanıcı Kartı - Anlık Güncelleme */}
+        {/* KULLANICI KARTI */}
         <div className="voice-user-section">
             <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
                 <img
@@ -126,13 +116,10 @@ const VoiceRoom = () => {
                     onError={(e) => {
                             if (e.target.dataset.fallbackApplied) return;
                             e.target.dataset.fallbackApplied = 'true';
-                            // Hata durumunda senin sunucundaki resmi gösterir
                             e.target.src = DEFAULT_AVATAR_URL;
                         }}
                 />
             </div>
-
-
       </div>
     </div>
   );
