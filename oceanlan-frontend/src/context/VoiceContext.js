@@ -87,30 +87,24 @@ export const VoiceProvider = ({ children }) => {
   // 🟢 1. DÜZELTME: BAŞKALARININ SES SEVİYESİNİ CANLI UYGULA
   // userVolumes state'i değiştiğinde (MemberContextMenu'dan), audio elementinin sesini güncelle
   useEffect(() => {
-      if (!audioElementsRef.current) return;
-
-      Object.keys(userVolumes).forEach(userId => {
-          const audioElement = audioElementsRef.current[userId];
-          if (audioElement) {
-              const volume = userVolumes[userId]; // 0 ile 200 arası
-              // HTML Audio volume 0.0 ile 1.0 arasındadır.
-              // 100 üstü için yazılımsal gain gerekir ama basit çözüm: 100 = 1.0
-              // Eğer 200'e kadar boost istiyorsan WebAudioAPI gain node gerekir,
-              // şimdilik basit volume kontrolü:
-              audioElement.volume = Math.min(volume / 100, 1.0);
-          }
-      });
-  }, [userVolumes]);
+  Object.keys(userVolumes).forEach(userId => {
+    const audio = audioElementsRef.current[userId];
+    if (audio) {
+      audio.volume = Math.min(userVolumes[userId] / 100, 1);
+    }
+  });
+}, [userVolumes]);
 
   // 🟢 2. DÜZELTME: KENDİ MİKROFON SESİMİZİ (GAIN) CANLI UYGULA
   useEffect(() => {
-      if (inputGainNodeRef.current && audioContextRef.current) {
-          // inputVolume 0-200 arası geliyor.
-          // 100 = 1.0 (Normal), 200 = 2.0 (İki kat ses), 50 = 0.5 (Yarı ses)
-          const gainValue = inputVolume / 100;
-          inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.1);
-      }
-  }, [inputVolume]);
+  if (inputGainNodeRef.current && audioContextRef.current) {
+    inputGainNodeRef.current.gain.setTargetAtTime(
+      inputVolume / 100,
+      audioContextRef.current.currentTime,
+      0.1
+    );
+  }
+}, [inputVolume]);
 
   // PTT Dinleyicisi
   useEffect(() => {
@@ -147,8 +141,8 @@ export const VoiceProvider = ({ children }) => {
 
           // 🟢 INPUT GAIN NODE (Mikrofon Sesi Ayarı İçin)
           const inputGain = audioCtx.createGain();
-          inputGain.gain.value = inputVolume / 100; // Başlangıç seviyesi
-          inputGainNodeRef.current = inputGain;
+inputGain.gain.value = inputVolume / 100;
+inputGainNodeRef.current = inputGain;
 
           // Zincir başlangıcı
           let currentNode = source;
