@@ -5,6 +5,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { useSocket } from '../../hooks/useSocket';
 import { useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
+import ScreenShareDisplay from './ScreenShareDisplay';
 // 👇 YENİ: Helper'ı import et
 import { getFullImageUrl } from '../../utils/urlHelper';
 
@@ -184,14 +185,18 @@ const ChatArea = () => {
   };
 
   return (
-    <div className="chat-area">
-      <header className="chat-header">
-        # {currentChannel.name}
-      </header>
+      <div className="chat-area">
+        <header className="chat-header">
+          # {currentChannel.name}
+        </header>
 
-      <div className="messages-container">
-        {messages.map((msg, index) => (
-            <div key={index} className="message-item">
+        <div className="chat-screen-share-section">
+          <ScreenShareDisplay/>
+        </div>
+
+        <div className="messages-container">
+          {messages.map((msg, index) => (
+              <div key={index} className="message-item">
                 <span className="message-author">{msg.author.username}</span>
 
                 {/* Tarih ve Saat */}
@@ -201,51 +206,51 @@ const ChatArea = () => {
 
                 {/* İçeriği Render Et */}
                 {renderMessageContent(msg)}
-            </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {previewImage && (
-        <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}>
-          <div className="image-modal">
-            <img src={previewImage} alt="Önizleme" />
-          </div>
+              </div>
+          ))}
+          <div ref={messagesEndRef}/>
         </div>
-      )}
 
-      <footer className="message-input-area">
-        <form onSubmit={handleSendMessage}>
+        {previewImage && (
+            <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}>
+              <div className="image-modal">
+                <img src={previewImage} alt="Önizleme"/>
+              </div>
+            </div>
+        )}
 
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-            accept="image/*,video/*"
-          />
+        <footer className="message-input-area">
+          <form onSubmit={handleSendMessage}>
 
-          <button
-            type="button"
-            className="attach-file-btn"
-            onClick={() => fileInputRef.current.click()}
-          >
-            📎
-          </button>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                style={{display: 'none'}}
+                accept="image/*,video/*"
+            />
 
-          <input
-            type="text"
-            placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
-            value={inputContent}
-            onChange={(e) => setInputContent(e.target.value)}
-            disabled={isUploading}
-          />
-          <button type="submit" disabled={!socket || isUploading}>
-            {isUploading ? '...' : 'Gönder'}
-          </button>
-        </form>
-      </footer>
-    </div>
+            <button
+                type="button"
+                className="attach-file-btn"
+                onClick={() => fileInputRef.current.click()}
+            >
+              📎
+            </button>
+
+            <input
+                type="text"
+                placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
+                value={inputContent}
+                onChange={(e) => setInputContent(e.target.value)}
+                disabled={isUploading}
+            />
+            <button type="submit" disabled={!socket || isUploading}>
+              {isUploading ? '...' : 'Gönder'}
+            </button>
+          </form>
+        </footer>
+      </div>
   );
 };
 
