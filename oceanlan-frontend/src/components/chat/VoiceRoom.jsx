@@ -5,7 +5,7 @@ import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { AuthContext } from '../../context/AuthContext';
 import '../../styles/VoiceRoom.css';
 import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
-// 👇 1. MODAL IMPORT EDİLDİ
+// 👇 1. MODAL IMPORT
 import ScreenSharePickerModal from '../modals/ScreenSharePickerModal';
 
 import {
@@ -46,7 +46,7 @@ const VoiceRoom = () => {
 
   const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
 
-  // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON (GÜNCELLENDİ)
+  // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON
   const handleScreenShareToggle = () => {
       // Eğer zaten paylaşım yapıyorsam durdur
       if (myScreenStream) {
@@ -80,6 +80,7 @@ const VoiceRoom = () => {
           <div className="voice-error-banner">❗ {micError}</div>
         )}
 
+      {/* 🛑 VİDEO BURADAN KALDIRILDI - Sadece Bilgi Alanı */}
       <div className="voice-room-info">
         <div className={`voice-connection-status ${connectionClass}`}>
             <SignalIcon className="voice-icon-signal" />
@@ -92,6 +93,7 @@ const VoiceRoom = () => {
         </div>
       </div>
 
+        {/* Butonlar */}
         <div className="voice-controls-actions">
             <button onClick={toggleMic} className={`voice-control-btn ${isMicMuted ? 'active-red' : ''}`}>
                 <MicrophoneIcon className="voice-icon"/>
@@ -123,6 +125,7 @@ const VoiceRoom = () => {
             </button>
         </div>
 
+        {/* Kullanıcı Kartı */}
         <div className="voice-user-section">
             <div className={`voice-avatar-wrapper ${amISpeaking ? 'speaking' : ''}`}>
                 <img

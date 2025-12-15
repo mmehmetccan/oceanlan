@@ -75,33 +75,38 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
 
 const ScreenShareDisplay = () => {
     const {
-        myScreenStream,
-        peersWithVideo,
+        myScreenStream, // Kendi yayının (Kırmızı Alan)
+        peersWithVideo, // Diğer yayınlar (İçinde Sarı Alan da var, onu sileceğiz)
         stopScreenShare,
-        socket // 🟢 Kendi ID'mizi kontrol etmek için socket'i aldık
+        socket
     } = useContext(VoiceContext);
 
-    const videos = peersWithVideo || {};
-    const mySocketId = socket?.id;
+    // 🟢 KRİTİK DÜZELTME: SARI ALANI (YANSIMAYI) YOK ET
+    // Listeyi filtreliyoruz: Eğer gelen yayın benim yayınımın ID'sine sahipse LİSTEDEN ÇIKAR.
+    const remoteStreams = Object.entries(peersWithVideo || {}).filter(([socketId, stream]) => {
+        // 1. Socket ID kontrolü (Benim socketimse gizle)
+        if (socket && socketId === socket.id) return false;
 
-    // 🟢 FİLTRELEME: Eğer listede kendi Socket ID'm varsa onu çıkar (Yansımayı önle)
-    const remoteStreams = Object.entries(videos).filter(([socketId]) => socketId !== mySocketId);
+        // 2. Stream ID kontrolü (Benim yayınımın aynısıysa gizle - Kesin çözüm)
+        if (myScreenStream && stream.id === myScreenStream.id) return false;
+
+        return true;
+    });
 
     const hasMyStream = !!myScreenStream;
-    const peerCount = remoteStreams.length;
+    const peerCount = remoteStreams.length; // Artık sadece GERÇEK başkaları kaldı
 
     // Hiç yayın yoksa gizle
     if (!hasMyStream && peerCount === 0) {
         return null;
     }
 
-    // Grid ayarı
     const totalStreams = (hasMyStream ? 1 : 0) + peerCount;
 
     return (
         <div className="screen-share-grid-container" style={{ gridTemplateColumns: `repeat(${totalStreams > 1 ? 2 : 1}, 1fr)` }}>
 
-            {/* 🟢 1. SENİN YAYININ (Sadece 1 kere görünür) */}
+            {/* 🔴 1. SENİN YAYININ (BU KALIYOR - KIRMIZI ALAN) */}
             {hasMyStream && (
                 <VideoPlayer
                     stream={myScreenStream}
@@ -110,7 +115,7 @@ const ScreenShareDisplay = () => {
                 />
             )}
 
-            {/* 🟢 2. DİĞER KULLANICILAR (Kendin hariç) */}
+            {/* 🟡 2. SADECE DİĞER KULLANICILAR (SARI ALAN FİLTRELENDİ) */}
             {remoteStreams.map(([socketId, stream]) => (
                 <VideoPlayer
                     key={socketId}
