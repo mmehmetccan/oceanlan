@@ -42,7 +42,7 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
                 ref={videoRef}
                 autoPlay
                 playsInline
-                muted={true}
+                muted={true} // Sesler kanaldan gelir, video sessiz
                 style={{ objectFit: viewMode }}
                 className="main-video"
             />
@@ -59,12 +59,12 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
                 </div>
 
                 <div className="controls-right">
-                    {isLocal && (
+                    {isLocal && onStop && (
                         <button onClick={onStop} className="control-btn stop-btn" title="Yayını Durdur">
                             <XMarkIcon style={{ width: 24, height: 24 }} />
                         </button>
                     )}
-                    <button onClick={toggleFullscreen} className="control-btn">
+                    <button onClick={toggleFullscreen} className="control-btn" title="Tam Ekran">
                         {isFullscreen ? <ArrowsPointingInIcon style={{width:20}}/> : <ArrowsPointingOutIcon style={{width:20}}/>}
                     </button>
                 </div>
@@ -75,48 +75,36 @@ const VideoPlayer = ({ stream, isLocal, username, onStop }) => {
 
 const ScreenShareDisplay = () => {
     const {
-        myScreenStream, // Kendi yayının (Kırmızı Alan)
-        peersWithVideo, // Diğer yayınlar (İçinde Sarı Alan da var, onu sileceğiz)
-        stopScreenShare,
-        socket
+        myScreenStream, // Benim yerel yayınım (Kırmızı Alan)
+        peersWithVideo, // Başkalarının yayını (Sarı Alan / Yansıma)
+        stopScreenShare
     } = useContext(VoiceContext);
 
-    // 🟢 KRİTİK DÜZELTME: SARI ALANI (YANSIMAYI) YOK ET
-    // Listeyi filtreliyoruz: Eğer gelen yayın benim yayınımın ID'sine sahipse LİSTEDEN ÇIKAR.
-    const remoteStreams = Object.entries(peersWithVideo || {}).filter(([socketId, stream]) => {
-        // 1. Socket ID kontrolü (Benim socketimse gizle)
-        if (socket && socketId === socket.id) return false;
-
-        // 2. Stream ID kontrolü (Benim yayınımın aynısıysa gizle - Kesin çözüm)
-        if (myScreenStream && stream.id === myScreenStream.id) return false;
-
-        return true;
-    });
-
-    const hasMyStream = !!myScreenStream;
-    const peerCount = remoteStreams.length; // Artık sadece GERÇEK başkaları kaldı
-
-    // Hiç yayın yoksa gizle
-    if (!hasMyStream && peerCount === 0) {
-        return null;
-    }
-
-    const totalStreams = (hasMyStream ? 1 : 0) + peerCount;
-
-    return (
-        <div className="screen-share-grid-container" style={{ gridTemplateColumns: `repeat(${totalStreams > 1 ? 2 : 1}, 1fr)` }}>
-
-            {/* 🔴 1. SENİN YAYININ (BU KALIYOR - KIRMIZI ALAN) */}
-            {hasMyStream && (
+    // 🟢 MANTIK: Eğer ben yayın yapıyorsam, SADECE kendi yayınımı göster.
+    // Başkalarının yayınını (veya bana dönen yansımayı) tamamen yoksay.
+    if (myScreenStream) {
+        return (
+            <div className="screen-share-grid-container" style={{ gridTemplateColumns: '1fr' }}>
                 <VideoPlayer
                     stream={myScreenStream}
                     isLocal={true}
                     onStop={stopScreenShare}
                 />
-            )}
+            </div>
+        );
+    }
 
-            {/* 🟡 2. SADECE DİĞER KULLANICILAR (SARI ALAN FİLTRELENDİ) */}
-            {remoteStreams.map(([socketId, stream]) => (
+    // 🟢 MANTIK: Eğer ben yayın yapmıyorsam, başkalarının yayınını göster.
+    const videos = peersWithVideo || {};
+    const remoteStreamKeys = Object.keys(videos);
+
+    if (remoteStreamKeys.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="screen-share-grid-container" style={{ gridTemplateColumns: `repeat(${remoteStreamKeys.length > 1 ? 2 : 1}, 1fr)` }}>
+            {Object.entries(videos).map(([socketId, stream]) => (
                 <VideoPlayer
                     key={socketId}
                     stream={stream}
