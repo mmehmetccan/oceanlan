@@ -21,6 +21,7 @@ import TitleBar from '../components/layout/TitleBar';
 import ServerMembersPanel from '../components/views/ServerMembersPanel';
 import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal';
 import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
+import TatildekiRotamFrame from '../components/integrations/TatildekiRotamFrame';
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
@@ -125,7 +126,7 @@ const DashboardPage = () => {
             {/* 🟢 ÖZEL ROTA: Squad Builder (Siteyi Gösterir) */}
             {/* Bu rota, aşağıdaki genel channel/:channelId rotasından önce gelmeli */}
             <Route path="server/:serverId/channels/squad-builder" element={<IlkonbirKurFrame />} />
-
+            <Route path="server/:serverId/channels/tatildeki-rotam" element={<TatildekiRotamFrame />} />
             {/* Genel Sohbet Rotası */}
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
 

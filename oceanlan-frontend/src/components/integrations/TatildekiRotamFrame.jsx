@@ -1,7 +1,7 @@
-// src/components/integrations/IlkonbirKurFrame.jsx
+// src/components/integrations/TatildekiRotamFrame.jsx
 import React, { useState } from 'react';
 
-const IlkonbirKurFrame = () => {
+const TatildekiRotamFrame = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   return (
@@ -11,28 +11,27 @@ const IlkonbirKurFrame = () => {
         display: 'flex',
         flexDirection: 'column',
         background: '#202225',
-        overflow: 'hidden' /* 🟢 Taşan kısımları gizle, sadece iframe içi scroll olsun */
+        overflow: 'hidden'
     }}>
 
       {/* Üst Bilgi Çubuğu */}
       <div style={{
-          height: '48px', /* Sabit yükseklik */
+          height: '48px',
           padding: '0 20px',
           borderBottom: '1px solid #2f3136',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           background: '#2f3136',
-          flexShrink: 0 /* 🟢 Header küçülmesin */
+          flexShrink: 0
       }}>
         <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          ⚽ İlkonbirKur.com
+          ✈️ TatildekiRotam.com
         </h3>
         <div style={{ display: 'flex', gap: '15px' }}>
-             {/* Yenile Butonu */}
             <button
                 onClick={() => {
-                    const iframe = document.getElementById('ilkonbir-iframe');
+                    const iframe = document.getElementById('tatil-iframe');
                     if(iframe) iframe.src = iframe.src;
                 }}
                 style={{ background: 'none', border: 'none', color: '#b9bbbe', cursor: 'pointer', fontSize: '12px' }}
@@ -40,7 +39,7 @@ const IlkonbirKurFrame = () => {
                 Yenile ↻
             </button>
             <a
-                href="https://ilkonbirkur.com"
+                href="https://tatildekirotam.com"
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: '#00aff4', fontSize: '12px', textDecoration: 'none' }}
@@ -50,7 +49,7 @@ const IlkonbirKurFrame = () => {
         </div>
       </div>
 
-      {/* Site Yükleniyor Göstergesi */}
+      {/* Yükleniyor Göstergesi */}
       {isLoading && (
           <div style={{
               flex: 1,
@@ -60,22 +59,22 @@ const IlkonbirKurFrame = () => {
               color: '#b9bbbe',
               background: '#36393f'
           }}>
-              Site Yükleniyor...
+              Rota Yükleniyor...
           </div>
       )}
 
       {/* Web Sitesi Çerçevesi */}
       <iframe
-        id="ilkonbir-iframe"
-        src="https://ilkonbirkur.com"
-        title="IlkonbirKur Squad Builder"
+        id="tatil-iframe"
+        src="https://tatildekirotam.com"
+        title="Tatildeki Rotam"
         style={{
-            flex: 1, /* 🟢 Kalan tüm alanı kapla */
+            flex: 1,
             width: '100%',
-            height: '100%', /* Kapsayıcının %100'ü */
+            height: '100%',
             border: 'none',
             display: isLoading ? 'none' : 'block',
-            background: '#fff' /* Site yüklenirken beyaz arka plan */
+            background: '#fff'
         }}
         onLoad={() => setIsLoading(false)}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; microphone; camera"
@@ -85,4 +84,4 @@ const IlkonbirKurFrame = () => {
   );
 };
 
-export default IlkonbirKurFrame;
+export default TatildekiRotamFrame;
