@@ -1,43 +1,48 @@
 /* src/styles/ScreenShareDisplay.css */
 
-/* 1. ÖNCE HER YERDE GİZLE (Kaçak yayınları engellemek için) */
+/* 1. Grid Konteyner (Artık daha büyük) */
 .screen-share-grid-container {
-    display: none !important;
+    display: none !important; /* Varsayılan gizli */
     width: 100%;
+
+    /* 🟢 GÜNCELLENDİ: Boyut büyütüldü (240px -> 400px) */
+    height: 400px;
+
     gap: 10px;
-    padding: 10px;
+    padding: 8px;
     background: #000;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     border-radius: 8px;
+    transition: all 0.3s ease;
 }
 
-/* 2. SADECE CHAT ALANINDAKİNİ GÖSTER (Kırmızı alan) */
+/* Chat içinde görünür yap */
 .chat-screen-share-section .screen-share-grid-container {
-    display: grid !important; /* Grid yapısını sadece burada açıyoruz */
+    display: grid !important;
 }
 
-/* Video Kapsayıcı Tasarımı */
+/* 2. Video Kapsayıcı */
 .video-player-wrapper {
     position: relative;
     width: 100%;
-    /* 16:9 Oranı için aspect-ratio (Modern Tarayıcılar) */
-    aspect-ratio: 16 / 9;
+    height: 100%;
     background: #202225;
     border-radius: 8px;
     overflow: hidden;
-    /* Eski tarayıcılar için yükseklik yedeği */
-    min-height: 200px;
+    border: 1px solid #2f3136;
 }
 
-/* Tam Ekran Modu */
-.video-player-wrapper.fullscreen {
+/* 3. GENİŞLETİLMİŞ MOD (Tam Ekran gibi ama pencere içinde) */
+.video-player-wrapper.expanded {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 85vw; /* Genişlik %85 */
+    height: 85vh; /* Yükseklik %85 */
     z-index: 9999;
-    border-radius: 0;
+    box-shadow: 0 0 50px rgba(0,0,0,0.9);
+    border: 2px solid #5865F2;
     background: #000;
 }
 
@@ -45,78 +50,136 @@
 .main-video {
     width: 100%;
     height: 100%;
-    display: block;
+    object-fit: contain; /* Görüntüyü sığdır */
+    background: #000;
 }
 
 /* İsim Etiketi */
 .video-overlay-name {
     position: absolute;
-    bottom: 10px;
+    top: 10px;
     left: 10px;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.7);
     color: white;
-    padding: 4px 8px;
+    padding: 5px 12px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 600;
     pointer-events: none;
     z-index: 2;
+    text-shadow: 0 1px 2px black;
 }
 
-/* Kontrol Butonları (Hover ile görünür) */
-.video-controls {
+/* Kontrol Çubuğu (Alt Kısım) */
+.video-controls-bar {
     position: absolute;
-    top: 0;
+    bottom: 0;
     left: 0;
     width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    transition: opacity 0.2s;
+    height: 48px; /* Kontrol barı biraz daha belirgin */
+    background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
     display: flex;
     justify-content: space-between;
-    align-items: flex-start; /* Butonları yukarı sabitle */
-    padding: 10px;
-    pointer-events: none; /* Arka plan tıklamayı engellemesin */
+    align-items: center;
+    padding: 0 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
-.video-controls.visible {
+/* Mouse üzerine gelince kontroller görünsün */
+.video-player-wrapper:hover .video-controls-bar {
     opacity: 1;
-    pointer-events: auto;
 }
 
-.controls-left, .controls-right {
+/* Buton Grupları */
+.controls-group {
     display: flex;
-    gap: 8px;
-    pointer-events: auto;
+    gap: 10px;
 }
 
+/* Buton Stilleri */
 .control-btn {
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(255, 255, 255, 0.15);
     border: none;
     color: white;
-    padding: 6px;
-    border-radius: 4px;
+    padding: 8px;
+    border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .control-btn:hover {
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(1.1);
 }
 
-.control-btn.stop-btn {
+/* Kırmızı Kapatma Butonu */
+.control-btn.close-btn {
     background: rgba(237, 66, 69, 0.8);
 }
-
-.control-btn.stop-btn:hover {
+.control-btn.close-btn:hover {
     background: #ed4245;
 }
 
-.text-btn {
-    font-size: 12px;
-    padding: 6px 12px;
-    font-weight: 500;
+/* İkon Boyutları */
+.control-icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* Ses Kontrol Grubu (İkon + Slider yanyana dursun) */
+.volume-control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.1); /* Hafif arka plan */
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.volume-control-group:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Ses Slider'ı (Range Input) */
+.volume-slider {
+    -webkit-appearance: none; /* Varsayılan tarayıcı stilini kaldır */
+    width: 0; /* Başlangıçta gizli gibi olsun, hover ile açılsın */
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    outline: none;
+    transition: width 0.3s ease;
+    cursor: pointer;
+    overflow: hidden; /* Taşmayı önle */
+}
+
+/* Gruba mouse gelince slider uzasın (Animasyonlu açılma) */
+.volume-control-group:hover .volume-slider {
+    width: 80px;
+}
+
+/* Slider Yuvarlağı (Thumb) - Chrome/Safari */
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+/* Slider Yuvarlağı (Thumb) - Firefox */
+.volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
 }
