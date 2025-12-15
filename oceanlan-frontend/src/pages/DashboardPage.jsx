@@ -1,6 +1,6 @@
 // src/pages/DashboardPage.jsx
 import React, { useContext, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import Sidebar from '../components/layout/Sidebar';
 import ServerView from '../components/views/ServerView';
@@ -11,15 +11,16 @@ import StreamSettingsPage from './StreamSettingsPage';
 import ServerSettingsPage from './ServerSettingsPage';
 import UserProfilePage from './UserProfilePage';
 import FeedPage from './FeedPage';
-import ScreenShareDisplay from '../components/chat/ScreenShareDisplay';
+// 🛑 SİLİNDİ: import ScreenShareDisplay... (ChatArea içinde zaten var)
 import AudioSettingsPage from './AudioSettingsPage';
-import ContactPage from './ContactPage'; // 👈 İletişim Sayfası
+import ContactPage from './ContactPage';
 import FriendsView from '../components/views/FriendsView';
 import AllDmsPage from './AllDmsPage';
 import UserProfileViewPage from './UserProfileViewPage';
 import TitleBar from '../components/layout/TitleBar';
 import ServerMembersPanel from '../components/views/ServerMembersPanel';
 import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal';
+import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
@@ -37,6 +38,7 @@ const DashboardPage = () => {
       screenShareCallback
   } = useContext(VoiceContext);
 
+  const { serverId } = useParams(); // channelId burada kullanılmıyor, Routes hallediyor
   const { dispatch, unreadDmConversations } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
   const location = useLocation();
@@ -45,15 +47,11 @@ const DashboardPage = () => {
 
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
-
   useEffect(() => {
     // Sadece Electron'da çalışsın
     if (window.electronAPI && window.electronAPI.onUpdateMessage) {
-
         window.electronAPI.onUpdateMessage(({ type, text }) => {
             console.log(`[UPDATE] ${type}: ${text}`);
-
-            // Tipe göre bildirim rengi
             if (type === 'success') addToast(text, 'success');
             else if (type === 'error') addToast(text, 'error');
             else addToast(text, 'info');
@@ -65,10 +63,7 @@ const DashboardPage = () => {
     if (!socket) return;
 
     const handleUnreadDm = (data) => {
-      // State'e işle (Sidebar rozeti için)
       dispatch({ type: 'NEW_UNREAD_DM', payload: { conversationId: data.conversationId } });
-
-      // 📢 YENİ: Ekrana Bildirim Bas
       addToast("Yeni bir mesajın var!", "info");
     };
 
@@ -91,10 +86,9 @@ const DashboardPage = () => {
       style={{
         position: 'relative',
         overflow: 'hidden',
-        paddingTop: isApp ? '32px' : '0' // App ise üstten boşluk bırak
+        paddingTop: isApp ? '32px' : '0'
       }}
     >
-      {/* 📢 TitleBar: Butona basınca sayfaya git */}
       <TitleBar onContactClick={() => navigate('/dashboard/contact')} />
 
       <Sidebar unreadCount={unreadDmConversations?.length || 0} />
@@ -120,17 +114,21 @@ const DashboardPage = () => {
         )}
 
         <div className="main-content-area">
-          <ScreenShareDisplay />
+          {/* 🛑 ScreenShareDisplay BURADAN SİLİNDİ (Çift ekran sorununu çözer) */}
 
           <Routes>
             <Route path="feed" element={<FeedPage />} />
             <Route path="friends" element={<FriendsView />} />
             <Route path="all-dms" element={<AllDmsPage />} />
-
-            {/* 📢 İLETİŞİM SAYFASI ROTASI */}
             <Route path="contact" element={<ContactPage />} />
 
+            {/* 🟢 ÖZEL ROTA: Squad Builder (Siteyi Gösterir) */}
+            {/* Bu rota, aşağıdaki genel channel/:channelId rotasından önce gelmeli */}
+            <Route path="server/:serverId/channels/squad-builder" element={<IlkonbirKurFrame />} />
+
+            {/* Genel Sohbet Rotası */}
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
+
             <Route path="dm/:friendId/:conversationId" element={<DMView />} />
             <Route path="settings/stream" element={<StreamSettingsPage />} />
             <Route path="settings/profile" element={<UserProfilePage />} />

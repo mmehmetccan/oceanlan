@@ -10,7 +10,7 @@ import { checkUserPermission } from '../../utils/permissionChecker';
 import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
-import { UserPlusIcon, Cog6ToothIcon, UsersIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
+import { UserPlusIcon, Cog6ToothIcon, UsersIcon,GlobeAltIcon } from '@heroicons/react/24/solid'; // Solid ikonlar daha net
 import { getImageUrl ,DEFAULT_AVATAR_URL} from '../../utils/urlHelper';
 
 import '../../styles/ServerView.css';
@@ -219,6 +219,31 @@ const ServerView = () => {
       <div className="channels-list">
         {/* Metin Kanalları */}
         <div className="channel-group text-channels-group">
+
+          <div
+    className="custom-channel-item"
+    onClick={() => navigate(`/dashboard/server/${serverId}/channels/squad-builder`)}
+    style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '8px 10px',
+        margin: '10px 8px 5px 8px', // Hafif boşluk
+        borderRadius: '4px',
+        cursor: 'pointer',
+        color: location.pathname.includes('squad-builder') ? '#fff' : '#96989d',
+        backgroundColor: location.pathname.includes('squad-builder') ? 'rgba(79, 84, 92, 0.48)' : 'transparent',
+        transition: 'all 0.2s'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 84, 92, 0.32)'}
+    onMouseLeave={(e) => {
+       if (!location.pathname.includes('squad-builder')) e.currentTarget.style.backgroundColor = 'transparent';
+    }}
+>
+    <GlobeAltIcon style={{ width: 20, height: 20, marginRight: '6px', color: '#00aff4' }} />
+    <span style={{ fontWeight: 500 }}>Kadro Kurucu</span>
+</div>
+{/* --- KADRO KURUCU BUTONU BİTİŞ --- */}
+
           <h3># Metin Kanalları</h3>
           {textChannels.map((channel) => {
             const isActive = location.pathname.includes(`/channel/${channel._id}`);
