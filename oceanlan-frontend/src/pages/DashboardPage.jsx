@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.jsx
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import Sidebar from '../components/layout/Sidebar';
@@ -11,7 +11,6 @@ import StreamSettingsPage from './StreamSettingsPage';
 import ServerSettingsPage from './ServerSettingsPage';
 import UserProfilePage from './UserProfilePage';
 import FeedPage from './FeedPage';
-// 🛑 SİLİNDİ: import ScreenShareDisplay... (ChatArea içinde zaten var)
 import AudioSettingsPage from './AudioSettingsPage';
 import ContactPage from './ContactPage';
 import FriendsView from '../components/views/FriendsView';
@@ -20,6 +19,8 @@ import UserProfileViewPage from './UserProfileViewPage';
 import TitleBar from '../components/layout/TitleBar';
 import ServerMembersPanel from '../components/views/ServerMembersPanel';
 import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal';
+
+// Entegrasyonlar
 import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
 import TatildekiRotamFrame from '../components/integrations/TatildekiRotamFrame';
 
@@ -28,6 +29,9 @@ import { VoiceContext } from '../context/VoiceContext';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
+
+// İkonlar
+import { UsersIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 const DashboardPage = () => {
   const { socket } = useSocket();
@@ -39,7 +43,7 @@ const DashboardPage = () => {
       screenShareCallback
   } = useContext(VoiceContext);
 
-  const { serverId } = useParams(); // channelId burada kullanılmıyor, Routes hallediyor
+  const { serverId } = useParams();
   const { dispatch, unreadDmConversations } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
   const location = useLocation();
@@ -48,11 +52,17 @@ const DashboardPage = () => {
 
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
+  // 🟢 YENİ: Mobilde üyeler panelini açıp kapatmak için state
+  const [showMobileMembers, setShowMobileMembers] = useState(false);
+
+  // Kanal değişirse mobil menüyü otomatik kapat
   useEffect(() => {
-    // Sadece Electron'da çalışsın
+    setShowMobileMembers(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (window.electronAPI && window.electronAPI.onUpdateMessage) {
         window.electronAPI.onUpdateMessage(({ type, text }) => {
-            console.log(`[UPDATE] ${type}: ${text}`);
             if (type === 'success') addToast(text, 'success');
             else if (type === 'error') addToast(text, 'error');
             else addToast(text, 'info');
@@ -62,19 +72,15 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (!socket) return;
-
     const handleUnreadDm = (data) => {
       dispatch({ type: 'NEW_UNREAD_DM', payload: { conversationId: data.conversationId } });
       addToast("Yeni bir mesajın var!", "info");
     };
-
     const handleForceJoin = ({ serverId, channelId }) => {
         joinVoiceChannel(serverId, channelId);
     };
-
     socket.on('unreadDm', handleUnreadDm);
     socket.on('force-join-voice-channel', handleForceJoin);
-
     return () => {
       socket.off('unreadDm', handleUnreadDm);
       socket.off('force-join-voice-channel', handleForceJoin);
@@ -114,8 +120,17 @@ const DashboardPage = () => {
             />
         )}
 
-        <div className="main-content-area">
-          {/* 🛑 ScreenShareDisplay BURADAN SİLİNDİ (Çift ekran sorununu çözer) */}
+        <div className="main-content-area" style={{ position: 'relative' }}>
+
+          {/* 🟢 MOBİL İÇİN ÜYELER BUTONU (Sadece Sunucu içindeyken görünür) */}
+          {onServerRoute && (
+            <button
+              className="mobile-members-toggle-btn"
+              onClick={() => setShowMobileMembers(!showMobileMembers)}
+            >
+              {showMobileMembers ? <XMarkIcon width={24} /> : <UsersIcon width={24} />}
+            </button>
+          )}
 
           <Routes>
             <Route path="feed" element={<FeedPage />} />
@@ -123,11 +138,8 @@ const DashboardPage = () => {
             <Route path="all-dms" element={<AllDmsPage />} />
             <Route path="contact" element={<ContactPage />} />
 
-            {/* 🟢 ÖZEL ROTA: Squad Builder (Siteyi Gösterir) */}
-            {/* Bu rota, aşağıdaki genel channel/:channelId rotasından önce gelmeli */}
             <Route path="server/:serverId/channels/squad-builder" element={<IlkonbirKurFrame />} />
             <Route path="server/:serverId/channels/tatildeki-rotam" element={<TatildekiRotamFrame />} />
-            {/* Genel Sohbet Rotası */}
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
 
             <Route path="dm/:friendId/:conversationId" element={<DMView />} />
@@ -140,7 +152,22 @@ const DashboardPage = () => {
           </Routes>
         </div>
 
-        {onServerRoute && <ServerMembersPanel />}
+        {/* 🟢 SERVER ÜYELER PANELİ (Mobilde Açılır/Kapanır Yapıldı) */}
+        {onServerRoute && (
+            <div className={`server-members-wrapper ${showMobileMembers ? 'mobile-open' : ''}`}>
+               {/* Mobilde arkaya tıklayınca kapanması için backdrop */}
+               {showMobileMembers && (
+                  <div
+                    className="mobile-backdrop"
+                    onClick={() => setShowMobileMembers(false)}
+                  />
+               )}
+               <div className="members-panel-content">
+                  <ServerMembersPanel />
+               </div>
+            </div>
+        )}
+
       </div>
 
       {currentVoiceChannelId && (

@@ -160,7 +160,12 @@ const ChatArea = () => {
                 src={fullFileUrl} // 👈 DÜZELTİLDİ
                 alt="Yüklenen resim"
                 className="chat-image"
-                onClick={() => setPreviewImage(fullFileUrl)} // 👈 DÜZELTİLDİ
+                onClick={() => setPreviewImage(fullFileUrl)}
+                onError={(e) => {
+                    e.target.onerror = null; // Sonsuz döngüyü önle
+                    e.target.style.display = 'none'; // Resmi gizle
+                    // İstersen şununla değiştirebilirsin: e.target.src = 'https://via.placeholder.com/150?text=Silinmis';
+                }}
               />
             )}
             {msg.fileType === 'video' && (
