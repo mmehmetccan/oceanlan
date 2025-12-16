@@ -46,6 +46,8 @@ const AudioSettingsPage = () => {
         e.preventDefault();
         setPttKey(e.key.toUpperCase() === ' ' ? 'SPACE' : e.key.toUpperCase());
         setPttKeyCode(e.code);
+        setPttKeyCode(`MOUSE_${e.button}`) // mouse macro
+
         setIsListening(false);
       }
     };
