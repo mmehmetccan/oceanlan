@@ -230,12 +230,16 @@ export const VoiceProvider = ({ children }) => {
 
     // Tarayıcı sekmeden çıkınca event gelmeyebilir -> “takılı kalmasın” diye blur’da bırak
     const onBlur = () => pttUp();
-
+ const onVisibilityChange = () => {
+      if (document.hidden) pttUp();
+    };
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('mousedown', onMouseDown, true);
     window.addEventListener('mouseup', onMouseUp, true);
     window.addEventListener('blur', onBlur, true);
+        document.addEventListener('visibilitychange', onVisibilityChange, true);
+
 
     // ✅ Electron global PTT event desteği (varsa)
     // preload/main tarafında event gönderirsen, sekme/pencere odakta olmasa da çalışır.
@@ -255,9 +259,9 @@ export const VoiceProvider = ({ children }) => {
       window.removeEventListener('mousedown', onMouseDown, true);
       window.removeEventListener('mouseup', onMouseUp, true);
       window.removeEventListener('blur', onBlur, true);
-
-      if (typeof offDown === 'function') offDown();
-      if (typeof offUp === 'function') offUp();
+  document.removeEventListener('visibilitychange', onVisibilityChange, true);
+      offDown && offDown();
+      offUp && offUp();
     };
   }, [inputMode, pttKeyCode, isMicMuted, setLocalMicEnabled]);
 

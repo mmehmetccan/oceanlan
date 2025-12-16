@@ -3,30 +3,34 @@
 // Canlı sunucu adresi
 const API_BASE_URL = 'https://oceanlan.com';
 
-// Varsayılan resmin tam internet adresi
-// (Resmi /uploads klasörüne attığından emin ol!)
-export const DEFAULT_AVATAR_URL = `${API_BASE_URL}/uploads/default-avatar.png`;
+// 🟢 DÜZELTME: Tam istediğin "Yüzü olmayan gri adam" resmi.
+// Gravatar'ın standart "Mystery Person" (mp) ikonunu kullanıyoruz.
+export const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+
+// Rastgele avatar istersen de aynısını döndürür (Sadelik bozulmasın diye)
+export const getRandomAvatar = () => {
+    return DEFAULT_AVATAR_URL;
+};
 
 export const getImageUrl = (path) => {
-  // 1. Eğer veritabanında resim yoksa -> Varsayılanı döndür
-  if (!path) {
+  // 1. Veri yoksa -> Varsayılan Gri Resmi Göster
+  if (!path || path === '' || path === 'undefined' || path === 'null') {
     return DEFAULT_AVATAR_URL;
   }
 
-  // 2. Eğer veritabanında eski bir "default" kaydı varsa -> Varsayılanı döndür
-  if (path === '/default-avatar.png' || path === 'default-avatar.png') {
+  // 2. Eski 'default-avatar.png' kaydı varsa -> Varsayılan Gri Resmi Göster
+  if (path.includes('default-avatar.png')) {
       return DEFAULT_AVATAR_URL;
   }
 
-  // 3. Eğer zaten tam bir link ise (https://...) dokunma
+  // 3. Zaten internet linki ise -> Olduğu gibi kullan
   if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) {
     return path;
   }
 
-  // 4. Standart sunucu yolu (Başına slash ekleyerek birleştir)
+  // 4. Sunucudaki bir dosyaysa -> Adresi birleştir
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${cleanPath}`;
 };
 
-// Eski kodlarla uyumluluk için
 export const getFullImageUrl = getImageUrl;
