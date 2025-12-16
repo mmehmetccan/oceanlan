@@ -19,11 +19,12 @@ const YouTubeWatchParty = () => {
     if (!socket) return;
 
     const handleUrl = (newUrl) => {
-        console.log("[Socket] Yeni URL:", newUrl);
-        // Yeni video gelince oynatıcıyı sıfırla ve başlat
-        setUrl(newUrl);
-        setPlaying(true);
-    };
+  console.log("[Socket] Yeni URL:", newUrl);
+
+  const fixedUrl = normalizeYouTubeUrl(newUrl);
+  setUrl(fixedUrl);
+  setPlaying(true);
+};
 
     const handleState = (isPlaying) => {
         console.log("[Socket] Oynatma Durumu:", isPlaying);
@@ -38,6 +39,29 @@ const YouTubeWatchParty = () => {
         socket.off('watch-party-state', handleState);
     };
   }, [socket]);
+
+  const normalizeYouTubeUrl = (url) => {
+  try {
+    // youtu.be linki
+    if (url.includes('youtu.be')) {
+      const id = url.split('youtu.be/')[1].split('?')[0];
+      return `https://www.youtube.com/watch?v=${id}`;
+    }
+
+    // youtube.com/watch linki
+    if (url.includes('youtube.com')) {
+      const u = new URL(url);
+      const id = u.searchParams.get('v');
+      if (id) return `https://www.youtube.com/watch?v=${id}`;
+    }
+
+    return url;
+  } catch {
+    return url;
+  }
+};
+
+
 
   // 2. KULLANICI LİNK DEĞİŞTİRİRSE
   const handleUrlSubmit = (e) => {
@@ -75,62 +99,70 @@ const YouTubeWatchParty = () => {
   };
 
   return (
-    <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#000', /* Arka plan siyah */
-        overflow: 'hidden'
-    }}>
-
-      {/* Üst Bar */}
       <div style={{
-          height: '60px', padding: '0 20px', borderBottom: '1px solid #333',
-          display: 'flex', alignItems: 'center', gap: '15px',
-          background: '#202225', flexShrink: 0
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#000', /* Arka plan siyah */
+          overflow: 'hidden'
       }}>
-        <form onSubmit={handleUrlSubmit} style={{ flex: 1, display: 'flex', gap: '10px' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-                <LinkIcon style={{ position: 'absolute', left: 10, top: 10, width: 20, color: '#b9bbbe' }} />
-                <input
-                    type="text"
-                    placeholder="YouTube linki yapıştır..."
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
-                    style={{
-                        width: '100%', padding: '10px 10px 10px 35px', borderRadius: '4px',
-                        border: 'none', background: '#40444b', color: '#fff', outline: 'none'
-                    }}
-                />
-            </div>
-            <button type="submit" style={{
-                background: '#5865F2', color: 'white', border: 'none', padding: '0 20px',
-                borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
-            }}>
-                AÇ
-            </button>
-        </form>
-      </div>
 
-      {/* Video Alanı */}
-      <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-          {/* ReactPlayer kapsayıcıya tam oturması için wrapper kullanıyoruz */}
-          <ReactPlayer
-            key={url} /* 🟢 KRİTİK: URL değişince player'ı tamamen yeniler (Bugları önler) */
-            url={url}
-            playing={playing}
-            controls={true}
-            width="100%"
-            height="100%"
-            /* Döngü korumalı eventler */
-            onPlay={() => handlePlayerState(true)}
-            onPause={() => handlePlayerState(false)}
-            /* Hata olursa konsola bas ama çökme */
-            onError={(e) => console.warn("Video yüklenemedi:", e)}
-          />
+          {/* Üst Bar */}
+          <div style={{
+              height: '60px', padding: '0 20px', borderBottom: '1px solid #333',
+              display: 'flex', alignItems: 'center', gap: '15px',
+              background: '#202225', flexShrink: 0
+          }}>
+              <form onSubmit={handleUrlSubmit} style={{flex: 1, display: 'flex', gap: '10px'}}>
+                  <div style={{position: 'relative', flex: 1}}>
+                      <LinkIcon style={{position: 'absolute', left: 10, top: 10, width: 20, color: '#b9bbbe'}}/>
+                      <input
+                          type="text"
+                          placeholder="YouTube linki yapıştır..."
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          style={{
+                              width: '100%', padding: '10px 10px 10px 35px', borderRadius: '4px',
+                              border: 'none', background: '#40444b', color: '#fff', outline: 'none'
+                          }}
+                      />
+                  </div>
+                  <button type="submit" style={{
+                      background: '#5865F2', color: 'white', border: 'none', padding: '0 20px',
+                      borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
+                  }}>
+                      AÇ
+                  </button>
+              </form>
+          </div>
+
+          {/* Video Alanı */}
+          <div style={{
+              flex: 1,
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              minHeight: '400px', /* 🟢 EKLE: En az 400px yer kaplasın */
+              background: '#000',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+          }}>
+              <ReactPlayer
+                  key={url}
+                  url={url}
+                  playing={playing}
+                  controls={true}
+                  width="100%"
+                  height="100%"
+                  onPlay={() => handlePlayerState(true)}
+                  onPause={() => handlePlayerState(false)}
+                  // 👇 YENİ: Eğer video yüklenemezse hatayı görelim
+                  onError={(e) => console.error("Video Oynatma Hatası:", e)}
+              />
+          </div>
       </div>
-    </div>
   );
 };
 
