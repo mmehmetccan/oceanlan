@@ -146,6 +146,21 @@ ipcMain.handle('DESKTOP_CAPTURER_GET_SOURCES', async (event, opts) => {
   }
 });
 
+function registerPTT(win) {
+  // Örnek: Space. (İstersen ayarlardan gönderilecek hale getiririz)
+  globalShortcut.register('Space', () => {
+    win.webContents.send('ptt-down');
+  });
+
+  // Space "up" olayını globalShortcut vermez, bunun için alternatif gerekir:
+  // - iohook gibi native modül (en sağlam)
+  // - ya da bas-konuşu toggle yapma (discord gibi değil)
+}
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 // --- APP READY (BAŞLANGIÇ NOKTASI) ---
 app.whenReady().then(async () => {
 

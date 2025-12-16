@@ -9,8 +9,13 @@ export const AudioSettingsProvider = ({ children }) => {
   const [outputDeviceId, setOutputDeviceId] = useState(localStorage.getItem('outputDeviceId') || 'default');
 
   const [inputMode, setInputMode] = useState(localStorage.getItem('inputMode') || 'VOICE_ACTIVITY');
+
+  // (Mevcut) - UI/label amaçlı kullandığın alanlar
   const [pttKey, setPttKey] = useState(localStorage.getItem('pttKey') || 'SPACE');
   const [pushToTalkKey, setPushToTalkKey] = useState(localStorage.getItem('pushToTalkKey') || 'Space');
+
+  // ✅ EKLENDİ: Gerçek PTT eşlemesi için kullanılan değer (KeyboardEvent.code veya MOUSE_4 gibi)
+  const [pttKeyCode, setPttKeyCode] = useState(localStorage.getItem('pttKeyCode') || 'Space');
 
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
@@ -22,9 +27,9 @@ export const AudioSettingsProvider = ({ children }) => {
 
   // Güvenli inputVolume okuma
   const [inputVolume, setInputVolume] = useState(() => {
-      const saved = localStorage.getItem('inputVolume');
-      const parsed = parseInt(saved);
-      return !isNaN(parsed) ? parsed : 100;
+    const saved = localStorage.getItem('inputVolume');
+    const parsed = parseInt(saved);
+    return !isNaN(parsed) ? parsed : 100;
   });
 
   // --- LOCAL STORAGE KAYITLARI ---
@@ -33,6 +38,10 @@ export const AudioSettingsProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('inputMode', inputMode); }, [inputMode]);
   useEffect(() => { localStorage.setItem('pttKey', pttKey); }, [pttKey]);
   useEffect(() => { localStorage.setItem('pushToTalkKey', pushToTalkKey); }, [pushToTalkKey]);
+
+  // ✅ EKLENDİ
+  useEffect(() => { localStorage.setItem('pttKeyCode', pttKeyCode); }, [pttKeyCode]);
+
   useEffect(() => { localStorage.setItem('isNoiseSuppression', isNoiseSuppression); }, [isNoiseSuppression]);
   useEffect(() => { localStorage.setItem('inputVolume', inputVolume); }, [inputVolume]);
 
@@ -40,18 +49,17 @@ export const AudioSettingsProvider = ({ children }) => {
     setUserVolumes(prev => ({ ...prev, [userId]: volume }));
   };
 
-  // 🟢 1. EKSİK OLAN TOGGLE FONKSİYONLARI (Burayı ekledik)
-
+  // 🟢 TOGGLE FONKSİYONLARI (mevcut)
   const toggleMic = () => {
-      setIsMicMuted(prev => !prev);
+    setIsMicMuted(prev => !prev);
   };
 
   const toggleDeafen = () => {
-      setIsDeafened(prev => !prev);
+    setIsDeafened(prev => !prev);
   };
 
   const toggleNoiseSuppression = () => {
-      setIsNoiseSuppression(prev => !prev);
+    setIsNoiseSuppression(prev => !prev);
   };
 
   return (
@@ -61,13 +69,16 @@ export const AudioSettingsProvider = ({ children }) => {
       inputMode, setInputMode,
       pttKey, setPttKey,
       pushToTalkKey, setPushToTalkKey,
+
+      // ✅ EKLENDİ
+      pttKeyCode, setPttKeyCode,
+
       isMicMuted, setIsMicMuted,
       isDeafened, setIsDeafened,
       isNoiseSuppression, setIsNoiseSuppression,
       userVolumes, setUserVolume,
       inputVolume, setInputVolume,
 
-      // 🟢 2. FONKSİYONLARI DIŞARI AKTARIYORUZ
       toggleMic,
       toggleDeafen,
       toggleNoiseSuppression

@@ -267,29 +267,7 @@ const ServerView = () => {
                       style={{width: 20, height: 20, marginRight: '6px', color: '#fcd34d'}}/> {/* Sarı Harita İkonu */}
                   <span style={{fontWeight: 500}}>Tatildeki Rotam</span>
               </div>
-              <div
-                  className="custom-channel-item"
-                  onClick={() => navigate(`/dashboard/server/${serverId}/channels/youtube-party`)}
-                  style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '8px 10px',
-                      margin: '2px 8px 10px 8px',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      color: location.pathname.includes('youtube-party') ? '#fff' : '#96989d',
-                      backgroundColor: location.pathname.includes('youtube-party') ? 'rgba(79, 84, 92, 0.48)' : 'transparent',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 84, 92, 0.32)'}
-                  onMouseLeave={(e) => {
-                      if (!location.pathname.includes('youtube-party')) e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-              >
-                  <PlayCircleIcon
-                      style={{width: 20, height: 20, marginRight: '6px', color: '#FF0000'}}/> {/* YouTube Kırmızısı */}
-                  <span style={{fontWeight: 500}}>YouTube & Müzik</span>
-              </div>
+
 
               <h3># Metin Kanalları</h3>
               {textChannels.map((channel) => {
