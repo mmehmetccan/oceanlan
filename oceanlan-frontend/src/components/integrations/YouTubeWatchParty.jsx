@@ -14,22 +14,47 @@ const YouTubeWatchParty = () => {
   const [inputUrl, setInputUrl] = useState('');
   const [playing, setPlaying] = useState(false);
 
+  // Link Düzeltici Yardımcı Fonksiyon
+  const normalizeYouTubeUrl = (rawUrl) => {
+    try {
+      if (!rawUrl) return rawUrl;
+      // youtu.be linklerini düzelt
+      if (rawUrl.includes('youtu.be')) {
+        const id = rawUrl.split('youtu.be/')[1]?.split('?')[0];
+        if (id) return `https://www.youtube.com/watch?v=${id}`;
+      }
+      // Liste parametrelerini temizle (Sadece videoya odaklansın)
+      if (rawUrl.includes('youtube.com') && rawUrl.includes('&')) {
+         const u = new URL(rawUrl);
+         const v = u.searchParams.get('v');
+         if (v) return `https://www.youtube.com/watch?v=${v}`;
+      }
+      return rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  };
+
   // 1. SOCKET DİNLEYİCİLERİ
   useEffect(() => {
     if (!socket) return;
 
-   const handleUrl = (newUrl) => {
-  console.log('[Socket] Yeni URL:', newUrl);
+    const handleUrl = (incomingUrl) => {
+        const fixedUrl = normalizeYouTubeUrl(incomingUrl);
 
-  const fixedUrl = normalizeYouTubeUrl(newUrl);
-  if (!fixedUrl) return;
+        // 🟢 ÖNEMLİ: Eğer gelen link zaten açıksa hiçbir şey yapma (Döngüyü kırar)
+        setUrl((currentUrl) => {
+            if (currentUrl === fixedUrl) return currentUrl;
+            console.log("[Socket] Yeni URL yüklendi:", fixedUrl);
+            return fixedUrl;
+        });
 
-  setPlaying(false);     // 🔥 önce durdur
-  setUrl(fixedUrl);      // 🔥 sonra URL değiştir
-};
+        // Yeni link gelince otomatik oynat
+        setPlaying(true);
+    };
 
     const handleState = (isPlaying) => {
-        console.log("[Socket] Oynatma Durumu:", isPlaying);
+        console.log("[Socket] Durum:", isPlaying ? 'Oynatılıyor' : 'Durduruldu');
         setPlaying(isPlaying);
     };
 
@@ -42,42 +67,21 @@ const YouTubeWatchParty = () => {
     };
   }, [socket]);
 
-  const normalizeYouTubeUrl = (url) => {
-  try {
-    let videoId = null;
-
-    if (url.includes('youtu.be')) {
-      videoId = url.split('youtu.be/')[1]?.split('?')[0];
-    }
-
-    if (url.includes('youtube.com')) {
-      const u = new URL(url);
-      videoId = u.searchParams.get('v');
-    }
-
-    if (!videoId) return null;
-
-    // 🔥 SADECE video ID, playlist YOK
-    return `https://www.youtube.com/watch?v=${videoId}`;
-  } catch {
-    return null;
-  }
-};
-
-
-  // 2. KULLANICI LİNK DEĞİŞTİRİRSE
+  // 2. LİNK GÖNDERME
   const handleUrlSubmit = (e) => {
       e.preventDefault();
       if(inputUrl.trim() !== '') {
-          // Önce kendim açayım (Hız hissi için)
-          setUrl(inputUrl);
+          const fixedUrl = normalizeYouTubeUrl(inputUrl);
+
+          // Önce kendim açayım
+          setUrl(fixedUrl);
           setPlaying(true);
 
           // Sonra sunucuya bildireyim
           if (socket) {
               socket.emit('watch-party-action', {
                   type: 'url',
-                  payload: inputUrl,
+                  payload: fixedUrl,
                   serverId
               });
           }
@@ -85,18 +89,18 @@ const YouTubeWatchParty = () => {
       }
   };
 
-  // 3. OYNAT/DURDUR (Döngü Korumalı)
-  // Bu fonksiyon sadece durum gerçekten farklıysa çalışır
-  const handlePlayerState = (shouldPlay) => {
-      if (playing !== shouldPlay) {
-          setPlaying(shouldPlay);
-          if (socket) {
-              socket.emit('watch-party-action', {
-                  type: 'state',
-                  payload: shouldPlay,
-                  serverId
-              });
-          }
+  // 3. OYNATMA DURUMUNU BİLDİR
+  const handlePlay = () => {
+      if (!playing) {
+          setPlaying(true);
+          if(socket) socket.emit('watch-party-action', { type: 'state', payload: true, serverId });
+      }
+  };
+
+  const handlePause = () => {
+      if (playing) {
+          setPlaying(false);
+          if(socket) socket.emit('watch-party-action', { type: 'state', payload: false, serverId });
       }
   };
 
@@ -106,7 +110,7 @@ const YouTubeWatchParty = () => {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          background: '#000', /* Arka plan siyah */
+          background: '#000',
           overflow: 'hidden'
       }}>
 
@@ -145,23 +149,28 @@ const YouTubeWatchParty = () => {
               position: 'relative',
               width: '100%',
               height: '100%',
-              minHeight: '400px', /* 🟢 EKLE: En az 400px yer kaplasın */
+              minHeight: '400px',
               background: '#000',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center'
           }}>
+              {/* 🟢 DÜZELTME: key prop'u kaldırıldı. Artık hata vermez. */}
               <ReactPlayer
-  url={url}
-  playing={playing}
-  controls
-  width="100%"
-  height="100%"
-  onReady={() => setPlaying(true)}
-  onPlay={() => handlePlayerState(true)}
-  onPause={() => handlePlayerState(false)}
-  onError={(e) => console.warn("Video yüklenemedi:", e)}
-/>
+                  url={url}
+                  playing={playing}
+                  controls={true}
+                  width="100%"
+                  height="100%"
+                  onPlay={handlePlay}
+                  onPause={handlePause}
+                  onError={(e) => console.warn("Player Hatası:", e)}
+                  config={{
+                      youtube: {
+                          playerVars: { showinfo: 1, origin: window.location.origin }
+                      }
+                  }}
+              />
           </div>
       </div>
   );
