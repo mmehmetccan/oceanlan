@@ -1,23 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import ReactPlayer from "react-player";
+import React, { useEffect, useRef, useState } from 'react';
 import { useSocket } from '../../hooks/useSocket';
 import { useParams } from 'react-router-dom';
 
-const normalizeYouTubeUrl = (url) => {
+const extractVideoId = (url) => {
   try {
-    let videoId = null;
-
     if (url.includes('youtu.be')) {
-      videoId = url.split('youtu.be/')[1]?.split('?')[0];
+      return url.split('youtu.be/')[1].split('?')[0];
     }
-
     if (url.includes('youtube.com')) {
-      const u = new URL(url);
-      videoId = u.searchParams.get('v');
+      return new URL(url).searchParams.get('v');
     }
-
-    if (!videoId) return null;
-    return `https://www.youtube.com/watch?v=${videoId}`;
+    return null;
   } catch {
     return null;
   }
@@ -28,155 +21,93 @@ const YouTubeWatchParty = () => {
   const { serverId } = useParams();
 
   const playerRef = useRef(null);
+  const iframeRef = useRef(null);
 
-  const [url, setUrl] = useState(null);
+  const [videoId, setVideoId] = useState(null);
   const [inputUrl, setInputUrl] = useState('');
-  const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // 🔌 SOCKET EVENTS
+  // YouTube API yükle
   useEffect(() => {
-    if (!socket) return;
+    if (window.YT) return;
 
-    const onUrl = (newUrl) => {
-      const fixed = normalizeYouTubeUrl(newUrl);
-      if (!fixed) return;
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.body.appendChild(tag);
 
-      setPlaying(false);
-      setReady(false);
-      setUrl(fixed);
+    window.onYouTubeIframeAPIReady = () => {
+      setReady(true);
     };
+  }, []);
 
-    const onState = (state) => {
-      setPlaying(state);
-    };
+  // Player oluştur
+  useEffect(() => {
+    if (!ready || !videoId) return;
 
-    socket.on('watch-party-url', onUrl);
-    socket.on('watch-party-state', onState);
-
-    return () => {
-      socket.off('watch-party-url', onUrl);
-      socket.off('watch-party-state', onState);
-    };
-  }, [socket]);
-
-  // 🔗 LINK GÖNDER
-  const submitUrl = (e) => {
-    e.preventDefault();
-
-    const fixed = normalizeYouTubeUrl(inputUrl);
-    if (!fixed) {
-      alert('Geçerli bir YouTube linki gir');
+    if (playerRef.current) {
+      playerRef.current.loadVideoById(videoId);
       return;
     }
 
-    setPlaying(false);
-    setReady(false);
-    setUrl(fixed);
+    playerRef.current = new window.YT.Player(iframeRef.current, {
+      height: '100%',
+      width: '100%',
+      videoId,
+      playerVars: {
+        autoplay: 0,
+        controls: 1,
+        origin: window.location.origin
+      }
+    });
+  }, [ready, videoId]);
+
+  // Socket
+  useEffect(() => {
+    if (!socket) return;
+
+    const onUrl = (url) => {
+      const id = extractVideoId(url);
+      if (!id) return;
+      setVideoId(id);
+    };
+
+    socket.on('watch-party-url', onUrl);
+    return () => socket.off('watch-party-url', onUrl);
+  }, [socket]);
+
+  const submitUrl = (e) => {
+    e.preventDefault();
+    const id = extractVideoId(inputUrl);
+    if (!id) return alert('Geçerli YouTube linki gir');
+
+    setVideoId(id);
 
     socket.emit('watch-party-action', {
       type: 'url',
-      payload: fixed,
+      payload: inputUrl,
       serverId
     });
 
     setInputUrl('');
   };
 
-  // ▶️ PLAY (kullanıcı etkileşimi şart)
-  const handlePlayClick = () => {
-    setPlaying(true);
-
-    socket.emit('watch-party-action', {
-      type: 'state',
-      payload: true,
-      serverId
-    });
-  };
-
-  // ⏸️ PAUSE
-  const handlePause = () => {
-    setPlaying(false);
-
-    socket.emit('watch-party-action', {
-      type: 'state',
-      payload: false,
-      serverId
-    });
-  };
-
   return (
-    <div style={{ height: '100%', width: '100%', background: '#000', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* ÜST BAR */}
-      <form
-        onSubmit={submitUrl}
-        style={{ display: 'flex', gap: 8, padding: 10, background: '#202225' }}
-      >
+    <div style={{ height: '100%', background: '#000', display: 'flex', flexDirection: 'column' }}>
+      <form onSubmit={submitUrl} style={{ display: 'flex', padding: 10, background: '#202225' }}>
         <input
           value={inputUrl}
           onChange={(e) => setInputUrl(e.target.value)}
           placeholder="YouTube linki yapıştır"
-          style={{
-            flex: 1,
-            padding: 10,
-            borderRadius: 4,
-            border: 'none',
-            outline: 'none'
-          }}
+          style={{ flex: 1, padding: 10 }}
         />
-        <button type="submit" style={{ padding: '0 20px' }}>
-          Aç
-        </button>
+        <button type="submit">Aç</button>
       </form>
 
-      {/* PLAYER */}
-      <div style={{ flex: 1, position: 'relative' }}>
-        {url ? (
-          <>
-            <ReactPlayer
-              ref={playerRef}
-              url={url}
-              playing={playing}
-              controls
-              width="100%"
-              height="100%"
-              onReady={() => setReady(true)}
-              onPause={handlePause}
-              config={{
-                youtube: {
-                  playerVars: {
-                    autoplay: 0,
-                    modestbranding: 1,
-                    rel: 0,
-                    playsinline: 1,
-                    origin: window.location.origin
-                  }
-                }
-              }}
-            />
-
-            {/* ▶️ PLAY OVERLAY (AUTOPLAY FIX) */}
-            {!playing && ready && (
-              <button
-                onClick={handlePlayClick}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  fontSize: 32,
-                  padding: '20px 30px',
-                  borderRadius: '50%',
-                  cursor: 'pointer'
-                }}
-              >
-                ▶
-              </button>
-            )}
-          </>
+      <div style={{ flex: 1 }}>
+        {videoId ? (
+          <div ref={iframeRef} style={{ width: '100%', height: '100%' }} />
         ) : (
-          <div style={{ color: '#aaa', textAlign: 'center', marginTop: 50 }}>
+          <div style={{ color: '#aaa', textAlign: 'center', marginTop: 40 }}>
             YouTube linki gir
           </div>
         )}
