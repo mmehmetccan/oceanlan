@@ -18,12 +18,14 @@ const YouTubeWatchParty = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleUrl = (newUrl) => {
-  console.log("[Socket] Yeni URL:", newUrl);
+   const handleUrl = (newUrl) => {
+  console.log('[Socket] Yeni URL:', newUrl);
 
   const fixedUrl = normalizeYouTubeUrl(newUrl);
-  setUrl(fixedUrl);
-  setPlaying(true);
+  if (!fixedUrl) return;
+
+  setPlaying(false);     // 🔥 önce durdur
+  setUrl(fixedUrl);      // 🔥 sonra URL değiştir
 };
 
     const handleState = (isPlaying) => {
@@ -42,25 +44,25 @@ const YouTubeWatchParty = () => {
 
   const normalizeYouTubeUrl = (url) => {
   try {
-    // youtu.be linki
+    let videoId = null;
+
     if (url.includes('youtu.be')) {
-      const id = url.split('youtu.be/')[1].split('?')[0];
-      return `https://www.youtube.com/watch?v=${id}`;
+      videoId = url.split('youtu.be/')[1]?.split('?')[0];
     }
 
-    // youtube.com/watch linki
     if (url.includes('youtube.com')) {
       const u = new URL(url);
-      const id = u.searchParams.get('v');
-      if (id) return `https://www.youtube.com/watch?v=${id}`;
+      videoId = u.searchParams.get('v');
     }
 
-    return url;
+    if (!videoId) return null;
+
+    // 🔥 SADECE video ID, playlist YOK
+    return `https://www.youtube.com/watch?v=${videoId}`;
   } catch {
-    return url;
+    return null;
   }
 };
-
 
 
   // 2. KULLANICI LİNK DEĞİŞTİRİRSE
@@ -150,17 +152,16 @@ const YouTubeWatchParty = () => {
               alignItems: 'center'
           }}>
               <ReactPlayer
-                  key={url}
-                  url={url}
-                  playing={playing}
-                  controls={true}
-                  width="100%"
-                  height="100%"
-                  onPlay={() => handlePlayerState(true)}
-                  onPause={() => handlePlayerState(false)}
-                  // 👇 YENİ: Eğer video yüklenemezse hatayı görelim
-                  onError={(e) => console.error("Video Oynatma Hatası:", e)}
-              />
+  url={url}
+  playing={playing}
+  controls
+  width="100%"
+  height="100%"
+  onReady={() => setPlaying(true)}
+  onPlay={() => handlePlayerState(true)}
+  onPause={() => handlePlayerState(false)}
+  onError={(e) => console.warn("Video yüklenemedi:", e)}
+/>
           </div>
       </div>
   );
