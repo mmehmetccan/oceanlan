@@ -23,7 +23,7 @@ import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal'
 // Entegrasyonlar
 import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
 import TatildekiRotamFrame from '../components/integrations/TatildekiRotamFrame';
-import YouTubeWatchParty from '../components/integrations/YouTubeWatchParty';
+//import YouTubeWatchParty from '../components/integrations/YouTubeWatchParty';
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
@@ -141,7 +141,6 @@ const DashboardPage = () => {
 
             <Route path="server/:serverId/channels/squad-builder" element={<IlkonbirKurFrame />} />
             <Route path="server/:serverId/channels/tatildeki-rotam" element={<TatildekiRotamFrame />} />
-              <Route path="server/:serverId/channels/youtube-party" element={<YouTubeWatchParty />} />
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
 
             <Route path="dm/:friendId/:conversationId" element={<DMView />} />
