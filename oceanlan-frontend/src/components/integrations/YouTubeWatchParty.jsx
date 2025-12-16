@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactPlayer from 'react-player';
 import { useSocket } from '../../hooks/useSocket';
 import { useParams } from 'react-router-dom';
-import { LinkIcon } from '@heroicons/react/24/solid';
+import { LinkIcon, SpeakerXMarkIcon, SpeakerWaveIcon } from '@heroicons/react/24/solid';
 
 const YouTubeWatchParty = () => {
   const { socket } = useSocket();
@@ -14,16 +14,17 @@ const YouTubeWatchParty = () => {
   const [inputUrl, setInputUrl] = useState('');
   const [playing, setPlaying] = useState(false);
 
-  // Link Düzeltici Yardımcı Fonksiyon
+  // 🟢 YENİ: Otomatik oynatma politikasını aşmak için varsayılan olarak sessiz başlat
+  const [muted, setMuted] = useState(true);
+
+  // Link Düzeltici
   const normalizeYouTubeUrl = (rawUrl) => {
     try {
       if (!rawUrl) return rawUrl;
-      // youtu.be linklerini düzelt
       if (rawUrl.includes('youtu.be')) {
         const id = rawUrl.split('youtu.be/')[1]?.split('?')[0];
         if (id) return `https://www.youtube.com/watch?v=${id}`;
       }
-      // Liste parametrelerini temizle (Sadece videoya odaklansın)
       if (rawUrl.includes('youtube.com') && rawUrl.includes('&')) {
          const u = new URL(rawUrl);
          const v = u.searchParams.get('v');
@@ -41,15 +42,12 @@ const YouTubeWatchParty = () => {
 
     const handleUrl = (incomingUrl) => {
         const fixedUrl = normalizeYouTubeUrl(incomingUrl);
-
-        // 🟢 ÖNEMLİ: Eğer gelen link zaten açıksa hiçbir şey yapma (Döngüyü kırar)
+        // Eğer link zaten aynıysa işlem yapma (Döngüyü kırar)
         setUrl((currentUrl) => {
             if (currentUrl === fixedUrl) return currentUrl;
             console.log("[Socket] Yeni URL yüklendi:", fixedUrl);
             return fixedUrl;
         });
-
-        // Yeni link gelince otomatik oynat
         setPlaying(true);
     };
 
@@ -67,7 +65,7 @@ const YouTubeWatchParty = () => {
     };
   }, [socket]);
 
-  // 2. LİNK GÖNDERME
+  // 2. KULLANICI LİNK GÖNDERİRSE
   const handleUrlSubmit = (e) => {
       e.preventDefault();
       if(inputUrl.trim() !== '') {
@@ -77,7 +75,6 @@ const YouTubeWatchParty = () => {
           setUrl(fixedUrl);
           setPlaying(true);
 
-          // Sonra sunucuya bildireyim
           if (socket) {
               socket.emit('watch-party-action', {
                   type: 'url',
@@ -89,7 +86,6 @@ const YouTubeWatchParty = () => {
       }
   };
 
-  // 3. OYNATMA DURUMUNU BİLDİR
   const handlePlay = () => {
       if (!playing) {
           setPlaying(true);
@@ -141,6 +137,15 @@ const YouTubeWatchParty = () => {
                       AÇ
                   </button>
               </form>
+
+              {/* Ses Aç/Kapat Butonu (Tarayıcı Engeli İçin) */}
+              <button
+                onClick={() => setMuted(!muted)}
+                title={muted ? "Sesi Aç" : "Sessize Al"}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#b9bbbe' }}
+              >
+                  {muted ? <SpeakerXMarkIcon width={24} /> : <SpeakerWaveIcon width={24} />}
+              </button>
           </div>
 
           {/* Video Alanı */}
@@ -155,19 +160,27 @@ const YouTubeWatchParty = () => {
               justifyContent: 'center',
               alignItems: 'center'
           }}>
-              {/* 🟢 DÜZELTME: key prop'u kaldırıldı. Artık hata vermez. */}
+              {/* 🛑 DÜZELTME: 'key={url}' BURADAN KESİNLİKLE SİLİNDİ.
+                  Bu sayede video değişirken player yok edilmiyor, hata vermiyor.
+              */}
               <ReactPlayer
                   url={url}
                   playing={playing}
+                  muted={muted} /* 🟢 Tarayıcıların videoyu engellememesi için başta sessiz olabilir */
                   controls={true}
                   width="100%"
                   height="100%"
                   onPlay={handlePlay}
                   onPause={handlePause}
-                  onError={(e) => console.warn("Player Hatası:", e)}
+                  // Hata olsa bile çökmesini engelle
+                  onError={(e) => console.warn("Player Uyarısı (Önemli Değil):", e)}
                   config={{
                       youtube: {
-                          playerVars: { showinfo: 1, origin: window.location.origin }
+                          playerVars: {
+                              showinfo: 1,
+                              autoplay: 1,
+                              origin: window.location.origin
+                          }
                       }
                   }}
               />
