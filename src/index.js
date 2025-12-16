@@ -397,12 +397,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('watch-party-action', ({ type, payload, serverId }) => {
-    // 🔴 ESKİSİ (Hatalı): socket.broadcast.emit(...) -> Herkese yayıyordu.
+    console.log(`[YouTube] Server: ${serverId} -> İşlem: ${type}`);
 
-    // 🟢 YENİSİ (Doğru): Sadece o sunucudaki (serverId odasındaki) kişilere gönder.
-    // Not: Kullanıcıların 'joinServer' ile odaya girdiğini varsayıyoruz.
+    // Eğer sunucu ID'si varsa SADECE o sunucudaki (odadaki) kişilere gönder
     if (serverId) {
-        socket.to(serverId).emit(type === 'url' ? 'watch-party-url' : 'watch-party-state', payload);
+        // 'io.to' kullanıyoruz ki gönderen kişi de dahil herkes alsın ve senkron olsun
+        io.to(serverId).emit(type === 'url' ? 'watch-party-url' : 'watch-party-state', payload);
     }
   });
 
