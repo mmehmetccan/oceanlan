@@ -397,10 +397,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('watch-party-action', ({ type, payload, serverId }) => {
-    // Mesajı gönderen HARİÇ (broadcast) sunucudaki diğer herkese ilet
-    // Not: Gerçek bir odalama sistemi için: socket.to(serverId).emit(...) kullanmalısın.
-    // Şimdilik basitçe herkese yayalım:
-    socket.broadcast.emit(type === 'url' ? 'watch-party-url' : 'watch-party-state', payload);
+    // 🔴 ESKİSİ (Hatalı): socket.broadcast.emit(...) -> Herkese yayıyordu.
+
+    // 🟢 YENİSİ (Doğru): Sadece o sunucudaki (serverId odasındaki) kişilere gönder.
+    // Not: Kullanıcıların 'joinServer' ile odaya girdiğini varsayıyoruz.
+    if (serverId) {
+        socket.to(serverId).emit(type === 'url' ? 'watch-party-url' : 'watch-party-state', payload);
+    }
   });
 
   // DM (Özel Mesaj)
