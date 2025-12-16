@@ -396,6 +396,13 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); }
   });
 
+  socket.on('watch-party-action', ({ type, payload, serverId }) => {
+    // Mesajı gönderen HARİÇ (broadcast) sunucudaki diğer herkese ilet
+    // Not: Gerçek bir odalama sistemi için: socket.to(serverId).emit(...) kullanmalısın.
+    // Şimdilik basitçe herkese yayalım:
+    socket.broadcast.emit(type === 'url' ? 'watch-party-url' : 'watch-party-state', payload);
+  });
+
   // DM (Özel Mesaj)
   socket.on('joinDmRoom', (id) => socket.join(id));
   socket.on('joinConversation', (id) => socket.join(id));
