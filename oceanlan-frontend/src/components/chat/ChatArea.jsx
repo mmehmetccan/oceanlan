@@ -8,6 +8,12 @@ import axiosInstance from '../../utils/axiosInstance';
 import ScreenShareDisplay from './ScreenShareDisplay';
 // 👇 YENİ: Helper'ı import et
 import { getFullImageUrl } from '../../utils/urlHelper';
+import { ToastContext } from '../../context/ToastContext';
+
+import '../../styles/ChatArea.css'
+
+
+
 
 const ChatArea = () => {
   const { serverId, channelId } = useParams();
@@ -37,6 +43,19 @@ const ChatArea = () => {
         hour: '2-digit', minute: '2-digit'
     });
   };
+
+  const { addToast } = useContext(ToastContext);
+
+const handleError = (error) => {
+  const message =
+    error?.response?.data?.message ||
+    error?.message ||
+    'Bir hata oluştu';
+
+  addToast(message, 'error');
+};
+
+
 
   // 1. KANALA KATILMA VE GEÇMİŞİ ÇEKME
   useEffect(() => {
@@ -195,21 +214,28 @@ const ChatArea = () => {
           </div>
         )}
         {msg.author._id === user.id && (
-  <button
-    className="message-delete-btn"
-    onClick={async () => {
-      await axiosInstance.delete(
-        `/servers/${serverId}/channels/${channelId}/messages/${msg._id}`
-      );
-      setMessages(prev => prev.filter(m => m._id !== msg._id));
-    }}
-  >
-    🗑️
-  </button>
-)}
+            <button
+                className="message-delete-btn"
+                onClick={async () => {
+                  try {
+                    await axiosInstance.delete(
+                        `/servers/${serverId}/channels/${channelId}/messages/${msg._id}`
+                    );
+
+                    setMessages(prev => prev.filter(m => m._id !== msg._id));
+                    addToast('Mesaj silindi', 'success');
+
+                  } catch (error) {
+                    handleError(error);
+                  }
+                }}
+            >
+              🗑️
+            </button>
+        )}
 
         {msg.content && (
-          <p className="message-content">{msg.content}</p>
+            <p className="message-content">{msg.content}</p>
         )}
       </>
     );

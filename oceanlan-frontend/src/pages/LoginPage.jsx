@@ -1,82 +1,50 @@
 // src/pages/LoginPage.jsx
 import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { isElectron } from '../utils/platformHelper';
 import '../styles/Auth.css';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // 🟢 YENİ: Beni Hatırla State'i
   const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState('');
 
-  // 🟢 AKILLI LİNK: Backend otomatik en son sürümü verir
-  const downloadUrl = 'https://oceanlan.com/api/download/latest';
+  const [error, setError] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
 
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
-  const location = useLocation();
   const isApp = isElectron();
 
-  // Register sayfasından yönlendirme ile gelindiyse emaili doldur
   useEffect(() => {
-    if (location.state?.email) {
-      setEmail(location.state.email);
+    if (!isApp) {
+      fetch('https://oceanlan.com/version.json')
+        .then(response => response.json())
+        .then(data => {
+          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+          setDownloadUrl(newLink);
+          console.log("Güncel sürüm linki ayarlandı:", newLink);
+        })
+        .catch(err => {
+          console.error("Versiyon bilgisi alınamadı.", err);
+        });
     }
-  }, [location]);
+  }, [isApp]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     try {
-      // Login işlemini başlat
+      // 🟢 login fonksiyonuna rememberMe değerini gönderiyoruz
       await login(email, password, rememberMe);
-
-      // Hata yoksa yönlendir
       navigate('/dashboard');
-
-    } catch (errData) {
-      // 🔴 HATA AYIKLAMA KISMI (Burayı geliştirdik)
-      console.log("LOGIN HATASI (HAM VERİ):", errData);
-
-      // 1. ÖZEL DURUM: E-posta Doğrulanmamışsa
-      if (errData?.needsVerification) {
-        setError('E-postanızı doğrulamadan giriş yapamazsınız. Doğrulama sayfasına yönlendiriliyorsunuz...');
-
-        setTimeout(() => {
-          navigate('/verify-email', {
-            state: { email: errData.email || email }
-          });
-        }, 2000);
-        return; // İşlemi burada kes
-      }
-
-      // 2. GENEL HATA MESAJINI ÇIKARMA (Object hatasını çözer)
-      let displayMessage = 'Giriş yapılamadı.';
-
-      if (typeof errData === 'string') {
-          // Eğer hata direkt yazı olarak geldiyse
-          displayMessage = errData;
-      } else if (errData?.message) {
-          // Eğer hata { message: "..." } şeklindeyse
-          displayMessage = errData.message;
-      } else if (errData?.error) {
-          // Bazı backendler { error: "..." } döner
-          displayMessage = errData.error;
-      } else {
-          // Hiçbirine uymuyorsa, objeyi yazıya çevirip gösterelim (Debug için)
-          try {
-            displayMessage = JSON.stringify(errData);
-          } catch (e) {
-            displayMessage = 'Bilinmeyen bir hata oluştu.';
-          }
-      }
-
-      // Ekrana düzgün mesajı bas
-      setError(displayMessage);
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -89,7 +57,6 @@ const LoginPage = () => {
 
         {error && (
           <div className="auth-alert error">
-            {/* Hata mesajını burada gösteriyoruz */}
             <span>⚠️</span> {error}
           </div>
         )}
@@ -119,7 +86,9 @@ const LoginPage = () => {
             />
           </div>
 
+          {/* 🟢 BENİ HATIRLA ve ŞİFREMİ UNUTTUM SATIRI */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', fontSize: '14px', width: '100%' }}>
+
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#b9bbbe' }}>
               <input
                 type="checkbox"
@@ -129,6 +98,7 @@ const LoginPage = () => {
               />
               Beni Hatırla
             </label>
+
             <Link to="/forgot-password" style={{ color: '#00aff4', textDecoration: 'none' }}>
               Şifreni mi unuttun?
             </Link>
@@ -140,21 +110,32 @@ const LoginPage = () => {
         </form>
 
         <div className="auth-footer">
-          Hesabın yok mu? <Link to="/register" className="auth-link">Kaydol</Link>
+          Hesabın yok mu?
+          <Link to="/register" className="auth-link">Kaydol</Link>
         </div>
 
         {!isApp && (
             <div style={{marginTop: '20px', textAlign: 'center', borderTop: '1px solid #444', paddingTop: '15px'}}>
+                <p style={{fontSize: '13px', color: '#949ba4', marginBottom: '10px'}}>
+                    Daha iyi bir deneyim için:
+                </p>
                 <a
                     href={downloadUrl}
+                    rel="noopener noreferrer"
                     className="auth-button"
-                    style={{ background: '#23a559', textDecoration: 'none', display: 'inline-flex', justifyContent: 'center', gap: '8px' }}
+                    target="_blank"
+                    style={{
+                        background: '#23a559',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        justifyContent: 'center'
+                    }}
                 >
                     Masaüstü Uygulamasını İndir
                 </a>
-                <p style={{fontSize:'11px', color:'#72767d', marginTop:'5px'}}>
-                  (Otomatik Güncel Sürüm)
-                </p>
             </div>
         )}
       </div>
