@@ -194,10 +194,46 @@ const sendFileMessage = async (req, res) => {
         res.status(500).json({ success: false, message: 'Dosya gönderilemedi', error: error.message });
     }
 };
+
+// @desc    Kanal mesajı sil
+// @route   DELETE /api/v1/servers/:serverId/channels/:channelId/messages/:messageId
+const deleteChannelMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.id;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Mesaj bulunamadı' });
+    }
+
+    // ❗ Sadece mesaj sahibi
+    if (message.author.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Bu mesajı silemezsiniz' });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(message.channel.toString()).emit('messageDeleted', {
+        messageId
+      });
+    }
+
+    res.status(200).json({ success: true, message: 'Mesaj silindi' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Mesaj silinemedi', error: error.message });
+  }
+};
+
+
 module.exports = {
   createChannel,
   getChannelMessages,
   updateChannel, // YENİ
   deleteChannel, // YENİ
     sendFileMessage,
+    deleteChannelMessage
 };

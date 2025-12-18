@@ -9,7 +9,7 @@ import '../../styles/FeedPage.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
+const PostCard = ({ post, onPostUpdated,onPostDeleted, getAvatarUrl, handleAvatarError }) => {
     const { user } = useContext(AuthContext);
     const [showComments, setShowComments] = useState(false);
 
@@ -17,6 +17,7 @@ const PostCard = ({ post, onPostUpdated, getAvatarUrl, handleAvatarError }) => {
     const isLiked = currentUserId ? post.likes.includes(currentUserId) : false;
     const isDisliked = currentUserId ? post.dislikes.includes(currentUserId) : false;
 const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
 
     // 1. Profil Resmi URL'si

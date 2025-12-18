@@ -107,20 +107,40 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   // Giriş işlemi
-  const login = async (email, password) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      const res = await axios.post(`${API_URL}/login`, { email, password });
-      dispatch({
-        type: 'LOGIN_SUCCESS',
-        payload: { token: res.data.token, user: res.data.user },
-      });
-      return true;
-    } catch (err) {
-      dispatch({ type: 'SET_LOADING', payload: false });
-      throw new Error(err.response?.data?.message || 'Giriş başarısız');
+  // src/context/AuthContext.jsx içindeki login fonksiyonu
+
+const login = async (email, password, rememberMe = false) => {
+  dispatch({ type: 'SET_LOADING', payload: true });
+
+  try {
+    const res = await axiosInstance.post('/auth/login', { email, password });
+
+    // Token varsa kaydet
+    if (res.data.token) {
+        localStorage.setItem('token', res.data.token);
     }
-  };
+
+    dispatch({
+      type: 'LOGIN_SUCCESS',
+      payload: { token: res.data.token, user: res.data.user },
+    });
+
+    return true; // Başarılıysa true dön
+
+  } catch (err) {
+    dispatch({ type: 'SET_LOADING', payload: false });
+
+    // 🔴 HATA BURADAYDI:
+    // Hatayı "throw" ile fırlatmazsan kod başarılı sanıp devam eder.
+    // Backend'den gelen veriyi (needsVerification bilgisini) fırlatıyoruz.
+
+    if (err.response && err.response.data) {
+        throw err.response.data;
+    } else {
+        throw { message: 'Sunucu ile iletişim kurulamadı.' };
+    }
+  }
+};
 
   // Kayıt işlemi
   const register = async (username, email, password, firstName, lastName, phoneNumber) => {

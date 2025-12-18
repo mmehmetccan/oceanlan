@@ -3,7 +3,7 @@ const express = require('express');
 // 'index.js'deki :serverId gibi parametreleri almasını sağlar.
 const router = express.Router({ mergeParams: true });
 
-const { createChannel ,getChannelMessages,updateChannel,deleteChannel,sendFileMessage} = require('../../controllers/channelController');
+const { createChannel ,getChannelMessages,updateChannel,deleteChannel,sendFileMessage,deleteChannelMessage} = require('../../controllers/channelController');
 const { protect } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/permissionMiddleware');
 const { upload, resizeChatMedia } = require('../../middleware/chatUploadMiddleware');
@@ -31,5 +31,9 @@ router.route('/:channelId/file')
         sendFileMessage        // 3. Controller (DB'ye kaydeder)
     );
 
-
+router.delete(
+  '/:channelId/messages/:messageId',
+  protect,
+  deleteChannelMessage
+);
 module.exports = router;

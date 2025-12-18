@@ -10,7 +10,8 @@ const {
     deleteServer,
     updateServerIcon, // Bu fonksiyon controller'da olmalı
     getBannedUsers,
-    unbanUser
+    unbanUser,
+    leaveServer
 } = require('../../controllers/serverController');
 
 // Koruma (Giriş yapma) middleware'ini içe aktar
@@ -45,6 +46,8 @@ router.put(
     resizeServerIcon,
     updateServerIcon
 );
+router.post('/:serverId/leave', protect, leaveServer);
+
 
 // Ban Yönetimi
 router.get('/:serverId/bans', protect, getBannedUsers);

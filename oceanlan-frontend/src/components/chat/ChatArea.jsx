@@ -82,6 +82,19 @@ const ChatArea = () => {
     }
   }, [socket, channelId]);
 
+
+  useEffect(() => {
+  if (!socket) return;
+
+  const handleMessageDeleted = ({ messageId }) => {
+    setMessages(prev => prev.filter(m => m._id !== messageId));
+  };
+
+  socket.on('messageDeleted', handleMessageDeleted);
+  return () => socket.off('messageDeleted', handleMessageDeleted);
+}, [socket]);
+
+
   // 3. MESAJ GÖNDERME
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -181,6 +194,19 @@ const ChatArea = () => {
             )}
           </div>
         )}
+        {msg.author._id === user.id && (
+  <button
+    className="message-delete-btn"
+    onClick={async () => {
+      await axiosInstance.delete(
+        `/servers/${serverId}/channels/${channelId}/messages/${msg._id}`
+      );
+      setMessages(prev => prev.filter(m => m._id !== msg._id));
+    }}
+  >
+    🗑️
+  </button>
+)}
 
         {msg.content && (
           <p className="message-content">{msg.content}</p>

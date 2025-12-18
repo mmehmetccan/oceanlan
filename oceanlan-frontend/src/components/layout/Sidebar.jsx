@@ -6,6 +6,7 @@ import JoinServerModal from '../modals/JoinServerModal';
 import CreateServerModal from '../modals/CreateServerModal';
 import { isElectron } from '../../utils/platformHelper.js';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import axiosInstance from '../../utils/axiosInstance';
 
 // Backend Adresi
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -15,6 +16,7 @@ const Sidebar = ({ unreadCount }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const navigate = useNavigate();
+const [serverContextMenu, setServerContextMenu] = useState(null);
 
   const handleCreateServer = async () => { setIsCreateOpen(true); };
   const handleJoinServer = () => { setIsModalOpen(true); };
@@ -69,13 +71,21 @@ const Sidebar = ({ unreadCount }) => {
                 className={`sidebar-icon server-story ${isActive ? 'active' : ''}`}
                 title={server.name}
                 onClick={() => handleServerClick(server._id)}
-                style={{
-                    backgroundColor: serverIcon ? 'transparent' : '#36393f',
-                    padding: 0,
-                    overflow: 'hidden',
-                    position: 'relative'
-                }}
-              >
+                 onContextMenu={(e) => {
+    e.preventDefault();
+    setServerContextMenu({
+      x: e.pageX,
+      y: e.pageY,
+      server
+    });
+  }}
+  style={{
+    backgroundColor: serverIcon ? 'transparent' : '#36393f',
+    padding: 0,
+    overflow: 'hidden',
+    position: 'relative'
+  }}
+>
                 <span className="server-story-ring">
                   {serverIcon ? (
                       <img
@@ -94,6 +104,7 @@ const Sidebar = ({ unreadCount }) => {
                             if (initials) initials.style.display = 'flex';
                         }}
                       />
+
                   ) : null}
 
                   <span
@@ -108,7 +119,9 @@ const Sidebar = ({ unreadCount }) => {
                     {server.name ? server.name.substring(0, 2).toUpperCase() : '??'}
                   </span>
                 </span>
+
               </button>
+
             );
         })}
 
@@ -148,6 +161,48 @@ const Sidebar = ({ unreadCount }) => {
           }}
         />
       )}
+      {serverContextMenu && (
+  <div
+    className="server-context-menu"
+    style={{
+      position: 'fixed',
+      top: serverContextMenu.y,
+      left: serverContextMenu.x,
+      background: '#18191c',
+      border: '1px solid #2f3136',
+      borderRadius: '6px',
+      padding: '6px 0',
+      zIndex: 9999,
+      minWidth: '180px'
+    }}
+    onClick={() => setServerContextMenu(null)}
+  >
+    <div
+      className="context-item context-danger"
+      style={{
+        padding: '8px 12px',
+        cursor: 'pointer',
+        color: '#ed4245'
+      }}
+      onClick={async () => {
+        const ok = window.confirm(
+          `"${serverContextMenu.server.name}" sunucusundan ayrılmak istiyor musun?`
+        );
+        if (!ok) return;
+
+        await axiosInstance.post(
+          `/servers/${serverContextMenu.server._id}/leave`
+        );
+
+        setServerContextMenu(null);
+        navigate('/dashboard'); // server listesinin olduğu yer
+      }}
+    >
+      🚪 Sunucudan Ayrıl
+    </div>
+  </div>
+)}
+      
     </div>
   );
 };

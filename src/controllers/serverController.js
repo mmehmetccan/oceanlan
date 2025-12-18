@@ -279,6 +279,45 @@ const deleteServer = async (req, res) => {
     }
 };
 
+const leaveServer = async (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const userId = req.user.id;
+
+    const server = await Server.findById(serverId);
+    if (!server) {
+      return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
+    }
+
+    // ❌ Sahip ayrılamaz
+    if (server.owner.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sunucu sahibi sunucudan ayrılamaz'
+      });
+    }
+
+    // Üyeliği bul
+    const member = await Member.findOne({ server: serverId, user: userId });
+    if (!member) {
+      return res.status(400).json({ success: false, message: 'Bu sunucunun üyesi değilsiniz' });
+    }
+
+    // Member sil
+    await Member.findByIdAndDelete(member._id);
+
+    // Sunucudan member referansını kaldır
+    await Server.findByIdAndUpdate(serverId, {
+      $pull: { members: member._id }
+    });
+
+    res.status(200).json({ success: true, message: 'Sunucudan ayrıldınız' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'İşlem başarısız', error: error.message });
+  }
+};
+
 module.exports = {
   createServer,
   generateInviteCode,
@@ -287,5 +326,6 @@ module.exports = {
   deleteServer,
     updateServerIcon,
   getBannedUsers,
-  unbanUser
+  unbanUser,
+    leaveServer
 };
