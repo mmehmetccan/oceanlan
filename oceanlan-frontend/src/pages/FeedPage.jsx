@@ -116,6 +116,27 @@ const FeedPage = () => {
   }, [socket, user]);
 
   const handlePostDeletedLocal = (postId) => { setPosts(prev => prev.filter(p => p._id !== postId)); };
+  const handleDeletePostProcess = (postId) => {
+    setConfirmModal({
+        isOpen: true,
+        title: 'Gönderiyi Sil',
+        message: 'Bu gönderiyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+        isDanger: true,
+        confirmText: 'Sil',
+        onConfirm: async () => {
+            try {
+                await axiosInstance.delete(`/posts/${postId}`);
+                handlePostDeletedLocal(postId); // Listeden sil
+                addToast('Gönderi başarıyla silindi.', 'success'); // Toast Bildirimi
+                setConfirmModal(prev => ({ ...prev, isOpen: false })); // Modalı kapat
+            } catch (error) {
+                console.error(error);
+                addToast('Gönderi silinirken bir hata oluştu.', 'error');
+            }
+        }
+    });
+  };
+
   const goProfile = () => navigate('/dashboard/settings/profile');
   const goToFriendsPage = () => navigate('/dashboard/friends');
   const goToAllDmsPage = () => navigate('/dashboard/all-dms');
@@ -191,7 +212,7 @@ const FeedPage = () => {
                   key={post._id}
                   post={post}
                   onPostUpdated={onPostUpdated}
-                  onPostDeleted={handlePostDeletedLocal}
+                  onDeleteClick={() => handleDeletePostProcess(post._id)}
                   getAvatarUrl={getAvatarUrlWrapper}
                   handleAvatarError={handleAvatarErrorWrapper}
               />

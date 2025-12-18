@@ -9,7 +9,7 @@ import '../../styles/FeedPage.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-const PostCard = ({ post, onPostUpdated,onPostDeleted, getAvatarUrl, handleAvatarError }) => {
+const PostCard = ({ post, onPostUpdated,onPostDeleted,onDeleteClick, getAvatarUrl, handleAvatarError }) => {
     const { user } = useContext(AuthContext);
     const [showComments, setShowComments] = useState(false);
 
@@ -99,7 +99,7 @@ const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
                 {/* 👇 SİLME BUTONU (Sadece Sahibi Görür) */}
                 {isOwner && (
                     <button
-                        onClick={handleDelete}
+                        onClick={onDeleteClick}
                         title="Gönderiyi Sil"
                         style={{
                             background: 'transparent',

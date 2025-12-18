@@ -1,0 +1,260 @@
+/* 🟢 YATAY BAR DÜZENİ */
+.server-topbar {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 52px; /* Sabit yükseklik */
+    background-color: #202225; /* Discord koyu gri */
+    padding: 0 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    overflow: visible; /* Dropdown/Menu taşabilsin */
+    z-index: 50;
+}
+
+/* Scroll alanı (Sunucular buraya sığar) */
+.server-topbar-scroll {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    overflow-x: auto; /* Yanlamasına scroll */
+    overflow-y: visible;
+    flex-grow: 1; /* Boşluğu kapla */
+    gap: 8px; /* Öğeler arası boşluk */
+    margin-right: 10px;
+    scrollbar-width: none; /* Firefox scroll gizle */
+}
+
+/* Chrome scroll gizle */
+.server-topbar-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+/* 🟢 İKON STİLLERİ (Discord Tarzı) */
+.sidebar-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px; /* Küçülmeyi engelle */
+    border-radius: 50%; /* Yuvarlak başla */
+    background-color: #36393f;
+    color: #dcddde;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border: none;
+    outline: none;
+    text-decoration: none;
+    user-select: none;
+}
+
+/* Hover ve Aktif Durumu */
+.sidebar-icon:hover, .sidebar-icon.active {
+    border-radius: 12px; /* Kareleşme efekti */
+    background-color: #5865f2; /* Discord mavisi */
+    color: white;
+}
+
+/* Resim Stili */
+.server-story-ring img {
+    border-radius: inherit; /* Parent neyse o (Yuvarlak/Kare) */
+    transition: border-radius 0.2s;
+}
+
+/* 🟢 KLASÖR STİLİ */
+.sidebar-folder-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.sidebar-folder-wrapper.drag-over-combine {
+    border: 2px dashed #5865f2; /* Birleşme efekti */
+}
+
+.folder-icon {
+    background-color: #5865f240 !important;
+    color: #5865f2 !important;
+}
+
+.folder-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: fadeIn 0.2s ease;
+}
+
+/* 🟢 AYARLAR İKONLARINI SAĞA İTMEK İÇİN */
+.server-topbar-spacer {
+    margin-left: auto; /* Bu sihirli kod, sağdaki öğeleri en sona iter */
+}
+
+/* Sidebar Ana Kaplayıcı */
+.server-topbar {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 52px;
+    background-color: #202225;
+    padding: 0 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    user-select: none;
+    z-index: 50;
+    position: relative;
+}
+
+/* Scroll Alanı */
+.server-topbar-scroll {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: visible; /* Dropdownların taşabilmesi için */
+    flex-grow: 1;
+    gap: 8px;
+    margin-right: 10px;
+    scrollbar-width: none;
+}
+.server-topbar-scroll::-webkit-scrollbar { display: none; }
+
+/* İkon Stilleri */
+.sidebar-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+    background-color: #36393f;
+    color: #dcddde;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    border: none;
+    outline: none;
+}
+
+.sidebar-icon:hover, .sidebar-icon.active {
+    border-radius: 12px;
+    background-color: #5865f2;
+    color: white;
+}
+
+/* Klasör Stili */
+.sidebar-folder-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+    height: 44px;
+}
+
+.sidebar-folder-wrapper.drag-over-combine {
+    background-color: rgba(88, 101, 242, 0.3);
+    border: 2px dashed #5865f2;
+}
+
+.folder-icon {
+    background-color: transparent !important;
+    color: #b9bbbe !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+}
+.folder-icon:hover {
+    color: #dcddde !important;
+    background-color: rgba(255,255,255,0.1) !important;
+}
+
+.folder-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+    animation: fadeIn 0.2s ease;
+}
+
+/* Spacer */
+.server-topbar-spacer { margin-left: auto; }
+
+/* Bildirim Rozeti */
+.notification-badge {
+    position: absolute;
+    bottom: -2px; right: -2px;
+    background-color: #ed4245; color: white;
+    font-size: 10px; padding: 2px 4px;
+    border-radius: 6px; border: 2px solid #202225;
+}
+
+/* 🟢 SAĞ TIK MENÜSÜ DÜZELTMESİ */
+.context-menu {
+    position: fixed; /* Sayfada sabit durur, kaymaz */
+    z-index: 9999; /* Her şeyin üstünde */
+    background-color: #18191c;
+    border-radius: 4px;
+    padding: 6px 0;
+    width: 180px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.24);
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #b9bbbe;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.context-menu-item:hover {
+    background-color: #4752c4;
+    color: white;
+}
+
+.context-menu-item.danger { color: #ed4245; }
+.context-menu-item.danger:hover { background-color: #ed4245; color: white; }
+.context-menu-item .icon { width: 18px; height: 18px; margin-right: 8px; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Sürükleme Hedef Çizgisi */
+.drag-target-line {
+    width: 2px;
+    height: 30px;
+    background-color: #5865f2;
+    margin: 0 2px;
+    border-radius: 2px;
+}
+
+/* Bildirim Rozeti */
+.notification-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    background-color: #ed4245;
+    color: white;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    border: 2px solid #202225;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
