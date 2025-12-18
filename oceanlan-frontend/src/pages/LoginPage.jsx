@@ -1,50 +1,54 @@
 // src/pages/LoginPage.jsx
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { isElectron } from '../utils/platformHelper';
 import '../styles/Auth.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // 🟢 YENİ: Beni Hatırla State'i
+  // Beni Hatırla State'i
   const [rememberMe, setRememberMe] = useState(false);
 
   const [error, setError] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+
+  // 🟢 AKILLI LİNK: Backend otomatik olarak en son sürümü bulup indirecek.
+  // Version.json fetch etmeye gerek kalmadı.
+  const downloadUrl = 'https://oceanlan.com/api/download/latest';
 
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const isApp = isElectron();
 
-  useEffect(() => {
-    if (!isApp) {
-      fetch('https://oceanlan.com/version.json')
-        .then(response => response.json())
-        .then(data => {
-          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
-          setDownloadUrl(newLink);
-          console.log("Güncel sürüm linki ayarlandı:", newLink);
-        })
-        .catch(err => {
-          console.error("Versiyon bilgisi alınamadı.", err);
-        });
-    }
-  }, [isApp]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
     try {
-      // 🟢 login fonksiyonuna rememberMe değerini gönderiyoruz
+      // login fonksiyonuna rememberMe değerini gönderiyoruz
       await login(email, password, rememberMe);
-      navigate('/dashboard');
+      navigate('/dashboard'); // Başarılıysa ana ekrana git
     } catch (err) {
-      setError(err.message);
+
+      // 🟢 ÖZEL DURUM: E-posta doğrulanmamışsa (Backend'den gelen veri)
+      // AuthContext hatayı nasıl fırlattığına bağlı olarak veriyi yakalıyoruz
+      const responseData = err.response?.data || err;
+
+      if (responseData.needsVerification) {
+        setError('E-postanızı doğrulamadan giriş yapamazsınız. Doğrulama sayfasına yönlendiriliyorsunuz...');
+
+        // 2 Saniye Bekle ve Yönlendir
+        setTimeout(() => {
+          navigate('/verify-email', {
+            state: { email: email } // E-postayı diğer sayfaya taşıyoruz ki tekrar yazmasın
+          });
+        }, 2000);
+      } else {
+        // Diğer standart hatalar (Şifre yanlış vs.)
+        setError(responseData.message || 'Giriş başarısız.');
+      }
     }
   };
 
@@ -86,7 +90,7 @@ const LoginPage = () => {
             />
           </div>
 
-          {/* 🟢 BENİ HATIRLA ve ŞİFREMİ UNUTTUM SATIRI */}
+          {/* BENİ HATIRLA ve ŞİFREMİ UNUTTUM SATIRI */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', fontSize: '14px', width: '100%' }}>
 
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#b9bbbe' }}>
@@ -114,6 +118,7 @@ const LoginPage = () => {
           <Link to="/register" className="auth-link">Kaydol</Link>
         </div>
 
+        {/* MASAÜSTÜ UYGULAMASI İNDİRME ALANI (Sadece Web'de Görünür) */}
         {!isApp && (
             <div style={{marginTop: '20px', textAlign: 'center', borderTop: '1px solid #444', paddingTop: '15px'}}>
                 <p style={{fontSize: '13px', color: '#949ba4', marginBottom: '10px'}}>
@@ -123,7 +128,7 @@ const LoginPage = () => {
                     href={downloadUrl}
                     rel="noopener noreferrer"
                     className="auth-button"
-                    target="_blank"
+                    // target="_blank" // Exe indireceği için blank'e gerek yok, direkt indirsin
                     style={{
                         background: '#23a559',
                         textDecoration: 'none',
@@ -136,6 +141,9 @@ const LoginPage = () => {
                 >
                     Masaüstü Uygulamasını İndir
                 </a>
+                <p style={{fontSize:'11px', color:'#72767d', marginTop:'5px'}}>
+                  (Otomatik Güncel Sürüm)
+                </p>
             </div>
         )}
       </div>

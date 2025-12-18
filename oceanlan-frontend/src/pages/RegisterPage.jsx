@@ -1,14 +1,27 @@
-// src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import { UserIcon, EnvelopeIcon, PhoneIcon, LockClosedIcon, FingerPrintIcon } from '@heroicons/react/24/outline';
 import '../styles/Auth.css';
 
+// 🟢 1. Ülke Kodları Listesi (İstediğin kadar ekleyebilirsin)
+const COUNTRY_CODES = [
+  { code: '+90', label: 'TR (+90)' },
+  { code: '+1', label: 'US (+1)' },
+  { code: '+49', label: 'DE (+49)' },
+  { code: '+44', label: 'UK (+44)' },
+  { code: '+33', label: 'FR (+33)' },
+  { code: '+994', label: 'AZ (+994)' },
+];
+
 const RegisterPage = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+
+  // 🟢 2. Telefon için iki ayrı state: Alan Kodu ve Numara
+  const [countryCode, setCountryCode] = useState('+90');
   const [phoneNumber, setPhoneNumber] = useState('');
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +32,18 @@ const RegisterPage = () => {
 
   const navigate = useNavigate();
 
+  // 🟢 3. Numara Kontrolü: Sadece rakam ve Max 10 hane
+  const handlePhoneChange = (e) => {
+    const rawValue = e.target.value;
+    // Harfleri sil, sadece rakam bırak
+    const numericValue = rawValue.replace(/[^0-9]/g, '');
+
+    // Maksimum 10 karakter (Örn: 532 123 45 67)
+    if (numericValue.length <= 10) {
+      setPhoneNumber(numericValue);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -26,10 +51,14 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
+      // 🟢 4. Veriyi Birleştirme: (+90) + (532...) -> +90532...
+      // Veritabanına tam numara olarak kaydediyoruz.
+      const fullPhoneNumber = `${countryCode}${phoneNumber}`;
+
       const res = await axiosInstance.post('/auth/register', {
           firstName,
           lastName,
-          phoneNumber,
+          phoneNumber: fullPhoneNumber, // Birleşmiş hali
           username,
           email,
           password
@@ -37,6 +66,7 @@ const RegisterPage = () => {
 
       setSuccessMsg(res.data.message);
 
+      // Formu temizle
       setFirstName('');
       setLastName('');
       setPhoneNumber('');
@@ -44,6 +74,7 @@ const RegisterPage = () => {
       setEmail('');
       setPassword('');
 
+      // Başarılı ise 2 saniye sonra yönlendir
       setTimeout(() => {
           navigate('/verify-email', { state: { email: email } });
       }, 2000);
@@ -74,7 +105,7 @@ const RegisterPage = () => {
             <span>✅</span>
             <div>
               {successMsg} <br/>
-              <small style={{opacity:0.8}}>Giriş sayfasına yönlendiriliyorsunuz...</small>
+              <small style={{opacity:0.8}}>Doğrulama sayfasına yönlendiriliyorsunuz...</small>
             </div>
           </div>
         )}
@@ -101,7 +132,7 @@ const RegisterPage = () => {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required
-                style={{paddingLeft: '16px'}} /* Soyisimde ikon yok, düz hizala */
+                style={{paddingLeft: '16px'}}
                 />
             </div>
           </div>
@@ -130,15 +161,51 @@ const RegisterPage = () => {
             />
           </div>
 
-          <div className="input-group">
+          {/* 🟢 5. ÖZELLEŞTİRİLMİŞ TELEFON ALANI */}
+          <div className="input-group" style={{ display: 'flex', alignItems: 'center' }}>
             <PhoneIcon className="input-icon" />
+
+            {/* Sol Taraf: Alan Kodu Seçimi */}
+            <select
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              className="auth-input"
+              style={{
+                width: '115px',
+                paddingLeft: '40px', // İkon üstüne binmesin diye boşluk
+                paddingRight: '5px',
+                borderRight: '1px solid #444', // Ayrım çizgisi
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                appearance: 'none', // Tarayıcının varsayılan okunu gizle
+                cursor: 'pointer',
+                backgroundColor: 'transparent', // Arka plan rengi input ile aynı olsun
+                color: 'white'
+              }}
+            >
+              {COUNTRY_CODES.map((item) => (
+                <option key={item.code} value={item.code} style={{backgroundColor: '#2b2d31'}}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Sağ Taraf: Numara Girişi */}
             <input
               type="tel"
               className="auth-input"
-              placeholder="Telefon Numarası (5XX...)"
+              placeholder="5XX XXX XX XX"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              onChange={handlePhoneChange}
               required
+              maxLength={10} // HTML tarafında da sınır
+              style={{
+                flex: 1, // Kalan tüm genişliği kapla
+                paddingLeft: '12px',
+                borderLeft: 'none',
+                borderTopLeftRadius: 0,
+                borderBottomLeftRadius: 0
+              }}
             />
           </div>
 
