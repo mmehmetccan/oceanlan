@@ -1,141 +1,281 @@
+/* src/styles/ChatArea.css */
+
 .chat-area {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #313338;
+  background: #313338; /* Discord Koyu Tema */
   color: #dcddde;
+  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  min-width: 0;
+  position: relative;
 }
 
-/* Üst Kanal Başlığı */
+/* --- HEADER --- */
 .chat-header {
   height: 48px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   padding: 0 16px;
   background: #2b2d31;
-  border-bottom: 1px solid #1e1f22;
+  border-bottom: 1px solid #1f2023;
   font-weight: 600;
+  color: #f2f3f5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  z-index: 10;
 }
 
-/* Mesaj Alanı */
+/* --- MESAJ LİSTESİ --- */
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  overflow-x: hidden;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Tek Mesaj */
+.messages-container::-webkit-scrollbar {
+  width: 8px;
+  background-color: #2b2d31;
+}
+.messages-container::-webkit-scrollbar-thumb {
+  background-color: #1a1b1e;
+  border-radius: 4px;
+}
+
+/* --- MESAJ SATIRI --- */
 .message-item {
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-bottom: 6px;
+  display: flex;
+  position: relative; /* Referans noktası */
+  padding: 4px 16px;
+  margin-top: 10px; /* Mesajlar arası boşluk */
+  word-wrap: break-word;
 }
 
 .message-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background-color: rgba(2, 2, 2, 0.06);
 }
 
-/* Kullanıcı Adı */
-.message-author {
-  font-weight: 600;
-  color: #f2f3f5;
-}
-
-/* Saat */
-.message-time {
-  margin-left: 6px;
-}
-
-/* Mesaj İçeriği */
-.message-content {
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-/* Görseller */
-.chat-image {
-  max-width: 360px;
-  max-height: 260px;
-  border-radius: 8px;
-  margin-top: 6px;
+/* SOL: Avatar */
+.message-avatar-wrapper {
+  margin-right: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
-/* Video */
-.chat-video {
-  max-width: 400px;
-  border-radius: 8px;
-  margin-top: 6px;
-}
-
-/* Mesaj Input */
-.message-input-area {
-  border-top: 1px solid #1e1f22;
-  background: #383a40;
-  padding: 10px;
-}
-
-.message-input-area form {
-  display: flex;
-  gap: 8px;
-}
-
-.message-input-area input[type="text"] {
-  flex: 1;
-  background: #1e1f22;
-  border: none;
-  border-radius: 8px;
-  padding: 10px;
-  color: #fff;
-}
-
-.message-input-area button {
-  background: #5865f2;
-  border: none;
-  padding: 0 16px;
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
-}
-
-.message-input-area button:hover {
-  background: #4752c4;
-
-
-
-}
-/* ÖNCE: Mesaj kutusunun kapsayıcısına (Parent) bu özelliği eklemelisin */
-.message-item {
-  position: relative; /* Butonu konumlandırmak için gerekli */
-}
-
-/* Buton Stili */
-.message-delete-btn {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%); /* Dikey ortalama */
-
-  background-color: transparent;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-
-  opacity: 0; /* Başlangıçta gizli */
-  transition: all 0.2s ease-in-out;
-  padding: 6px;
+.message-avatar {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
+  object-fit: cover;
+  background-color: #2b2d31;
+  transition: opacity 0.2s;
 }
 
-/* Mesajın üzerine gelince butonu göster */
-.message-item:hover .message-delete-btn {
-  opacity: 0.6; /* Hafif görünür */
+.message-avatar:hover {
+  opacity: 0.8;
 }
 
-/* Butonun kendisine gelince tam kırmızı olsun */
+/* SAĞ: Gövde */
+.message-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Başlık */
+.message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.message-author {
+  font-weight: 500;
+  color: #f2f3f5;
+  margin-right: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.message-author:hover {
+  text-decoration: underline;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #949ba4;
+}
+
+/* İçerik */
+.message-content {
+  color: #dbdee1;
+  font-size: 1rem;
+  line-height: 1.375rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Medya */
+.message-file-container {
+  margin-top: 8px;
+}
+.chat-image {
+  max-width: 100%;
+  max-height: 350px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.chat-video {
+  max-width: 100%;
+  max-height: 350px;
+  border-radius: 8px;
+}
+
+/* --- ACTION BAR (SİLME BUTONU) --- */
+/* Mesajın sağ üst köşesinde, kutunun içinde kalacak şekilde ayarladık */
+.message-actions-group {
+  position: absolute;
+  right: 15px;
+  top: -10px; /* Hafif yukarı taşar */
+  background-color: #313338;
+  border: 1px solid #2f3136;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  height: 32px;
+  z-index: 5;
+
+  opacity: 0; /* Gizli */
+  pointer-events: none;
+  transition: opacity 0.1s ease-in-out;
+}
+
+.message-item:hover .message-actions-group {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.message-delete-btn {
+  background: transparent;
+  border: none;
+  color: #ed4245;
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
 .message-delete-btn:hover {
-  opacity: 1 !important;
-  background-color: rgba(255, 0, 0, 0.1); /* Arkaya hafif kırmızı fon */
-  transform: translateY(-50%) scale(1.1); /* Biraz büyüt */
-  filter: drop-shadow(0 0 2px rgba(255, 0, 0, 0.5));
+  background-color: rgba(237, 66, 69, 0.1);
+}
+
+.message-delete-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- INPUT ALANI (GÖNDER KISMI) --- */
+.message-input-area {
+  padding: 0 16px 24px 16px;
+  flex-shrink: 0;
+  background-color: #313338; /* Arka planla aynı olsun */
+}
+
+/* Formu çevreleyen gri kutu */
+.message-input-wrapper {
+  background-color: #383a40; /* Gri kutu rengi */
+  border-radius: 8px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Dosya Ekleme Butonu (+) */
+.attach-file-btn {
+  background: transparent;
+  border: none;
+  color: #b5bac1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.attach-file-btn:hover {
+  color: #f2f3f5;
+  background-color: #404249; /* Hafif aydınlanma */
+}
+
+.attach-file-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Input (Yazı Alanı) */
+.message-input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #f2f3f5;
+  font-size: 1rem;
+  padding: 10px 0;
+  outline: none;
+}
+
+/* Gönder Butonu (Uçak) */
+.send-message-btn {
+  background: transparent;
+  border: none;
+  color: #b5bac1; /* Pasif renk */
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+/* İçerik varsa veya hover olunca parla */
+.send-message-btn.active,
+.send-message-btn:hover {
+  color: #5865f2; /* Aktif mavi renk */
+}
+
+.send-message-btn:disabled {
+  color: #4f545c;
+  cursor: not-allowed;
+}
+
+.send-message-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Modal */
+.image-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.image-modal img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 4px;
 }

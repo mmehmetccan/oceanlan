@@ -11,11 +11,14 @@ export const VoiceContext = createContext();
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
-const GATE_OPEN_RMS = 0.028;   // konuşmayı açmak biraz daha zorlaşır
-const GATE_CLOSE_RMS = 0.020;  // konuşma bitince daha çabuk kısar
-const GATE_FLOOR = 0.01;       // sessizde neredeyse tamamen kıs
-const LOW_CUT_FREQ = 180;      // süpürge/fan/rumble daha çok kesilir
-const HIGH_CUT_FREQ = 5500;   // 7kHz üstü kesildi (Rahatsız edici tıslama)
+const GATE_OPEN_RMS = 0.020;
+const GATE_CLOSE_RMS = 0.014;  // konuşma bitince daha çabuk kısar
+const GATE_FLOOR = 0.08;     // 0.01-0.04 çok “keser”; 0.08 daha doğal
+const GATE_HOLD_MS = 140;    // konuşma biter bitmez kapamasın (kelime başı kesilmesin)
+const EXPANDER_POWER = 3.2;  // büyüdükçe uzaktan ses daha çok kısılır
+
+const LOW_CUT_FREQ = 150;    // süpürge/fan uğultusunu azaltır ama sesi çok inceltmez
+const HIGH_CUT_FREQ = 7000;    // 7kHz üstü kesildi (Rahatsız edici tıslama)
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -398,44 +401,61 @@ compressor.release.value = 0.18;
     }
   };
 
-  const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-    if (analyser && gateGainNode && audioCtx) {
-      analyser.fftSize = 1024;
-      const timeData = new Float32Array(analyser.fftSize);
-      let gateIsOpen = true;
+const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
+   if (analyser && gateGainNode && audioCtx) {
+  analyser.fftSize = 1024;
+  const timeData = new Float32Array(analyser.fftSize);
 
-      const checkVolume = () => {
-        if (!gateGainNode || audioCtx.state === 'closed') return;
+  let gateIsOpen = true;
+  let lastOpenTime = performance.now();
 
-        if (inputMode === 'PUSH_TO_TALK') {
-          const isOpen = isPTTPressedRef.current;
-          gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
-          updateSpeakingStatus(isOpen);
-          requestAnimationFrame(checkVolume);
-          return;
-        }
+  const checkVolume = () => {
+    if (!gateGainNode || audioCtx.state === 'closed') return;
 
-        analyser.getFloatTimeDomainData(timeData);
-        let sumSq = 0;
-        for (let i = 0; i < timeData.length; i++) {
-          const v = timeData[i];
-          sumSq += v * v;
-        }
-        const rms = Math.sqrt(sumSq / timeData.length);
-
-        if (!gateIsOpen && rms > GATE_OPEN_RMS) gateIsOpen = true;
-        else if (gateIsOpen && rms < GATE_CLOSE_RMS) gateIsOpen = false;
-
-        const target = gateIsOpen ? 1 : GATE_FLOOR;
-        gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, gateIsOpen ? 0.02 : 0.12);
-
-        updateSpeakingStatus(gateIsOpen);
-        requestAnimationFrame(checkVolume);
-      };
-
-      checkVolume();
+    // PTT modunda gate tamamen PTT'ye bağlı
+    if (inputMode === 'PUSH_TO_TALK') {
+      const isOpen = isPTTPressedRef.current;
+      gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
+      updateSpeakingStatus(isOpen);
+      requestAnimationFrame(checkVolume);
       return;
     }
+
+    analyser.getFloatTimeDomainData(timeData);
+    let sumSq = 0;
+    for (let i = 0; i < timeData.length; i++) {
+      const v = timeData[i];
+      sumSq += v * v;
+    }
+    const rms = Math.sqrt(sumSq / timeData.length);
+
+    const now = performance.now();
+
+    // ✅ Hysteresis + Hold (kelime başı kesilmesin)
+    if (rms >= GATE_OPEN_RMS) {
+      gateIsOpen = true;
+      lastOpenTime = now;
+    } else if (rms <= GATE_CLOSE_RMS) {
+      if (now - lastOpenTime > GATE_HOLD_MS) gateIsOpen = false;
+    }
+
+    // ✅ Downward expander: "tam kesme" yok, uzaktan gelenleri daha çok kısar
+    // rms küçükken gain hızlı düşer (EXPANDER_POWER büyüdükçe daha agresif olur)
+    const norm = Math.min(Math.max(rms / GATE_OPEN_RMS, 0), 1); // 0..1
+    const shaped = Math.pow(norm, EXPANDER_POWER);              // 0..1 (uzak sesler daha çok düşer)
+    const target = gateIsOpen ? (GATE_FLOOR + (1 - GATE_FLOOR) * shaped) : GATE_FLOOR;
+
+    // Daha doğal geçiş (kesme hissi azalır)
+    const tau = gateIsOpen ? 0.03 : 0.10;
+    gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
+
+    updateSpeakingStatus(gateIsOpen);
+    requestAnimationFrame(checkVolume);
+  };
+
+  checkVolume();
+  return;
+}
 
     if (rawStreamForSimpleMode) {
       try {
