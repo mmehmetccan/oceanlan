@@ -10,10 +10,15 @@ export const VoiceContext = createContext();
 
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-// 🟢 İYİLEŞTİRİLMİŞ GÜRÜLTÜ ENGELLEME EŞİKLERİ
-const GATE_THRESHOLD = 0.06; // Eşik artırıldı (Nefes sesini ve dip gürültüyü keser)
-const LOW_CUT_FREQ = 120;    // 120Hz altı kesildi (Fan, motor, klima uğultusu)
-const HIGH_CUT_FREQ = 7000;  // 7kHz üstü kesildi (Rahatsız edici tıslama)
+// 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
+// Not: Önceki "frekans ortalaması" yaklaşımı bazı mikrofon/ortamlarda gate'i hiç açmıyordu
+// ve "Gürültü engelleme" basınca ses tamamen kesiliyordu.
+// Bu yüzden RMS (time-domain) + hysteresis kullanıyoruz (daha stabil).
+const GATE_OPEN_RMS = 0.018;   // Gate açma eşiği (daha düşük = daha hassas)
+const GATE_CLOSE_RMS = 0.012;  // Gate kapama eşiği (hysteresis)
+const GATE_FLOOR = 0.04;       // Sessizde bile tamamen sıfırlama ("tam sessizlik" yerine çok düşük seviye)
+const LOW_CUT_FREQ = 120;      // 120Hz altı kesildi (Fan, motor, klima uğultusu)
+const HIGH_CUT_FREQ = 7000;    // 7kHz üstü kesildi (Rahatsız edici tıslama)
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -85,13 +90,13 @@ export const VoiceProvider = ({ children }) => {
 
     // 2. Gain Node (Yazılımsal Sessizlik - Gürültü engelleme açıkken sızmayı önler)
     if (inputGainNodeRef.current && audioContextRef.current) {
-        const ctx = audioContextRef.current;
-        const targetVol = shouldSendAudio
-            ? (inputVolume > 100 ? 1.0 + ((inputVolume - 100) / 30) : inputVolume / 100)
-            : 0;
-        try {
-            inputGainNodeRef.current.gain.setTargetAtTime(targetVol, ctx.currentTime, 0.05);
-        } catch(e) {}
+      const ctx = audioContextRef.current;
+      const targetVol = shouldSendAudio
+        ? (inputVolume > 100 ? 1.0 + ((inputVolume - 100) / 30) : inputVolume / 100)
+        : 0;
+      try {
+        inputGainNodeRef.current.gain.setTargetAtTime(targetVol, ctx.currentTime, 0.05);
+      } catch (e) {}
     }
 
     if (!shouldSendAudio) updateSpeakingStatus(false);
@@ -104,75 +109,75 @@ export const VoiceProvider = ({ children }) => {
     let isCancelled = false;
 
     const refreshStream = async () => {
-        try {
-            const oldStream = processedStreamRef.current || localStreamRef.current;
-            const oldTrack = oldStream?.getAudioTracks()[0];
+      try {
+        const oldStream = processedStreamRef.current || localStreamRef.current;
+        const oldTrack = oldStream?.getAudioTracks()[0];
 
-            // 1. Yeni Constraints (Ayarlara Göre)
-            let finalConstraints = { audio: {}, video: false };
-            if (isNoiseSuppression) {
-                finalConstraints.audio = {
-                    ...AGGRESSIVE_AUDIO_CONSTRAINTS,
-                    deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined
-                };
-            } else {
-                finalConstraints.audio = {
-                    deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-                    echoCancellation: true,
-                    autoGainControl: true
-                };
-            }
-
-            // 2. Yeni Stream Al
-            const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
-
-            if (isCancelled) {
-                newRawStream.getTracks().forEach(t => t.stop());
-                return;
-            }
-
-            // Eski Raw Stream'i durdur
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
-            }
-            localStreamRef.current = newRawStream;
-
-            // 3. Web Audio İşlemlerini Yenile (Eski context'i kapat)
-            if (audioContextRef.current) {
-                audioContextRef.current.close().catch(() => {});
-            }
-
-            const newProcessedStream = await processAudioStream(newRawStream);
-            processedStreamRef.current = newProcessedStream;
-            const newTrack = newProcessedStream.getAudioTracks()[0];
-
-            // 4. Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
-            Object.values(peersRef.current).forEach(peer => {
-                if (peer && !peer.destroyed && oldTrack) {
-                    try {
-                        peer.replaceTrack(oldTrack, newTrack, newProcessedStream);
-                    } catch (e) {
-                        console.error("Track değişimi hatası:", e);
-                    }
-                }
-            });
-
-            // 5. Mute/PTT Durumunu Geri Yükle
-            if (inputMode === 'PUSH_TO_TALK') {
-                setLocalMicEnabled(isPTTPressedRef.current);
-            } else {
-                setLocalMicEnabled(true);
-            }
-
-            // 6. Analiz Başlat (NS kapalıysa ikon için)
-            if (!isNoiseSuppression) {
-                startGateAnalysis(null, null, null, newRawStream);
-            }
-
-        } catch (error) {
-            console.error("Stream yenileme hatası:", error);
-            addToast("Ses ayarları güncellenemedi.", "error");
+        // 1. Yeni Constraints (Ayarlara Göre)
+        let finalConstraints = { audio: {}, video: false };
+        if (isNoiseSuppression) {
+          finalConstraints.audio = {
+            ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined
+          };
+        } else {
+          finalConstraints.audio = {
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+            echoCancellation: true,
+            autoGainControl: true
+          };
         }
+
+        // 2. Yeni Stream Al
+        const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+
+        if (isCancelled) {
+          newRawStream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        // Eski Raw Stream'i durdur
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => t.stop());
+        }
+        localStreamRef.current = newRawStream;
+
+        // 3. Web Audio İşlemlerini Yenile (Eski context'i kapat)
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+        }
+
+        const newProcessedStream = await processAudioStream(newRawStream);
+        processedStreamRef.current = newProcessedStream;
+        const newTrack = newProcessedStream.getAudioTracks()[0];
+
+        // 4. Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
+        Object.values(peersRef.current).forEach(peer => {
+          if (peer && !peer.destroyed && oldTrack) {
+            try {
+              peer.replaceTrack(oldTrack, newTrack, newProcessedStream);
+            } catch (e) {
+              console.error("Track değişimi hatası:", e);
+            }
+          }
+        });
+
+        // 5. Mute/PTT Durumunu Geri Yükle
+        if (inputMode === 'PUSH_TO_TALK') {
+          setLocalMicEnabled(isPTTPressedRef.current);
+        } else {
+          setLocalMicEnabled(true);
+        }
+
+        // 6. Analiz Başlat (NS kapalıysa ikon için)
+        if (!isNoiseSuppression) {
+          startGateAnalysis(null, null, null, newRawStream);
+        }
+
+      } catch (error) {
+        console.error("Stream yenileme hatası:", error);
+        addToast("Ses ayarları güncellenemedi.", "error");
+      }
     };
 
     refreshStream();
@@ -340,9 +345,10 @@ export const VoiceProvider = ({ children }) => {
         lowPass.frequency.value = HIGH_CUT_FREQ;
         lowPass.Q.value = 0.5;
 
-        // 3. Noise Gate (Sessizken tam kesici)
+        // 3. Noise Gate (Sessizde azaltıcı)
+        // İlk anda "tam sessizlik" olmasın diye başlangıçta açık başlatıyoruz.
         const gateGain = audioCtx.createGain();
-        gateGain.gain.value = 0;
+        gateGain.gain.value = 1;
         gateGainNodeRef.current = gateGain;
 
         // 4. Compressor (Ses dengeleyici)
@@ -378,64 +384,68 @@ export const VoiceProvider = ({ children }) => {
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
     // Noise Gate Aktif
     if (analyser && gateGainNode && audioCtx) {
-        analyser.fftSize = 512;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+      // Time-domain RMS ile kontrol (daha stabil)
+      analyser.fftSize = 1024;
+      const timeData = new Float32Array(analyser.fftSize);
+      let gateIsOpen = true; // başlangıçta açık (toggleda anlık "mute" olmasın)
 
-        const checkVolume = () => {
-            if (!gateGainNode || audioCtx.state === 'closed') return;
+      const checkVolume = () => {
+        if (!gateGainNode || audioCtx.state === 'closed') return;
 
-            if (inputMode === 'PUSH_TO_TALK') {
-                const isOpen = isPTTPressedRef.current;
-                gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
-                updateSpeakingStatus(isOpen);
-                requestAnimationFrame(checkVolume);
-                return;
-            }
+        // PTT modunda gate tamamen PTT'ye bağlı
+        if (inputMode === 'PUSH_TO_TALK') {
+          const isOpen = isPTTPressedRef.current;
+          gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
+          updateSpeakingStatus(isOpen);
+          requestAnimationFrame(checkVolume);
+          return;
+        }
 
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0; let count = 0;
-            // 85Hz - 3kHz arası insan sesi frekanslarına odaklan
-            for (let i = 5; i < 60 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
-            const average = count > 0 ? sum / count : 0;
+        analyser.getFloatTimeDomainData(timeData);
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) {
+          const v = timeData[i];
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / timeData.length);
 
-            if ((average / 255) > GATE_THRESHOLD) {
-                // Konuşma var: Gate'i aç
-                gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.02);
-                updateSpeakingStatus(true);
-            } else {
-                // Konuşma bitti: Gate'i kapat (Release süresi ile yumuşakça)
-                gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
-                updateSpeakingStatus(false);
-            }
-            requestAnimationFrame(checkVolume);
-        };
-        checkVolume();
-        return;
+        // Hysteresis: Açma ve kapama eşiği farklı
+        if (!gateIsOpen && rms > GATE_OPEN_RMS) gateIsOpen = true;
+        else if (gateIsOpen && rms < GATE_CLOSE_RMS) gateIsOpen = false;
+
+        const target = gateIsOpen ? 1 : GATE_FLOOR;
+        gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, gateIsOpen ? 0.02 : 0.12);
+
+        updateSpeakingStatus(gateIsOpen);
+        requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+      return;
     }
 
     // Noise Gate Kapalı (Basit Mod - Sadece İkon İçin)
     if (rawStreamForSimpleMode) {
-        try {
-            const simpleCtx = new AudioContext();
-            const simpleAnalyser = simpleCtx.createAnalyser();
-            const simpleSrc = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
-            simpleSrc.connect(simpleAnalyser);
-            const checkLoop = () => {
-                if (simpleCtx.state === 'closed') return;
-                if (inputMode === 'PUSH_TO_TALK') {
-                    updateSpeakingStatus(isPTTPressedRef.current);
-                    requestAnimationFrame(checkLoop);
-                    return;
-                }
-                const arr = new Uint8Array(simpleAnalyser.frequencyBinCount);
-                simpleAnalyser.getByteFrequencyData(arr);
-                let sum = 0; for (let i = 0; i < arr.length; i++) sum += arr[i];
-                updateSpeakingStatus((sum / arr.length) > 10);
-                requestAnimationFrame(checkLoop);
-            };
-            checkLoop();
-        } catch (e) {}
+      try {
+        const simpleCtx = new AudioContext();
+        const simpleAnalyser = simpleCtx.createAnalyser();
+        const simpleSrc = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
+        simpleSrc.connect(simpleAnalyser);
+        const checkLoop = () => {
+          if (simpleCtx.state === 'closed') return;
+          if (inputMode === 'PUSH_TO_TALK') {
+            updateSpeakingStatus(isPTTPressedRef.current);
+            requestAnimationFrame(checkLoop);
+            return;
+          }
+          const arr = new Uint8Array(simpleAnalyser.frequencyBinCount);
+          simpleAnalyser.getByteFrequencyData(arr);
+          let sum = 0; for (let i = 0; i < arr.length; i++) sum += arr[i];
+          updateSpeakingStatus((sum / arr.length) > 10);
+          requestAnimationFrame(checkLoop);
+        };
+        checkLoop();
+      } catch (e) {}
     }
   };
 

@@ -45,6 +45,9 @@ const FeedPage = () => {
   const { addToast } = useContext(ToastContext);
   const navigate = useNavigate();
 
+  // 🛠️ ID GÜVENLİĞİ: Profil güncellense bile ID'yi doğru al
+  const currentUserId = user?._id || user?.id;
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -68,12 +71,30 @@ const FeedPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!socket || !user) return;
+    if (!socket || !currentUserId) return;
 
-    const handlePostDeleted = ({ postId }) => { setPosts(prev => prev.filter(p => p._id !== postId)); };
-    const handleNewPost = (newPost) => { if (newPost.user._id !== user.id) setPosts(p => [newPost, ...p]); };
-    const handlePostUpdated = (updated) => { setPosts(p => p.map(post => post._id === updated._id ? updated : post)); };
-    const handleNewComment = ({ postId, comment }) => { if (comment.user._id !== user.id) { setPosts(p => p.map(post => post._id === postId ? { ...post, comments: [...post.comments, comment] } : post)); } };
+    // 🟢 DÜZELTME: ID Karşılaştırmalarında String() Kullanımı
+    const handlePostDeleted = ({ postId }) => {
+        setPosts(prev => prev.filter(p => String(p._id) !== String(postId)));
+    };
+
+    const handleNewPost = (newPost) => {
+        // Kendi gönderim zaten eklenmişse tekrar ekleme
+        if (String(newPost.user._id) !== String(currentUserId)) {
+            setPosts(p => [newPost, ...p]);
+        }
+    };
+
+    const handlePostUpdated = (updated) => {
+        setPosts(p => p.map(post => String(post._id) === String(updated._id) ? updated : post));
+    };
+
+    const handleNewComment = ({ postId, comment }) => {
+        if (String(comment.user._id) !== String(currentUserId)) {
+            setPosts(p => p.map(post => String(post._id) === String(postId) ? { ...post, comments: [...post.comments, comment] } : post));
+        }
+    };
+
     const handleNewFriendRequest = (newRequest) => { setPendingRequests(prev => { if (prev.some(req => req._id === newRequest._id)) return prev; return [...prev, newRequest]; }); };
     const handleFriendRequestAccepted = (newFriend) => { setFriends(prev => { if (prev.find(f => String(f._id) === String(newFriend._id))) return prev; return [...prev, newFriend]; }); setPendingRequests(prev => prev.filter(req => String(req.recipient?._id) !== String(newFriend._id) && String(req.requester?._id) !== String(newFriend._id))); };
     const handleFriendRemoved = ({ removedUserId }) => { setFriends(prev => prev.filter(f => String(f._id) !== String(removedUserId))); };
@@ -113,9 +134,13 @@ const FeedPage = () => {
       socket.off('unreadDm', handleUnreadDm);
       socket.off('postDeleted', handlePostDeleted);
     };
-  }, [socket, user]);
+  }, [socket, currentUserId]); // Dependency güncellendi
 
-  const handlePostDeletedLocal = (postId) => { setPosts(prev => prev.filter(p => p._id !== postId)); };
+  // 🟢 DÜZELTME: Yerel Silme Fonksiyonunda da String() Kullanımı
+  const handlePostDeletedLocal = (postId) => {
+      setPosts(prev => prev.filter(p => String(p._id) !== String(postId)));
+  };
+
   const handleDeletePostProcess = (postId) => {
     setConfirmModal({
         isOpen: true,
@@ -127,8 +152,8 @@ const FeedPage = () => {
             try {
                 await axiosInstance.delete(`/posts/${postId}`);
                 handlePostDeletedLocal(postId); // Listeden sil
-                addToast('Gönderi başarıyla silindi.', 'success'); // Toast Bildirimi
-                setConfirmModal(prev => ({ ...prev, isOpen: false })); // Modalı kapat
+                addToast('Gönderi başarıyla silindi.', 'success');
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
             } catch (error) {
                 console.error(error);
                 addToast('Gönderi silinirken bir hata oluştu.', 'error');
@@ -187,11 +212,12 @@ const FeedPage = () => {
   };
 
   const onPostCreated = (newPost) => setPosts(prev => [newPost, ...prev]);
-  const onPostUpdated = (upd) => setPosts(prev => prev.map(p => p._id === upd._id ? upd : p));
+  const onPostUpdated = (upd) => setPosts(prev => prev.map(p => String(p._id) === String(upd._id) ? upd : p));
 
   const friendSuggestions = useMemo(() => {
-      return friends.filter(f => f?._id && f._id !== user?.id).map(f => ({ ...f, avatar: getImageUrl(f.avatarUrl || f.avatar) })).slice(0, 7);
-  }, [friends, user]);
+      // 🟢 DÜZELTME: ID Karşılaştırması
+      return friends.filter(f => f?._id && String(f._id) !== String(currentUserId)).map(f => ({ ...f, avatar: getImageUrl(f.avatarUrl || f.avatar) })).slice(0, 7);
+  }, [friends, currentUserId]);
 
   const dmShortlist = useMemo(() => friends.slice(0, 7), [friends]);
   const onlineCount = useMemo(() => friendSuggestions.filter(f => f.onlineStatus === 'online').length, [friendSuggestions]);
@@ -258,8 +284,6 @@ const FeedPage = () => {
           <div className="rail-list dm-list">
             {dmShortlist.length === 0 ? <p className="rail-empty">DM geçmişi yok.</p> : dmShortlist.map((dmUser) => {
                 const hasUnread = unreadDmConversations.some(id => String(id) === String(dmUser.conversationId));
-
-                // 🟢 DÜZELTME: Online durumu için nokta eklendi
                 const isOnline = dmUser.onlineStatus === 'online';
 
                 return (
@@ -270,12 +294,10 @@ const FeedPage = () => {
                     </div>
                     <div className="rail-user-meta">
                         <span className="rail-user-name" style={{ fontWeight: hasUnread ? 'bold' : 'normal', color: hasUnread ? '#fff' : '' }}>{dmUser.username}</span>
-
                         <span className="rail-user-status">
                             {hasUnread ? (
                                 <span style={{color:'#6ded42', fontWeight:'bold', fontSize:'11px'}}>YENİ MESAJ</span>
                             ) : (
-                                // 🟢 YEŞİL NOKTA BURAYA EKLENDİ
                                 <>
                                     <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
                                     {getStatusText(dmUser)}
@@ -295,48 +317,32 @@ const FeedPage = () => {
           <div className="rail-card-header"><h4>İstekler</h4><span className="rail-chip">{pendingRequests.length}</span></div>
           <div className="rail-list">
             {pendingRequests.map(req => {
-               // 1. İstek gönderen ve alan ID'leri
                const requesterId = req.requester?._id || req.requester;
-
-               // 2. Kontrol: Bu isteği BEN mi gönderdim? (ID eşleşmesi garanti olsun diye String'e çevirdik)
-               const isOutgoing = String(requesterId) === String(user?.id || user?._id);
-
-               // 3. Listede gösterilecek diğer kullanıcı
+               // 🟢 DÜZELTME: ID Karşılaştırması
+               const isOutgoing = String(requesterId) === String(currentUserId);
                const otherUser = isOutgoing ? req.recipient : req.requester;
 
                return (
                  <div key={req._id} className="rail-user" onContextMenu={(e) => handleContextMenu(e, otherUser, isOutgoing ? 'pending_outgoing' : 'pending_incoming')}>
-
-                   {/* Avatar */}
                    <div className="rail-user-avatar">
                      <img src={getImageUrl(otherUser.avatarUrl || otherUser.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" />
                    </div>
-
-                   {/* İsim ve Durum Yazısı */}
                    <div className="rail-user-meta">
                      <span className="rail-user-name">{otherUser?.username}</span>
-
-                     {/* 👇 DURUM YAZISI AYARI */}
                      {isOutgoing ? (
-                        // EĞER BEN GÖNDERDİYSEM: SARI YAZI
                         <span className="rail-user-status" style={{color: '#faa61a', fontWeight:'600', fontSize:'12px'}}>
                            ⏳ İstek Gönderildi
                         </span>
                      ) : (
-                        // EĞER BANA GELDİYSE: YEŞİL YAZI
                         <span className="rail-user-status" style={{color: '#3ba55c', fontWeight:'600', fontSize:'12px'}}>
                            Sana istek gönderdi
                         </span>
                      )}
                    </div>
-
-                   {/* Butonlar */}
                    <div className="rail-actions">
                       {isOutgoing ? (
-                        // 👇 EĞER BEN GÖNDERDİYSEM BUTONLARI GİZLE
                         <span style={{ fontSize: '11px', color: '#72767d', fontStyle: 'italic' }}>Bekleniyor</span>
                       ) : (
-                        // 👇 EĞER BANA GELDİYSE BUTONLARI GÖSTER
                         <>
                           <button className="rail-btn rail-btn-primary" style={{padding:'4px 8px', background:'#3ba55c'}} onClick={() => handleFriendResponse(req._id, 'accepted')}>✓</button>
                           <button className="rail-btn" style={{padding:'4px 8px', background:'#ed4245'}} onClick={() => { setConfirmModal({ isOpen: true, title: 'İsteği Reddet', message: 'Emin misin?', isDanger: true, confirmText: 'Reddet', onConfirm: () => handleFriendResponse(req._id, 'rejected') }); }}>✕</button>
