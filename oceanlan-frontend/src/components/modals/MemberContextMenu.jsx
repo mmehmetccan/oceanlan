@@ -1,3 +1,4 @@
+// src/components/modals/MemberContextMenu.jsx
 import React, { useContext, useState, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
@@ -17,6 +18,8 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
   const [showProfile, setShowProfile] = useState(false);
+
+  // 🟢 Ses ayarlarını çekiyoruz
   const { userVolumes, setUserVolume } = useContext(AudioSettingsContext);
 
   const menuRef = useRef(null);
@@ -31,7 +34,6 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
         if (x + width > window.innerWidth) newLeft = x - width;
         if (y + height > window.innerHeight) newTop = y - height;
 
-
         if (newLeft < 0) newLeft = 10;
         if (newTop < 0) newTop = 10;
 
@@ -41,12 +43,10 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
 
   if (!member) return null;
 
-  // 🛠️ ID ÇÖZÜMLEME (Populated veya String kontrolü)
-  // user objesi bazen dolu gelir, bazen sadece ID stringi gelir. İkisini de kapsayalım.
   const targetUser = member.user || {};
   const targetUserId = targetUser._id || (typeof member.user === 'string' ? member.user : null);
 
-  if (!targetUserId) return null; // ID yoksa render etme
+  if (!targetUserId) return null;
 
   const displayAvatarSrc = getImageUrl(targetUser.avatarUrl || targetUser.avatar);
 
@@ -56,16 +56,17 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
     e.target.src = getImageUrl(null);
   };
 
-  // Ses Seviyesi Kontrolü
+  // 🟢 YEREL SES KONTROLÜ
   const currentVolume = userVolumes[targetUserId] !== undefined ? userVolumes[targetUserId] : 100;
+  const isLocalMuted = currentVolume === 0;
 
   const isSelf = user?.id === targetUserId;
-
   const currentUserId = user?.id || user?._id;
+
+  // Yetkiler
   const canKick = checkUserPermission(activeServer, currentUserId, 'KICK_MEMBERS');
   const canBan = checkUserPermission(activeServer, currentUserId, 'BAN_MEMBERS');
-  const canMute = checkUserPermission(activeServer, currentUserId, 'MUTE_MEMBERS');
-  const canDeafen = checkUserPermission(activeServer, currentUserId, 'DEAFEN_MEMBERS');
+  const canDeafen = checkUserPermission(activeServer, currentUserId, 'DEAFEN_MEMBERS'); // Sunucu Sağırlaştırması
   const canDisconnect = checkUserPermission(activeServer, currentUserId, 'MOVE_MEMBERS') || checkUserPermission(activeServer, currentUserId, 'ADMINISTRATOR');
 
   const MEMBER_API_URL = `${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}`;
@@ -83,8 +84,18 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
     catch (e) { alert('Hata: ' + e.message); }
   };
 
-  const handleStatusUpdate = async (type) => {
-    let payload = type === 'mute' ? { isMuted: !member.isMuted } : { isDeafened: !member.isDeafened };
+  // 🟢 YEREL SUSTURMA (Sadece sen duymazsın)
+  const handleLocalMute = () => {
+    if (isLocalMuted) {
+        setUserVolume(targetUserId, 100); // Sesi geri aç
+    } else {
+        setUserVolume(targetUserId, 0);   // Sesi kapat
+    }
+  };
+
+  // 🟢 SUNUCU SAĞIRLAŞTIRMA (O kişi kimseyi duyamaz - Yetki gerekir)
+  const handleServerDeafen = async () => {
+    let payload = { isDeafened: !member.isDeafened };
     try {
       await axios.put(`${MEMBER_API_URL}/status`, payload);
       socket.emit('memberUpdated', { serverId, memberId: member._id, ...payload });
@@ -107,12 +118,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
         <div ref={menuRef} className="member-menu-panel" style={{ top: menuStyle.top, left: menuStyle.left, opacity: menuStyle.opacity }} onClick={(e) => e.stopPropagation()}>
           <div className="member-menu-header">
             <div className="member-menu-avatar">
-              <img
-                src={displayAvatarSrc}
-                alt={targetUser.username}
-                onError={handleAvatarError}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-              />
+              <img src={displayAvatarSrc} alt={targetUser.username} onError={handleAvatarError} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
             </div>
             <div className="member-menu-info">
               <div className="member-menu-name clickable" onClick={() => setShowProfile(true)}>{targetUser.username || 'Kullanıcı'}</div>
@@ -133,9 +139,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
                         <span>%{currentVolume}</span>
                     </label>
                     <input
-                        type="range"
-                        min="0"
-                        max="200"
+                        type="range" min="0" max="200"
                         value={currentVolume}
                         onChange={(e) => setUserVolume(targetUserId, parseInt(e.target.value))}
                         className="volume-slider"
@@ -145,15 +149,17 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
 
             {!isSelf && <hr className="menu-divider" />}
 
-            {canMute && (
-              <button className="member-menu-btn" onClick={() => handleStatusUpdate('mute')}>
-                {member.isMuted ? 'Susturmayı Kaldır' : 'Sustur'}
+            {/* 🟢 YEREL SUSTURMA BUTONU (Herkes kullanabilir) */}
+            {!isSelf && (
+              <button className="member-menu-btn" onClick={handleLocalMute}>
+                {isLocalMuted ? 'Susturmayı Kaldır (Yerel)' : 'Sustur (Yerel)'}
               </button>
             )}
 
+            {/* 🟢 SUNUCU SAĞIRLAŞTIRMA (Sadece yetkililer) */}
             {canDeafen && (
-              <button className="member-menu-btn" onClick={() => handleStatusUpdate('deafen')}>
-                {member.isDeafened ? 'Sağırlaştırmayı Kaldır' : 'Sağırlaştır'}
+              <button className="member-menu-btn" onClick={handleServerDeafen}>
+                {member.isDeafened ? 'Sağırlaştırmayı Kaldır (Sunucu)' : 'Sağırlaştır (Sunucu)'}
               </button>
             )}
 
