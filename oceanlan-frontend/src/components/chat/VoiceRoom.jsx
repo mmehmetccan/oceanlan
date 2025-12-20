@@ -28,7 +28,8 @@ const VoiceRoom = () => {
       currentServerName,
       micError,
       speakingUsers,
-      isConnected
+      isConnected,
+      reconnectVoiceChannel // ✅ eklendi
   } = useContext(VoiceContext);
 
   const {
@@ -45,6 +46,16 @@ const VoiceRoom = () => {
   if (!currentVoiceChannelId) return null;
 
   const safeUser = user || { username: 'Yükleniyor...', id: 'loading', avatarUrl: null };
+
+  // ✅ Gürültü engelleme tıklandığında anında uygula (odadan çık-gir yok)
+  const handleNoiseSuppressionToggle = () => {
+    toggleNoiseSuppression();
+
+    // State güncellenip (isNoiseSuppression) yeni değere geçsin diye minik gecikme
+    setTimeout(() => {
+      reconnectVoiceChannel?.();
+    }, 150);
+  };
 
   // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON
   const handleScreenShareToggle = () => {
@@ -106,7 +117,7 @@ const VoiceRoom = () => {
             </button>
 
             <button
-                onClick={toggleNoiseSuppression}
+                onClick={handleNoiseSuppressionToggle}
                 className={`voice-control-btn ${isNoiseSuppression ? 'active-green' : ''}`}
                 title={isNoiseSuppression ? "Gürültü Engelleme: AÇIK" : "Gürültü Engelleme: KAPALI"}
             >

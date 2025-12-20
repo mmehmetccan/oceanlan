@@ -11,9 +11,6 @@ export const VoiceContext = createContext();
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
-// Not: Önceki "frekans ortalaması" yaklaşımı bazı mikrofon/ortamlarda gate'i hiç açmıyordu
-// ve "Gürültü engelleme" basınca ses tamamen kesiliyordu.
-// Bu yüzden RMS (time-domain) + hysteresis kullanıyoruz (daha stabil).
 const GATE_OPEN_RMS = 0.018;   // Gate açma eşiği (daha düşük = daha hassas)
 const GATE_CLOSE_RMS = 0.012;  // Gate kapama eşiği (hysteresis)
 const GATE_FLOOR = 0.04;       // Sessizde bile tamamen sıfırlama ("tam sessizlik" yerine çok düşük seviye)
@@ -81,14 +78,14 @@ export const VoiceProvider = ({ children }) => {
   const setLocalMicEnabled = useCallback((enabled) => {
     const shouldSendAudio = !!enabled && !isMicMuted;
 
-    // 1. Track Seviyesinde (Donanımsal Tetikleme)
+    // 1. Track Seviyesinde
     const toggleTracks = (stream) => {
       if (stream) stream.getAudioTracks().forEach(t => t.enabled = shouldSendAudio);
     };
     toggleTracks(localStreamRef.current);
     toggleTracks(processedStreamRef.current);
 
-    // 2. Gain Node (Yazılımsal Sessizlik - Gürültü engelleme açıkken sızmayı önler)
+    // 2. Gain Node
     if (inputGainNodeRef.current && audioContextRef.current) {
       const ctx = audioContextRef.current;
       const targetVol = shouldSendAudio
@@ -113,7 +110,7 @@ export const VoiceProvider = ({ children }) => {
         const oldStream = processedStreamRef.current || localStreamRef.current;
         const oldTrack = oldStream?.getAudioTracks()[0];
 
-        // 1. Yeni Constraints (Ayarlara Göre)
+        // 1. Yeni Constraints
         let finalConstraints = { audio: {}, video: false };
         if (isNoiseSuppression) {
           finalConstraints.audio = {
@@ -142,7 +139,7 @@ export const VoiceProvider = ({ children }) => {
         }
         localStreamRef.current = newRawStream;
 
-        // 3. Web Audio İşlemlerini Yenile (Eski context'i kapat)
+        // 3. Web Audio İşlemlerini Yenile
         if (audioContextRef.current) {
           audioContextRef.current.close().catch(() => {});
         }
@@ -151,7 +148,7 @@ export const VoiceProvider = ({ children }) => {
         processedStreamRef.current = newProcessedStream;
         const newTrack = newProcessedStream.getAudioTracks()[0];
 
-        // 4. Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
+        // 4. Peer'lerde Track Değiştir
         Object.values(peersRef.current).forEach(peer => {
           if (peer && !peer.destroyed && oldTrack) {
             try {
@@ -183,7 +180,7 @@ export const VoiceProvider = ({ children }) => {
     refreshStream();
 
     return () => { isCancelled = true; };
-  }, [isNoiseSuppression, inputDeviceId]);
+  }, [isNoiseSuppression, inputDeviceId, currentVoiceChannelId, isConnected]);
 
   // Mod değiştiğinde PTT ayarla
   useEffect(() => {
@@ -194,7 +191,7 @@ export const VoiceProvider = ({ children }) => {
     }
   }, [inputMode, isPTTPressed, isMicMuted, setLocalMicEnabled]);
 
-  // ... (Socket bağlantı kodları aynen kalıyor) ...
+  // Socket bağlantı kodları
   useEffect(() => {
     if (!token || !isAuthenticated) {
       if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; setIsConnected(false); }
@@ -251,7 +248,7 @@ export const VoiceProvider = ({ children }) => {
     }
   }, [inputVolume, isMicMuted, inputMode]);
 
-  // ... (PTT Logic aynen kalıyor) ...
+  // PTT Logic
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') { isPTTPressedRef.current = false; setIsPTTPressed(false); return; }
     const isMouseBinding = (code) => typeof code === 'string' && code.startsWith('MOUSE_');
@@ -333,25 +330,20 @@ export const VoiceProvider = ({ children }) => {
       currentNode = inputGain;
 
       if (isNoiseSuppression) {
-        // 1. HighPass Filter (Klima/Fan uğultusu kesici)
         const highPass = audioCtx.createBiquadFilter();
         highPass.type = 'highpass';
         highPass.frequency.value = LOW_CUT_FREQ;
         highPass.Q.value = 0.5;
 
-        // 2. LowPass Filter (Aşırı tiz kesici)
         const lowPass = audioCtx.createBiquadFilter();
         lowPass.type = 'lowpass';
         lowPass.frequency.value = HIGH_CUT_FREQ;
         lowPass.Q.value = 0.5;
 
-        // 3. Noise Gate (Sessizde azaltıcı)
-        // İlk anda "tam sessizlik" olmasın diye başlangıçta açık başlatıyoruz.
         const gateGain = audioCtx.createGain();
         gateGain.gain.value = 1;
         gateGainNodeRef.current = gateGain;
 
-        // 4. Compressor (Ses dengeleyici)
         const compressor = audioCtx.createDynamicsCompressor();
         compressor.threshold.value = -24;
         compressor.ratio.value = 4;
@@ -366,7 +358,7 @@ export const VoiceProvider = ({ children }) => {
 
         const analyser = audioCtx.createAnalyser();
         analyser.smoothingTimeConstant = 0.8;
-        lowPass.connect(analyser); // Filtrelenmiş sesi analiz et
+        lowPass.connect(analyser);
         startGateAnalysis(analyser, gateGain, audioCtx);
       } else {
         currentNode.connect(destination);
@@ -382,17 +374,14 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-    // Noise Gate Aktif
     if (analyser && gateGainNode && audioCtx) {
-      // Time-domain RMS ile kontrol (daha stabil)
       analyser.fftSize = 1024;
       const timeData = new Float32Array(analyser.fftSize);
-      let gateIsOpen = true; // başlangıçta açık (toggleda anlık "mute" olmasın)
+      let gateIsOpen = true;
 
       const checkVolume = () => {
         if (!gateGainNode || audioCtx.state === 'closed') return;
 
-        // PTT modunda gate tamamen PTT'ye bağlı
         if (inputMode === 'PUSH_TO_TALK') {
           const isOpen = isPTTPressedRef.current;
           gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
@@ -409,7 +398,6 @@ export const VoiceProvider = ({ children }) => {
         }
         const rms = Math.sqrt(sumSq / timeData.length);
 
-        // Hysteresis: Açma ve kapama eşiği farklı
         if (!gateIsOpen && rms > GATE_OPEN_RMS) gateIsOpen = true;
         else if (gateIsOpen && rms < GATE_CLOSE_RMS) gateIsOpen = false;
 
@@ -424,7 +412,6 @@ export const VoiceProvider = ({ children }) => {
       return;
     }
 
-    // Noise Gate Kapalı (Basit Mod - Sadece İkon İçin)
     if (rawStreamForSimpleMode) {
       try {
         const simpleCtx = new AudioContext();
@@ -468,21 +455,22 @@ export const VoiceProvider = ({ children }) => {
     joinVoiceChannel(serverId, newChannelId);
   };
 
-  const joinVoiceChannel = async (server, channel) => {
-    const sId = server._id || server;
-    const cId = channel._id || channel;
+  // ✅ FORCE PARAMETRELİ HALE GETİRİLDİ
+  const joinVoiceChannel = async (server, channel, force = false) => {
+    const sId = server?._id || server;
+    const cId = channel?._id || channel;
 
-    if (currentVoiceChannelId === cId) return;
+    if (!force && currentVoiceChannelId === cId) return;
     if (currentVoiceChannelId) { cleanupMediaOnly(); socketRef.current?.emit('leave-voice-channel'); }
 
     setCurrentVoiceChannelId(cId);
     setCurrentServerId(sId);
     setStayConnected(true);
-    if (server.name) setCurrentServerName(server.name);
-    if (channel.name) setCurrentVoiceChannelName(channel.name);
+
+    if (server?.name) setCurrentServerName(server.name);
+    if (channel?.name) setCurrentVoiceChannelName(channel.name);
 
     try {
-      // Başlangıç Constraints
       let finalConstraints = { audio: {}, video: false };
       if (isNoiseSuppression) {
         finalConstraints.audio = {
@@ -525,6 +513,12 @@ export const VoiceProvider = ({ children }) => {
     }
   };
 
+  // ✅ YENİ: AYARLAR (ÖZELLİKLE GÜRÜLTÜ ENGELLEME) DEĞİŞİNCE ANINDA UYGULAMAK İÇİN
+  const reconnectVoiceChannel = useCallback(async () => {
+    if (!currentServerId || !currentVoiceChannelId) return;
+    await joinVoiceChannel(currentServerId, currentVoiceChannelId, true);
+  }, [currentServerId, currentVoiceChannelId]);
+
   const leaveVoiceChannel = () => {
     setStayConnected(false);
     setCurrentVoiceChannelId(null);
@@ -535,7 +529,13 @@ export const VoiceProvider = ({ children }) => {
 
   const cleanupMediaOnly = () => {
     Object.keys(peersRef.current).forEach(id => { peersRef.current[id]?.destroy(); audioElementsRef.current[id]?.remove(); });
-    peersRef.current = {}; audioElementsRef.current = {}; socketUserMapRef.current = {}; setPeersWithVideo({}); setSpeakingUsers({}); isSpeakingRef.current = false;
+    peersRef.current = {};
+    audioElementsRef.current = {};
+    socketUserMapRef.current = {};
+    setPeersWithVideo({});
+    setSpeakingUsers({});
+    isSpeakingRef.current = false;
+
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (processedStreamRef.current) processedStreamRef.current = null;
     if (myScreenStreamRef.current) { myScreenStreamRef.current.getTracks().forEach(t => t.stop()); myScreenStreamRef.current = null; setMyScreenStream(null); }
@@ -607,6 +607,7 @@ export const VoiceProvider = ({ children }) => {
       currentVoiceChannelName,
       currentServerName,
       joinVoiceChannel,
+      reconnectVoiceChannel, // ✅ eklendi
       leaveVoiceChannel,
       speakingUsers,
       micError,
