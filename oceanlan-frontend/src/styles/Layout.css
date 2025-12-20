@@ -64,13 +64,13 @@ body {
 }
 
 .sidebar-icon:hover {
-  background-color: var(--color-primary);
+  background-color:#1ab199;
   border-radius: 16px;
   transform: translateY(-2px);
 }
 
 .sidebar-icon.active {
-  background-color: var(--color-primary);
+  background-color:#1ab199;
   border-radius: 16px;
 }
 

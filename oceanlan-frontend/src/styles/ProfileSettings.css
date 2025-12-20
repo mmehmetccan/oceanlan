@@ -129,7 +129,7 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #1ab199, #1ab199);
   color: #fff;
 }
 
@@ -177,7 +177,7 @@
 }
 
 .profile-form-group input:focus {
-  border-color: #5865f2;
+  border-color: #1ab199;
   box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
 }
 
@@ -200,7 +200,7 @@
 
 .profile-message.info {
   background: rgba(88, 101, 242, 0.12);
-  color: #5865f2;
+  color: #1ab199;
 }
 
 .logout-card {
@@ -216,7 +216,33 @@
   color: #9da3af;
   font-size: 13px;
 }
+/* src/styles/ProfileSettings.css */
 
+.legal-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #2b2d31;
+    border: 1px solid #1f2023;
+    color: #dbdee1;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.legal-nav-btn:hover {
+    background-color: #35373c;
+    border-color: #40444b;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.legal-nav-btn svg {
+    flex-shrink: 0;
+}
 .logout-button {
   border: none;
   padding: 10px 16px;

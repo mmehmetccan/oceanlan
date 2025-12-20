@@ -89,7 +89,7 @@
 }
 
 .post-submit-btn {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #1ab199, #1ab199);
   color: #fff;
   box-shadow: 0 10px 24px rgba(88, 101, 242, 0.35);
 }
@@ -258,7 +258,7 @@
 }
 
 .rail-btn-primary {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #1ab199, #1ab199);
   box-shadow: 0 10px 22px rgba(88, 101, 242, 0.3);
 }
 

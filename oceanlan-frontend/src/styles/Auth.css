@@ -83,12 +83,12 @@
 
 .auth-input:focus {
   background: #2b2d31;
-  border-color: #5865f2;
+  border-color: #1ab199;
   box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.15);
 }
 
 .auth-input:focus + .input-icon {
-  color: #5865f2;
+  color: #1ab199;
 }
 
 /* İsim Soyisim Yan Yana */
@@ -100,7 +100,7 @@
 
 /* Buton */
 .auth-button {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #1ab199, #1ab199);
   color: white;
   border: none;
   padding: 14px;

@@ -63,7 +63,7 @@
 
 .form-group input:focus,
 .form-group textarea:focus {
-    border-color: #5865f2;
+    border-color: #1ab199;
 }
 
 .form-actions {
@@ -86,7 +86,7 @@
 }
 
 .btn-submit {
-    background-color: #5865f2;
+    background-color: #1ab199;
     color: white;
     border: none;
     padding: 10px 24px;
@@ -97,7 +97,7 @@
 }
 
 .btn-submit:hover:not(:disabled) {
-    background-color: #4752c4;
+    background-color: #1ab199;
 }
 
 .contact-status {

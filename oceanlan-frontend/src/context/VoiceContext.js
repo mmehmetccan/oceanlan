@@ -18,9 +18,8 @@ const GATE_HOLD_MS = 260;    // konuşma biter bitmez kapamasın (kelime başı 
 const EXPANDER_POWER = 3.0;  // büyüdükçe uzaktan ses daha çok kısılır
 const RMS_SMOOTHING = 0.88;      // ✅ 0.85-0.92 arası iyi; büyüdükçe daha stabil
 
-
 const LOW_CUT_FREQ = 150;    // süpürge/fan uğultusunu azaltır ama sesi çok inceltmez
-const HIGH_CUT_FREQ = 7000;    // 7kHz üstü kesildi (Rahatsız edici tıslama)
+const HIGH_CUT_FREQ = 7000;  // 7kHz üstü kesildi (Rahatsız edici tıslama)
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -49,6 +48,10 @@ export const VoiceProvider = ({ children }) => {
 
   const myScreenStreamRef = useRef(null);
   const [myScreenStream, setMyScreenStream] = useState(null);
+
+  // ✅ EKLENDİ: Kamera stream'i
+  const myCameraStreamRef = useRef(null);
+  const [myCameraStream, setMyCameraStream] = useState(null);
 
   const audioContextRef = useRef(null);
   const inputGainNodeRef = useRef(null);
@@ -105,112 +108,101 @@ export const VoiceProvider = ({ children }) => {
   }, [isMicMuted, inputVolume]);
 
   // 🟢 YENİ: AYARLAR DEĞİŞİNCE YAYINI CANLI GÜNCELLE (Kopmadan)
- // 🟢 YENİ: AYARLAR DEĞİŞİNCE YAYINI CANLI GÜNCELLE (Kopmadan)
-useEffect(() => {
-  if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
+  useEffect(() => {
+    if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
 
-  let isCancelled = false;
+    let isCancelled = false;
 
-  const refreshStream = async () => {
-    try {
-      // ✅ ÖNEMLİ: Eski stream/track adaylarını daha hiçbir şeyi stop etmeden yakala
-      const oldRawStream = localStreamRef.current;
-      const oldProcessedStream = processedStreamRef.current;
+    const refreshStream = async () => {
+      try {
+        // ✅ ÖNEMLİ: Eski stream/track adaylarını daha hiçbir şeyi stop etmeden yakala
+        const oldRawStream = localStreamRef.current;
+        const oldProcessedStream = processedStreamRef.current;
 
-      const oldCandidates = [
-        { stream: oldProcessedStream, track: oldProcessedStream?.getAudioTracks?.()[0] },
-        { stream: oldRawStream, track: oldRawStream?.getAudioTracks?.()[0] },
-      ].filter(x => x?.stream && x?.track);
+        const oldCandidates = [
+          { stream: oldProcessedStream, track: oldProcessedStream?.getAudioTracks?.()[0] },
+          { stream: oldRawStream, track: oldRawStream?.getAudioTracks?.()[0] },
+        ].filter(x => x?.stream && x?.track);
 
-      // 1) Yeni Constraints (Ayarlara Göre)
-      let finalConstraints = { audio: {}, video: false };
+        // 1) Yeni Constraints (Ayarlara Göre)
+        let finalConstraints = { audio: {}, video: false };
 
-      if (isNoiseSuppression) {
-        finalConstraints.audio = {
-          ...AGGRESSIVE_AUDIO_CONSTRAINTS,
-          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-        };
-      } else {
-        finalConstraints.audio = {
-          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-          echoCancellation: true,
-          autoGainControl: true,
-        };
-      }
+        if (isNoiseSuppression) {
+          finalConstraints.audio = {
+            ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+          };
+        } else {
+          finalConstraints.audio = {
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+            echoCancellation: true,
+            autoGainControl: true,
+          };
+        }
 
-      // 2) Yeni Stream Al
-      const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+        // 2) Yeni Stream Al
+        const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
 
-      if (isCancelled) {
-        newRawStream.getTracks().forEach(t => t.stop());
-        return;
-      }
+        if (isCancelled) {
+          newRawStream.getTracks().forEach(t => t.stop());
+          return;
+        }
 
-      // 3) Eski WebAudio context'i kapat (yeni zinciri kuracağız)
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
-      }
+        // 3) Eski WebAudio context'i kapat (yeni zinciri kuracağız)
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+        }
 
-      // 4) Yeni processed stream üret
-      const newProcessedStream = await processAudioStream(newRawStream);
-      const newTrack = newProcessedStream?.getAudioTracks?.()[0];
+        // 4) Yeni processed stream üret
+        const newProcessedStream = await processAudioStream(newRawStream);
+        const newTrack = newProcessedStream?.getAudioTracks?.()[0];
 
-      // ✅ refs'i güncelle (setLocalMicEnabled yeni ref'leri görsün)
-      localStreamRef.current = newRawStream;
-      processedStreamRef.current = newProcessedStream;
+        // ✅ refs'i güncelle (setLocalMicEnabled yeni ref'leri görsün)
+        localStreamRef.current = newRawStream;
+        processedStreamRef.current = newProcessedStream;
 
-      // 5) Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
-      if (newTrack) {
-        Object.values(peersRef.current).forEach(peer => {
-          if (!peer || peer.destroyed) return;
+        // 5) Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
+        if (newTrack) {
+          Object.values(peersRef.current).forEach(peer => {
+            if (!peer || peer.destroyed) return;
 
-          let replaced = false;
-
-          // ✅ Hem oldProcessed hem oldRaw dene
-          for (const cand of oldCandidates) {
-            try {
-              // ✅ KRİTİK: 3. parametre "oldTrack’in ait olduğu stream" olmalı
-              peer.replaceTrack(cand.track, newTrack, cand.stream);
-              replaced = true;
-              break;
-            } catch (e) {
-              // denemeye devam
+            // ✅ Hem oldProcessed hem oldRaw dene
+            for (const cand of oldCandidates) {
+              try {
+                peer.replaceTrack(cand.track, newTrack, cand.stream);
+                break;
+              } catch (e) {}
             }
-          }
+          });
+        }
 
-          // (İstersen debug için aç)
-          // if (!replaced) console.warn("replaceTrack başarısız (peer).");
-        });
+        // 6) Eski raw stream'i durdur (artık yeni stream kullanıyoruz)
+        if (oldRawStream) {
+          oldRawStream.getTracks().forEach(t => t.stop());
+        }
+
+        // 7) Mute/PTT Durumunu Geri Yükle
+        if (inputMode === 'PUSH_TO_TALK') {
+          setLocalMicEnabled(isPTTPressedRef.current);
+        } else {
+          setLocalMicEnabled(true);
+        }
+
+        // 8) Analiz Başlat (NS kapalıysa ikon için)
+        if (!isNoiseSuppression) {
+          startGateAnalysis(null, null, null, newRawStream);
+        }
+
+      } catch (error) {
+        console.error("Stream yenileme hatası:", error);
+        addToast("Ses ayarları güncellenemedi.", "error");
       }
+    };
 
-      // 6) Eski raw stream'i durdur (artık yeni stream kullanıyoruz)
-      if (oldRawStream) {
-        oldRawStream.getTracks().forEach(t => t.stop());
-      }
+    refreshStream();
 
-      // 7) Mute/PTT Durumunu Geri Yükle
-      if (inputMode === 'PUSH_TO_TALK') {
-        setLocalMicEnabled(isPTTPressedRef.current);
-      } else {
-        setLocalMicEnabled(true);
-      }
-
-      // 8) Analiz Başlat (NS kapalıysa ikon için)
-      if (!isNoiseSuppression) {
-        startGateAnalysis(null, null, null, newRawStream);
-      }
-
-    } catch (error) {
-      console.error("Stream yenileme hatası:", error);
-      addToast("Ses ayarları güncellenemedi.", "error");
-    }
-  };
-
-  refreshStream();
-
-  return () => { isCancelled = true; };
-}, [isNoiseSuppression, inputDeviceId]);
-
+    return () => { isCancelled = true; };
+  }, [isNoiseSuppression, inputDeviceId]);
 
   // Mod değiştiğinde PTT ayarla
   useEffect(() => {
@@ -246,12 +238,24 @@ useEffect(() => {
     newSocket.on('user-left-voice', handleUserLeft);
     newSocket.on('voice-channel-moved', handleChannelMoved);
     newSocket.on('user-speaking-change', ({ userId, isSpeaking }) => setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking })));
-    newSocket.on('screen-share-stopped', ({ socketId }) => setPeersWithVideo(prev => { const copy = { ...prev }; delete copy[socketId]; return copy; }));
+
+    // ✅ KAMERA da aynı event ile temizlenecek (değiştirmedik, sadece kamera da bu event'i kullanacak)
+    newSocket.on('screen-share-stopped', ({ socketId }) =>
+      setPeersWithVideo(prev => {
+        const copy = { ...prev };
+        delete copy[socketId];
+        return copy;
+      })
+    );
+
     newSocket.on('voiceStateUpdate', (serverState) => {
       if (!serverState) return;
-      Object.values(serverState).forEach(channelUsers => { channelUsers.forEach(u => { socketUserMapRef.current[u.socketId] = u.userId; }); });
+      Object.values(serverState).forEach(channelUsers => {
+        channelUsers.forEach(u => { socketUserMapRef.current[u.socketId] = u.userId; });
+      });
       applyVolumeSettings();
     });
+
     return () => { if (newSocket) newSocket.disconnect(); };
   }, [token, isAuthenticated]);
 
@@ -291,15 +295,87 @@ useEffect(() => {
     const onMouseUp = (e) => { if (!isMouseBinding(pttKeyCode)) return; if (mouseButtonFromCode(pttKeyCode) === e.button) pttUp(); };
     const onBlur = () => pttUp();
     const onVisibilityChange = () => { if (document.hidden) pttUp(); };
-    window.addEventListener('keydown', onKeyDown, true); window.addEventListener('keyup', onKeyUp, true); window.addEventListener('mousedown', onMouseDown, true); window.addEventListener('mouseup', onMouseUp, true); window.addEventListener('blur', onBlur, true); document.addEventListener('visibilitychange', onVisibilityChange, true);
+    window.addEventListener('keydown', onKeyDown, true); window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('mousedown', onMouseDown, true); window.addEventListener('mouseup', onMouseUp, true);
+    window.addEventListener('blur', onBlur, true); document.addEventListener('visibilitychange', onVisibilityChange, true);
+
     let offDown = null, offUp = null;
     if (window.electronAPI?.onPTTDown && window.electronAPI?.onPTTUp) { offDown = window.electronAPI.onPTTDown(pttDown); offUp = window.electronAPI.onPTTUp(pttUp); }
+
     setLocalMicEnabled(false);
-    return () => { window.removeEventListener('keydown', onKeyDown, true); window.removeEventListener('keyup', onKeyUp, true); window.removeEventListener('mousedown', onMouseDown, true); window.removeEventListener('mouseup', onMouseUp, true); window.removeEventListener('blur', onBlur, true); document.removeEventListener('visibilitychange', onVisibilityChange, true); offDown && offDown(); offUp && offUp(); };
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true); window.removeEventListener('keyup', onKeyUp, true);
+      window.removeEventListener('mousedown', onMouseDown, true); window.removeEventListener('mouseup', onMouseUp, true);
+      window.removeEventListener('blur', onBlur, true); document.removeEventListener('visibilitychange', onVisibilityChange, true);
+      offDown && offDown(); offUp && offUp();
+    };
   }, [inputMode, pttKeyCode, isMicMuted, setLocalMicEnabled]);
+
+  // ✅ EKLENDİ: Kamera başlat / durdur
+  const startCamera = async () => {
+    try {
+      // Aynı anda 2 video istemiyorsan: kamera açılırken ekran paylaşımını kapat
+      if (myScreenStreamRef.current) {
+        stopScreenShare();
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 }
+        }
+      });
+
+      setMyCameraStream(stream);
+      myCameraStreamRef.current = stream;
+
+      // Peer'lara stream ekle
+      Object.values(peersRef.current).forEach(peer => {
+        try { if (peer && !peer.destroyed) peer.addStream(stream); } catch (err) {}
+      });
+
+      // Kullanıcı kamerayı OS'tan kapatırsa
+      const vTrack = stream.getVideoTracks?.()[0];
+      if (vTrack) vTrack.onended = () => stopCamera();
+
+    } catch (err) {
+      console.error("Kamera başlatılamadı:", err);
+      addToast("Kamera başlatılamadı", "error");
+    }
+  };
+
+  const stopCamera = () => {
+    // Herkeste kapanması için aynı event’i kullanıyoruz
+    if (socketRef.current) {
+      socketRef.current.emit('screen-share-stopped', {
+        serverId: currentServerId,
+        channelId: currentVoiceChannelId,
+        socketId: socketRef.current.id,
+        userId: user?._id
+      });
+    }
+
+    const stream = myCameraStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      Object.values(peersRef.current).forEach(p => {
+        try { p.removeStream(stream); } catch(e){}
+      });
+      setMyCameraStream(null);
+      myCameraStreamRef.current = null;
+    }
+  };
 
   const startScreenShare = async (electronSourceId = null) => {
     try {
+      // ✅ Kamera açıksa ekran paylaşımı açarken kapat (aynı anda 2 video istemiyorsan)
+      if (myCameraStreamRef.current) {
+        stopCamera();
+      }
+
       let stream;
       if (window.electronAPI && electronSourceId) {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -320,22 +396,34 @@ useEffect(() => {
 
   const stopScreenShare = () => {
     if (socketRef.current) {
-      socketRef.current.emit('screen-share-stopped', { serverId: currentServerId, channelId: currentVoiceChannelId });
+      socketRef.current.emit('screen-share-stopped', {
+        serverId: currentServerId,
+        channelId: currentVoiceChannelId,
+        socketId: socketRef.current.id,
+        userId: user?._id
+      });
     }
+
     const stream = myScreenStreamRef.current;
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
-      Object.values(peersRef.current).forEach(p => { try { p.removeStream(stream); } catch(e){} });
+      Object.values(peersRef.current).forEach(p => {
+        try { p.removeStream(stream); } catch(e){}
+      });
       setMyScreenStream(null);
       myScreenStreamRef.current = null;
     }
   };
 
   const handleUserJoined = ({ socketId, userId }) => {
-    if (userId) socketUserMapRef.current[userId] = userId;
+    if (socketId && userId) socketUserMapRef.current[socketId] = userId;
+
     const audioStream = processedStreamRef.current || localStreamRef.current;
-    const screenStream = myScreenStreamRef.current;
-    const streams = [audioStream, screenStream].filter(Boolean);
+
+    // ✅ EKLENDİ: ekran yoksa kamera varsa onu gönder
+    const videoStream = myScreenStreamRef.current || myCameraStreamRef.current;
+
+    const streams = [audioStream, videoStream].filter(Boolean);
     createPeer(socketId, true, streams, userId);
   };
 
@@ -375,10 +463,10 @@ useEffect(() => {
         gateGainNodeRef.current = gateGain;
 
         const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -30;  // daha erken devreye girer
-compressor.ratio.value = 6;        // daha güçlü sıkıştırır
-compressor.attack.value = 0.002;   // tık sesini hızlı yakalar
-compressor.release.value = 0.18;
+        compressor.threshold.value = -30;
+        compressor.ratio.value = 6;
+        compressor.attack.value = 0.002;
+        compressor.release.value = 0.18;
 
         currentNode.connect(highPass);
         highPass.connect(lowPass);
@@ -403,73 +491,69 @@ compressor.release.value = 0.18;
     }
   };
 
-const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-  if (analyser && gateGainNode && audioCtx) {
-  analyser.fftSize = 1024;
-  const timeData = new Float32Array(analyser.fftSize);
+  const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
+    if (analyser && gateGainNode && audioCtx) {
+      analyser.fftSize = 1024;
+      const timeData = new Float32Array(analyser.fftSize);
 
-  let gateIsOpen = true;
-  let lastOpenTime = performance.now();
-  let smoothedRms = 0; // ✅ smoothing state
+      let gateIsOpen = true;
+      let lastOpenTime = performance.now();
+      let smoothedRms = 0;
 
-  const checkVolume = () => {
-    if (!gateGainNode || audioCtx.state === 'closed') return;
+      const checkVolume = () => {
+        if (!gateGainNode || audioCtx.state === 'closed') return;
 
-    // PTT modunda gate tamamen PTT'ye bağlı
-    if (inputMode === 'PUSH_TO_TALK') {
-      const isOpen = isPTTPressedRef.current;
-      gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
-      updateSpeakingStatus(isOpen);
-      requestAnimationFrame(checkVolume);
+        if (inputMode === 'PUSH_TO_TALK') {
+          const isOpen = isPTTPressedRef.current;
+          gateGainNode.gain.setTargetAtTime(isOpen ? 1 : 0, audioCtx.currentTime, isOpen ? 0.01 : 0.05);
+          updateSpeakingStatus(isOpen);
+          requestAnimationFrame(checkVolume);
+          return;
+        }
+
+        analyser.getFloatTimeDomainData(timeData);
+
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) {
+          const v = timeData[i];
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / timeData.length);
+
+        smoothedRms = (RMS_SMOOTHING * smoothedRms) + ((1 - RMS_SMOOTHING) * rms);
+
+        const now = performance.now();
+
+        if (smoothedRms >= GATE_OPEN_RMS) {
+          gateIsOpen = true;
+          lastOpenTime = now;
+        } else if (smoothedRms <= GATE_CLOSE_RMS) {
+          if (now - lastOpenTime > GATE_HOLD_MS) gateIsOpen = false;
+        }
+
+        const norm = Math.min(Math.max(smoothedRms / GATE_OPEN_RMS, 0), 1);
+        const shaped = Math.pow(norm, EXPANDER_POWER);
+
+        let target;
+        if (gateIsOpen) {
+          target = GATE_FLOOR + (1 - GATE_FLOOR) * shaped;
+          // NOT: Senin kodunda burada SPEECH_FLOOR kullanımı var (ben bozmadım)
+          // target = Math.max(target, SPEECH_FLOOR);
+        } else {
+          target = GATE_FLOOR;
+        }
+
+        const tau = gateIsOpen ? 0.035 : 0.12;
+        gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
+
+        updateSpeakingStatus(gateIsOpen);
+        requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
       return;
     }
 
-    analyser.getFloatTimeDomainData(timeData);
-
-    let sumSq = 0;
-    for (let i = 0; i < timeData.length; i++) {
-      const v = timeData[i];
-      sumSq += v * v;
-    }
-    const rms = Math.sqrt(sumSq / timeData.length);
-
-    // ✅ RMS smoothing (anlık düşüşler kelime ortası “cut” yapmasın)
-    smoothedRms = (RMS_SMOOTHING * smoothedRms) + ((1 - RMS_SMOOTHING) * rms);
-
-    const now = performance.now();
-
-    // ✅ Hysteresis + Hold
-    if (smoothedRms >= GATE_OPEN_RMS) {
-      gateIsOpen = true;
-      lastOpenTime = now;
-    } else if (smoothedRms <= GATE_CLOSE_RMS) {
-      if (now - lastOpenTime > GATE_HOLD_MS) gateIsOpen = false;
-    }
-
-    // ✅ Downward expander
-    const norm = Math.min(Math.max(smoothedRms / GATE_OPEN_RMS, 0), 1); // 0..1
-    const shaped = Math.pow(norm, EXPANDER_POWER);                      // 0..1
-
-    let target;
-    if (gateIsOpen) {
-      // ✅ Konuşurken gain çok düşmesin (kelime ortası kesilmeyi bitirir)
-      target = GATE_FLOOR + (1 - GATE_FLOOR) * shaped;
-      target = Math.max(target, SPEECH_FLOOR);
-    } else {
-      target = GATE_FLOOR;
-    }
-
-    // Daha doğal geçiş
-    const tau = gateIsOpen ? 0.035 : 0.12;
-    gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
-
-    updateSpeakingStatus(gateIsOpen);
-    requestAnimationFrame(checkVolume);
-  };
-
-  checkVolume();
-  return;
-}
     if (rawStreamForSimpleMode) {
       try {
         const simpleCtx = new AudioContext();
@@ -596,7 +680,12 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
 
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (processedStreamRef.current) processedStreamRef.current = null;
+
     if (myScreenStreamRef.current) { myScreenStreamRef.current.getTracks().forEach(t => t.stop()); myScreenStreamRef.current = null; setMyScreenStream(null); }
+
+    // ✅ EKLENDİ: Kamera cleanup
+    if (myCameraStreamRef.current) { myCameraStreamRef.current.getTracks().forEach(t => t.stop()); myCameraStreamRef.current = null; setMyCameraStream(null); }
+
     if (audioContextRef.current) { audioContextRef.current.close().catch(() => {}); audioContextRef.current = null; }
   };
 
@@ -613,9 +702,13 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
   const handleOffer = ({ socketId, sdp, userId }) => {
     if (userId) socketUserMapRef.current[socketId] = userId;
     if (peersRef.current[socketId]) peersRef.current[socketId].destroy();
+
     const audioStream = processedStreamRef.current || localStreamRef.current;
-    const screenStream = myScreenStreamRef.current;
-    const streams = [audioStream, screenStream].filter(Boolean);
+
+    // ✅ EKLENDİ: ekran yoksa kamera varsa onu gönder
+    const videoStream = myScreenStreamRef.current || myCameraStreamRef.current;
+
+    const streams = [audioStream, videoStream].filter(Boolean);
     const p = createPeer(socketId, false, streams, userId);
     p.signal(sdp);
   };
@@ -631,20 +724,50 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
 
   const handleRemoteStream = (stream, socketId, userId) => {
     if (userId) socketUserMapRef.current[socketId] = userId;
+
+    // ✅ VIDEO (Screen Share veya Kamera)
     if (stream.getVideoTracks().length > 0) {
       setPeersWithVideo(prev => ({ ...prev, [socketId]: stream }));
-    } else {
-      if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
-      const audio = document.createElement('audio');
-      audio.srcObject = stream;
-      audio.autoplay = true;
-      audio.style.display = 'none';
-      audio.muted = isDeafened;
-      document.body.appendChild(audio);
-      if (outputDeviceId && typeof audio.setSinkId === 'function') { audio.setSinkId(outputDeviceId).catch(() => {}); }
-      audioElementsRef.current[socketId] = audio;
-      applyVolumeSettings();
+
+      const vTrack = stream.getVideoTracks()[0];
+      const cleanupVideo = () => {
+        setPeersWithVideo(prev => {
+          const next = { ...prev };
+          delete next[socketId];
+          return next;
+        });
+      };
+
+      if (vTrack) {
+        vTrack.onended = cleanupVideo;
+        vTrack.onmute = () => {
+          setTimeout(() => {
+            if (vTrack.readyState !== 'live' || vTrack.muted) cleanupVideo();
+          }, 400);
+        };
+      }
+
+      try { stream.addEventListener?.('inactive', cleanupVideo); } catch (e) {}
+
+      return;
     }
+
+    // ✅ AUDIO (normal)
+    if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
+
+    const audio = document.createElement('audio');
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    audio.style.display = 'none';
+    audio.muted = isDeafened;
+    document.body.appendChild(audio);
+
+    if (outputDeviceId && typeof audio.setSinkId === 'function') {
+      audio.setSinkId(outputDeviceId).catch(() => {});
+    }
+
+    audioElementsRef.current[socketId] = audio;
+    applyVolumeSettings();
   };
 
   useEffect(() => {
@@ -671,10 +794,19 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
       micError,
       stayConnected,
       peersWithVideo,
+
       myScreenStream,
       startScreenShare,
       stopScreenShare,
-      isPTTPressed
+
+      // ✅ EKLENDİ: Kamera API
+      myCameraStream,
+      startCamera,
+      stopCamera,
+
+      isPTTPressed,
+
+      userIdBySocketId: socketUserMapRef.current, // ✅ EKLE
     }}>
       {children}
     </VoiceContext.Provider>

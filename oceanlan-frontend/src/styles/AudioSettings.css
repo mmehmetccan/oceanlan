@@ -43,7 +43,7 @@
 
 .radio-option.selected {
     background: #40444b;
-    border-color: #5865f2;
+    border-color: #1ab199;
 }
 
 .radio-content {
@@ -86,14 +86,14 @@
 }
 
 .keybind-btn.listening {
-    border-color: #5865f2;
-    color: #5865f2;
+    border-color: #1ab199;
+    color: #1ab199;
     background: #292b2f;
 }
 
 .sensitivity-slider {
     width: 100%;
-    accent-color: #5865f2;
+    accent-color: #1ab199;
 }
 
 .hint {

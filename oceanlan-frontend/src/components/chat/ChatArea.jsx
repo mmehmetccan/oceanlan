@@ -10,7 +10,7 @@ import ScreenShareDisplay from './ScreenShareDisplay';
 import { getFullImageUrl } from '../../utils/urlHelper';
 import UserProfileModal from '../profile/UserProfileModal';
 import { TrashIcon, PaperAirplaneIcon, PlusCircleIcon } from '@heroicons/react/24/outline'; // İkonları import et
-
+import ConfirmationModal from '../modals/ConfirmationModal'; // 🟢 Modal Import Edildi
 import '../../styles/ChatArea.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -26,6 +26,11 @@ const ChatArea = () => {
   const [inputContent, setInputContent] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
   const [showProfileId, setShowProfileId] = useState(null);
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+      isOpen: false,
+      messageId: null
+  });
 
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -106,6 +111,30 @@ const ChatArea = () => {
     }
   };
 
+  const handleDeleteClick = (msgId) => {
+      setDeleteConfirmation({
+          isOpen: true,
+          messageId: msgId
+      });
+  };
+
+  // 🟢 2. Modalda "Evet" denilince Silme İşlemini Yap
+  const confirmDeleteMessage = async () => {
+    const msgId = deleteConfirmation.messageId;
+    if (!msgId) return;
+
+    try {
+      await axiosInstance.delete(`/servers/${serverId}/channels/${channelId}/messages/${msgId}`);
+      setMessages(prev => prev.filter(m => m._id !== msgId));
+      addToast('Mesaj başarıyla silindi.', 'success'); // İşlem sonrası bildirim
+    } catch (error) {
+      handleError(error);
+    } finally {
+        // Modalı Kapat
+        setDeleteConfirmation({ isOpen: false, messageId: null });
+    }
+  };
+
   const handleDeleteMessage = async (msgId) => {
     if(!window.confirm("Mesajı silmek istiyor musunuz?")) return;
     try {
@@ -179,7 +208,7 @@ const ChatArea = () => {
                             <button
                                 className="message-delete-btn"
                                 title="Sil"
-                                onClick={() => handleDeleteMessage(msg._id)}
+                                onClick={() => handleDeleteClick(msg._id)}
                             >
                                 <TrashIcon />
                             </button>
@@ -200,6 +229,17 @@ const ChatArea = () => {
         )}
 
         {previewImage && <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}><div className="image-modal"><img src={previewImage} alt="Önizleme"/></div></div>}
+
+        {/* 🟢 ONAY MODALI */}
+        <ConfirmationModal
+            isOpen={deleteConfirmation.isOpen}
+            title="Mesajı Sil"
+            message="Bu mesajı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+            onConfirm={confirmDeleteMessage}
+            onClose={() => setDeleteConfirmation({ isOpen: false, messageId: null })}
+            isDanger={true}
+            confirmText="Sil"
+        />
 
         {/* INPUT ALANI */}
         <footer className="message-input-area">

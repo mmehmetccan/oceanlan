@@ -14,7 +14,8 @@ import {
     ComputerDesktopIcon,
     PhoneXMarkIcon,
     SignalIcon,
-    SparklesIcon
+    SparklesIcon,
+    VideoCameraIcon // ✅ EKLENDİ
 } from '@heroicons/react/24/solid';
 
 const VoiceRoom = () => {
@@ -29,7 +30,12 @@ const VoiceRoom = () => {
       micError,
       speakingUsers,
       isConnected,
-      reconnectVoiceChannel // ✅ eklendi
+      reconnectVoiceChannel, // ✅ eklendi
+
+      // ✅ EKLENDİ: Kamera
+      myCameraStream,
+      startCamera,
+      stopCamera
   } = useContext(VoiceContext);
 
   const {
@@ -80,6 +86,15 @@ const VoiceRoom = () => {
       startScreenShare(sourceId); // Seçilen ID ile başlat
   };
 
+  // ✅ EKLENDİ: Kamera aç/kapat
+  const handleCameraToggle = () => {
+    if (myCameraStream) {
+      stopCamera?.();
+      return;
+    }
+    startCamera?.();
+  };
+
   const isVoiceConnected = isConnected;
   const connectionText = isVoiceConnected ? 'Ses Bağlı' : 'Bağlanıyor...';
   const connectionClass = isVoiceConnected ? 'connected' : 'connecting';
@@ -126,9 +141,21 @@ const VoiceRoom = () => {
             </button>
 
             {/* EKRAN PAYLAŞIMI BUTONU */}
-            <button onClick={handleScreenShareToggle}
-                    className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}>
+            <button
+              onClick={handleScreenShareToggle}
+              className={`voice-control-btn ${myScreenStream ? 'active-green' : ''}`}
+              title={myScreenStream ? "Ekran Paylaşımı: AÇIK" : "Ekran Paylaşımı: KAPALI"}
+            >
                 <ComputerDesktopIcon className="voice-icon"/>
+            </button>
+
+            {/* ✅ EKLENDİ: KAMERA BUTONU */}
+            <button
+              onClick={handleCameraToggle}
+              className={`voice-control-btn ${myCameraStream ? 'active-green' : ''}`}
+              title={myCameraStream ? "Kamera: AÇIK" : "Kamera: KAPALI"}
+            >
+              <VideoCameraIcon className="voice-icon"/>
             </button>
 
             <button onClick={leaveVoiceChannel} className="voice-control-btn terminate">

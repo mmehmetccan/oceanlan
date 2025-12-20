@@ -17,7 +17,7 @@ import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
-
+import LegalPage from './pages/LegalPage';
 import ToastContainer from './components/common/ToastContainer';
 
 // 🟢 KORUMALI ROTA (Giriş yapmamışsa Login'e at)
@@ -70,7 +70,7 @@ const AppContent = () => {
             <Route path="/resetpassword/:resetToken" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
-
+            <Route path="/legal/:type" element={<LegalPage />} />
             <Route path="/dashboard/*" element={
                 <ProtectedRoute><DashboardPage /></ProtectedRoute>
             } />

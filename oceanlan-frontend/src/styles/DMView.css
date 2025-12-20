@@ -29,7 +29,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  background: #1ab199;
   box-shadow: 0 0 0 6px rgba(88, 101, 242, 0.15);
 }
 
@@ -127,7 +127,7 @@
 }
 
 .dm-message.from-me .dm-bubble {
-  background: linear-gradient(140deg, rgba(88, 101, 242, 0.8), rgba(114, 137, 218, 0.9));
+  background: #1ab199;
   border-color: rgba(255, 255, 255, 0.14);
   color: #fff;
   box-shadow: 0 12px 28px rgba(88, 101, 242, 0.35);
@@ -162,7 +162,7 @@
 
 .dm-input:focus {
   outline: none;
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: #1ab199;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 10px 30px rgba(88, 101, 242, 0.2);
 }
@@ -171,7 +171,7 @@
   padding: 12px 16px;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  background: #1ab199;
   color: #fff;
   font-weight: 600;
   cursor: pointer;

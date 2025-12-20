@@ -251,7 +251,7 @@
 /* İçerik varsa veya hover olunca parla */
 .send-message-btn.active,
 .send-message-btn:hover {
-  color: #5865f2; /* Aktif mavi renk */
+  color: #1ab199; /* Aktif mavi renk */
 }
 
 .send-message-btn:disabled {

@@ -87,7 +87,7 @@
 
 /* Kopyala Butonu */
 .copy-btn {
-    background-color: #5865f2;
+    background-color: #1ab199;
     color: white;
     border: none;
     border-radius: 3px;
@@ -103,7 +103,7 @@
 }
 
 .copy-btn:hover {
-    background-color: #4752c4;
+    background-color: #1ab199;
 }
 
 .copy-btn.copied {

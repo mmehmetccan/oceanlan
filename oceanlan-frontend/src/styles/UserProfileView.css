@@ -145,10 +145,10 @@
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: #1ab199;
   color: #ffffff;
 }
-.btn-primary:hover:not(:disabled) { background-color: #4752c4; }
+.btn-primary:hover:not(:disabled) { background-color: #1ab199; }
 
 .btn-secondary {
   background-color: #4f545c;
@@ -244,7 +244,7 @@
 }
 
 .context-menu-item:hover {
-    background-color: #5865f2;
+    background-color: #1ab199;
     color: white;
 }
 /* 👇 RESİM BOYUTUNU KÜÇÜLTEN KISIM */

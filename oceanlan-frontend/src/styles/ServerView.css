@@ -35,7 +35,7 @@
   height: 32px;
   border-radius: 50%; /* Tam yuvarlak */
   margin-right: 10px;
-  background-color: #5865f2;
+  background-color: #1ab199;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,11 +98,11 @@
 }
 
 .action-btn.invite {
-  background-color: #5865f2; /* Discord Mavisi */
+  background-color: #1ab199; /* Discord Mavisi */
 }
 
 .action-btn.invite:hover {
-  background-color: #4752c4;
+  background-color: #1ab199;
 }
 
 .action-btn svg {

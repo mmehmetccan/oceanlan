@@ -54,7 +54,7 @@
 /* Hover ve Aktif Durumu */
 .sidebar-icon:hover, .sidebar-icon.active {
     border-radius: 12px; /* Kareleşme efekti */
-    background-color: #5865f2; /* Discord mavisi */
+    background-color: #1ab199; /* Discord mavisi */
     color: white;
 }
 
@@ -75,12 +75,12 @@
 }
 
 .sidebar-folder-wrapper.drag-over-combine {
-    border: 2px dashed #5865f2; /* Birleşme efekti */
+    border: 2px dashed #1ab199; /* Birleşme efekti */
 }
 
 .folder-icon {
     background-color: #5865f240 !important;
-    color: #5865f2 !important;
+    color: #1ab199 !important;
 }
 
 .folder-content {
@@ -145,7 +145,7 @@
 
 .sidebar-icon:hover, .sidebar-icon.active {
     border-radius: 12px;
-    background-color: #5865f2;
+    background-color: #58f28e;
     color: white;
 }
 
@@ -162,7 +162,7 @@
 
 .sidebar-folder-wrapper.drag-over-combine {
     background-color: rgba(88, 101, 242, 0.3);
-    border: 2px dashed #5865f2;
+    border: 2px dashed #1ab199;
 }
 
 .folder-icon {
@@ -221,7 +221,7 @@
 }
 
 .context-menu-item:hover {
-    background-color: #4752c4;
+    background-color: #3ad6b8;
     color: white;
 }
 
@@ -238,7 +238,7 @@
 .drag-target-line {
     width: 2px;
     height: 30px;
-    background-color: #5865f2;
+    background-color: #1ab199;
     margin: 0 2px;
     border-radius: 2px;
 }

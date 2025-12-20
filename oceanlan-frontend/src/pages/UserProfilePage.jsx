@@ -5,18 +5,24 @@ import { ToastContext } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
-import { EnvelopeIcon } from '@heroicons/react/24/outline';
-// 👇 URL Helper Importu (Resim sorununu çözen kısım)
 import { getImageUrl } from '../utils/urlHelper';
+
+// İKONLAR
+import {
+    EnvelopeIcon,
+    ShieldCheckIcon,
+    DocumentTextIcon,
+    CpuChipIcon,
+    UserGroupIcon
+} from '@heroicons/react/24/outline';
 
 import '../styles/ProfileSettings.css';
 
-// Varsayılan avatarı helper ile al
 const handleAvatarError = (e) => {
     if (e?.target?.dataset?.fallbackApplied === 'true') return;
     if (e?.target) {
         e.target.dataset.fallbackApplied = 'true';
-        e.target.src = getImageUrl(null); // Helper'dan varsayılanı al
+        e.target.src = getImageUrl(null);
     }
 };
 
@@ -25,7 +31,7 @@ const UserProfilePage = () => {
     const { addToast } = useContext(ToastContext);
     const navigate = useNavigate();
 
-    // Local state'ler
+    // Local State
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
@@ -33,6 +39,7 @@ const UserProfilePage = () => {
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState(null);
 
+    // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
 
     // 1. Sayfa açıldığında veritabanından güncel veriyi çek
@@ -63,9 +70,8 @@ const UserProfilePage = () => {
         }
     }, []);
 
-    // Avatar URL Hesaplaması (DÜZELTİLDİ)
+    // Avatar URL Hesaplaması
     const displayAvatarUrl = useMemo(() => {
-        // getImageUrl helper'ı hem Electron hem Web için doğru adresi verir
         return getImageUrl(user?.avatarUrl || user?.avatar);
     }, [user]);
 
@@ -94,6 +100,7 @@ const UserProfilePage = () => {
         return <div className="profile-settings-area">Yükleniyor...</div>;
     }
 
+    // Profil Ayarlarını Güncelle
     const handleUpdateSettings = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -137,6 +144,7 @@ const UserProfilePage = () => {
         }
     };
 
+    // Avatar Yükle
     const handleAvatarUpload = async () => {
         if (!avatarFile) return;
 
@@ -152,7 +160,7 @@ const UserProfilePage = () => {
             const backendUser = res.data.user;
             const currentToken = localStorage.getItem('token');
 
-            // Cache busting için versiyon ekle
+            // Cache busting
             const updatedUserForContext = {
                 ...backendUser,
                 avatarUrl: `${backendUser.avatarUrl}?v=${Date.now()}`,
@@ -178,13 +186,13 @@ const UserProfilePage = () => {
 
     return (
         <div className="profile-settings-area">
+            {/* BAŞLIK */}
             <div className="profile-settings-header">
                 <div className="profile-settings-title">
                     <h1>Profil Ayarları</h1>
                     <p>Kullanıcı bilgilerini, parolanı ve profil görselini buradan düzenle.</p>
                 </div>
                 <div className="profile-header-avatar">
-                    {/* Hata Yakalayıcı Eklendi */}
                     <img src={displayAvatarUrl} alt={`${user.username} avatarı`} onError={handleAvatarError}/>
                     <div>
                         <strong>{user.username}</strong>
@@ -193,14 +201,17 @@ const UserProfilePage = () => {
                 </div>
             </div>
 
+            {/* İÇERİK IZGARASI */}
             <div className="profile-settings-grid">
+
+                {/* SOL: Profil Kartı */}
                 <div className="settings-card profile-card">
                     <h3>Profil Kartı</h3>
                     <div className="profile-avatar-display">
                         <img
                             src={displayAvatarUrl}
                             alt={`${user.username} avatarı`}
-                            onError={handleAvatarError} // Hata yakalayıcı eklendi
+                            onError={handleAvatarError}
                         />
                     </div>
 
@@ -227,6 +238,7 @@ const UserProfilePage = () => {
                     </div>
                 </div>
 
+                {/* SAĞ: Form */}
                 <form onSubmit={handleUpdateSettings} className="settings-card profile-form">
                     <h3>Hesap Bilgilerini Güncelle</h3>
 
@@ -278,6 +290,7 @@ const UserProfilePage = () => {
                 </form>
             </div>
 
+            {/* ÇIKIŞ KARTI */}
             <div className="settings-card logout-card">
                 <div>
                     <h4>Hesaptan Ayrıl</h4>
@@ -289,34 +302,49 @@ const UserProfilePage = () => {
                 </button>
             </div>
 
-            <div className="settings-card" style={{border: '1px solid #5865f2', marginTop: '20px'}}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '10px'
-                }}>
-                    <div>
-                        <h4 style={{margin: 0, color: '#fff'}}>İletişim & Destek</h4>
-                        <p style={{margin: '5px 0 0', fontSize: '13px', color: '#b9bbbe'}}>
-                            Bir sorun mu yaşıyorsunuz veya öneriniz mi var? Bizimle iletişime geçin.
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => navigate('/dashboard/contact')}
-                        style={{
-                            background: '#5865f2', color: 'white', border: 'none',
-                            padding: '10px 16px', borderRadius: '8px', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600'
-                        }}
-                    >
-                        <EnvelopeIcon style={{width: 20}}/>
-                        Bize Ulaşın
+            {/* YASAL BİLGİLER & DESTEK ALANI */}
+            <div className="settings-card" style={{ marginTop: '30px' }}>
+                <h3 style={{ marginBottom: '15px', color: '#f2f3f5', fontSize: '16px' }}>Yasal Bilgiler ve Destek</h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+
+                    {/* 1. GİZLİLİK POLİTİKASI */}
+                    <button onClick={() => navigate('/legal/privacy')} className="legal-nav-btn">
+                        <ShieldCheckIcon width={24} />
+                        <span>Gizlilik Politikası</span>
+                    </button>
+
+                    {/* 2. KULLANIM KOŞULLARI */}
+                    <button onClick={() => navigate('/legal/terms')} className="legal-nav-btn">
+                        <DocumentTextIcon width={24} />
+                        <span>Kullanım Koşulları</span>
+                    </button>
+
+                    {/* 3. ÇEREZ POLİTİKASI */}
+                    <button onClick={() => navigate('/legal/cookies')} className="legal-nav-btn">
+                        <CpuChipIcon width={24} />
+                        <span>Çerez Politikası</span>
+                    </button>
+
+                    {/* 4. TOPLULUK KURALLARI */}
+                    <button onClick={() => navigate('/legal/guidelines')} className="legal-nav-btn">
+                        <UserGroupIcon width={24} />
+                        <span>Topluluk Kuralları</span>
                     </button>
                 </div>
+
+                {/* İLETİŞİM BUTONU (Tam genişlik) */}
+                <button
+                    onClick={() => navigate('/dashboard/contact')}
+                    className="legal-nav-btn"
+                    style={{ marginTop: '10px', width: '100%', justifyContent: 'center', background: '#5865f2', borderColor: '#5865f2', color: 'white' }}
+                >
+                    <EnvelopeIcon width={24} />
+                    <span>Bize Ulaşın / Destek</span>
+                </button>
             </div>
 
+            {/* MODAL BİLEŞENİ */}
             <ConfirmationModal
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal(p => ({...p, isOpen: false}))}
