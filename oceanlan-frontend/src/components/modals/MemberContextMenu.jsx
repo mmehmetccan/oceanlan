@@ -31,6 +31,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
         if (x + width > window.innerWidth) newLeft = x - width;
         if (y + height > window.innerHeight) newTop = y - height;
 
+
         if (newLeft < 0) newLeft = 10;
         if (newTop < 0) newTop = 10;
 

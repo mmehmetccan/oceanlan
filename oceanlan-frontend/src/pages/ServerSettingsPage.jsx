@@ -10,6 +10,8 @@ import DeleteServerModal from '../components/modals/DeleteServerModal';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import axios from 'axios';
 import axiosInstance from '../utils/axiosInstance';
+// 🟢 YENİ EKLENEN İKONLAR
+import { GlobeAltIcon, MapIcon } from '@heroicons/react/24/solid';
 
 import '../styles/ServerSettings.css';
 
@@ -161,6 +163,40 @@ const ServerSettingsPage = () => {
       fetchBans();
     }
   }, [activeTab, serverId]);
+
+  // 🟢 YENİ EKLENEN: Özellik (Feature) Güncelleme Fonksiyonu
+  const toggleServerFeature = async (featureKey) => {
+    // Mevcut özellikleri al
+    const currentFeatures = activeServer.features || {};
+
+    // Varsayılan değer true kabul edildiği için:
+    // Eğer veritabanında değer yoksa (undefined) -> true kabul et
+    // Şimdiki durumu bul:
+    const currentValue = currentFeatures[featureKey] !== false;
+
+    // Yeni değer tersi olacak
+    const updatedFeatures = {
+        ...currentFeatures,
+        [featureKey]: !currentValue
+    };
+
+    try {
+        // Backend isteği
+        await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
+            features: updatedFeatures
+        });
+
+        addToast('Sunucu özellikleri güncellendi.', 'success');
+        fetchServerDetails(serverId);
+    } catch (err) {
+        console.error("Güncelleme Hatası:", err);
+        // Hata mesajını daha net gösterelim
+        const errMsg = err.response?.status === 404
+            ? "Sunucu güncelleme rotası bulunamadı (Backend Hatası)."
+            : "Özellik güncellenemedi.";
+        addToast(errMsg, 'error');
+    }
+  };
 
   const handleUnban = async (bannedUserId) => {
     try {
@@ -373,6 +409,13 @@ const ServerSettingsPage = () => {
         >
           Genel Bakış
         </button>
+        {/* 🟢 YENİ EKLENEN: ÖZELLİKLER SEKMESİ */}
+        <button
+          onClick={() => setActiveTab('features')}
+          className={activeTab === 'features' ? 'active' : ''}
+        >
+          Özellikler
+        </button>
         <button
           onClick={() => setActiveTab('channels')}
           className={activeTab === 'channels' ? 'active' : ''}
@@ -401,6 +444,59 @@ const ServerSettingsPage = () => {
       </div>
 
       <div className="settings-content">
+
+        {/* 🟢 YENİ EKLENEN: ÖZELLİKLER İÇERİĞİ */}
+       {/* 🟢 ÖZELLİKLER (FEATURES) TABI */}
+        {activeTab === 'features' && (
+            <section className="settings-grid">
+                <div className="settings-card highlight">
+                    <h2>Sunucu Özellikleri</h2>
+                    <p style={{color:'#b9bbbe', marginBottom:'20px'}}>Bu sunucuda hangi özel modüllerin aktif olacağını seçin. (Varsayılan olarak hepsi aktiftir)</p>
+
+                    {/* KADRO KURUCU */}
+                    <div className="info-row" style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #2f3136'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                            <GlobeAltIcon style={{width:24, color:'#00aff4'}} />
+                            <div>
+                                <strong style={{color:'white', display:'block'}}>Kadro Kurucu</strong>
+                                <span style={{fontSize:'12px', color:'#b9bbbe'}}>Spor kanalları için kadro kurma modülü.</span>
+                            </div>
+                        </div>
+                        <label className="switch">
+                            <input
+                                type="checkbox"
+                                // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
+                                checked={activeServer.features?.squadBuilder !== false}
+                                onChange={() => toggleServerFeature('squadBuilder')}
+                            />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+
+                    {/* TATİLDEKİ ROTAM */}
+                    <div className="info-row" style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                            <MapIcon style={{width:24, color:'#fcd34d'}} />
+                            <div>
+                                <strong style={{color:'white', display:'block'}}>Tatildeki Rotam</strong>
+                                <span style={{fontSize:'12px', color:'#b9bbbe'}}>Seyahat planlama ve rota paylaşım modülü.</span>
+                            </div>
+                        </div>
+                        <label className="switch" >
+                            <input
+                                type="checkbox"
+                                // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
+                                checked={activeServer.features?.vacationRoute !== false}
+                                onChange={() => toggleServerFeature('vacationRoute')}
+                            />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+
+                </div>
+            </section>
+        )}
+
         {/* GENEL */}
         {activeTab === 'overview' && (
           <section className="settings-grid">

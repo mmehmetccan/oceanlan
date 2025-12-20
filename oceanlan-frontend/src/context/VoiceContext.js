@@ -9,9 +9,27 @@ import { ToastContext } from './ToastContext';
 export const VoiceContext = createContext();
 
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-const GATE_THRESHOLD = 0.08;
-const LOW_CUT_FREQ = 150;
-const HIGH_CUT_FREQ = 6000;
+
+// Gürültü Engelleme Eşikleri
+const GATE_THRESHOLD = 0.04;
+const LOW_CUT_FREQ = 100;
+const HIGH_CUT_FREQ = 8000;
+
+const AGGRESSIVE_AUDIO_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  sampleRate: 48000,
+  sampleSize: 16,
+  channelCount: 1,
+  googEchoCancellation: true,
+  googAutoGainControl: true,
+  googNoiseSuppression: true,
+  googHighpassFilter: true,
+  googTypingNoiseDetection: true,
+  googNoiseReduction: true,
+  googExperimentalNoiseSuppression: true
+};
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
@@ -21,17 +39,14 @@ export const VoiceProvider = ({ children }) => {
   const audioElementsRef = useRef({});
   const socketUserMapRef = useRef({});
 
-  // 🟢 YENİ: Yayını Ref içinde de tutuyoruz (Sonradan girenler için şart!)
   const myScreenStreamRef = useRef(null);
   const [myScreenStream, setMyScreenStream] = useState(null);
 
   const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const inputGainNodeRef = useRef(null);
-  const gateGainNodeRef = useRef(null);
+  const inputGainNodeRef = useRef(null); // Giriş Sesi Kontrolü
+  const gateGainNodeRef = useRef(null);  // Noise Gate Kontrolü
   const isSpeakingRef = useRef(false);
 
-  // ✅ PTT
   const isPTTPressedRef = useRef(false);
   const [isPTTPressed, setIsPTTPressed] = useState(false);
 
@@ -43,7 +58,6 @@ export const VoiceProvider = ({ children }) => {
     inputDeviceId, outputDeviceId, isMicMuted, isDeafened,
     userVolumes, isNoiseSuppression, inputVolume = 100,
     inputMode = 'VOICE_ACTIVITY',
-    // ✅ EKLENDİ
     pttKeyCode = 'Space'
   } = audioSettings || {};
 
@@ -57,33 +71,52 @@ export const VoiceProvider = ({ children }) => {
   const [stayConnected, setStayConnected] = useState(false);
   const [peersWithVideo, setPeersWithVideo] = useState({});
 
-  // ✅ EKLENDİ: Track enable/disable helper (PTT gerçekten ses gönderimini aç/kapa yapsın)
+  // 🟢 DÜZELTME 1: MİKROFON AÇ/KAPA MANTIĞI (Gain Node + Track)
   const setLocalMicEnabled = useCallback((enabled) => {
-    const wantEnable = !!enabled && !isMicMuted;
+    // Eğer PTT basılıysa (enabled=true) VE Mic Mute değilse ses gitsin
+    const shouldSendAudio = !!enabled && !isMicMuted;
 
-    const apply = (stream) => {
+    // 1. Track Seviyesinde Aç/Kapa
+    const applyTrackState = (stream) => {
       if (!stream) return;
-      try {
-        stream.getAudioTracks().forEach(t => { t.enabled = wantEnable; });
-      } catch {}
+      stream.getAudioTracks().forEach(t => { t.enabled = shouldSendAudio; });
     };
+    applyTrackState(localStreamRef.current);
+    applyTrackState(processedStreamRef.current);
 
-    apply(localStreamRef.current);
-    apply(processedStreamRef.current);
-  }, [isMicMuted]);
+    // 2. Gain Node (Ses Seviyesi) ile Tam Sessizlik Sağla
+    // WebAudio kullanıyorsak sesi 0'a çekmek en garanti yöntemdir.
+    if (inputGainNodeRef.current && audioContextRef.current) {
+        const ctx = audioContextRef.current;
+        const targetVol = shouldSendAudio
+            ? (inputVolume > 100 ? 1.0 + ((inputVolume - 100) / 30) : inputVolume / 100)
+            : 0; // Kapatılacaksa 0, açılacaksa ayarlı ses
 
-  // ✅ EKLENDİ: Mode değişince track davranışı
+        // Ani değişim cızırtı yapmasın diye 0.1sn geçiş
+        try {
+            inputGainNodeRef.current.gain.cancelScheduledValues(ctx.currentTime);
+            inputGainNodeRef.current.gain.setTargetAtTime(targetVol, ctx.currentTime, 0.05);
+        } catch(e) {}
+    }
+
+    // 3. Konuşuyor durumunu güncelle
+    if (!shouldSendAudio) {
+        updateSpeakingStatus(false);
+    }
+
+  }, [isMicMuted, inputVolume]);
+
+  // Mod değiştiğinde veya PTT durumu değiştiğinde mikrofonu ayarla
   useEffect(() => {
     if (inputMode === 'PUSH_TO_TALK') {
-      // PTT modunda: basılı değilken kapalı
       setLocalMicEnabled(isPTTPressedRef.current);
     } else {
-      // Voice activity modunda: mute değilse açık
       setLocalMicEnabled(true);
     }
-  }, [inputMode, setLocalMicEnabled]);
+  }, [inputMode, isPTTPressed, isMicMuted, setLocalMicEnabled]);
 
-  // 1. SOCKET BAĞLANTISI
+
+  // Socket Bağlantısı
   useEffect(() => {
     if (!token || !isAuthenticated) {
       if (socketRef.current) {
@@ -117,7 +150,6 @@ export const VoiceProvider = ({ children }) => {
     });
 
     newSocket.on('disconnect', () => setIsConnected(false));
-
     newSocket.on('user-joined-voice', handleUserJoined);
     newSocket.on('webrtc-offer', handleOffer);
     newSocket.on('webrtc-answer', handleAnswer);
@@ -127,7 +159,6 @@ export const VoiceProvider = ({ children }) => {
     newSocket.on('user-speaking-change', ({ userId, isSpeaking }) => {
       setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }));
     });
-
     newSocket.on('screen-share-stopped', ({ socketId }) => {
       setPeersWithVideo(prev => {
         const copy = { ...prev };
@@ -135,7 +166,6 @@ export const VoiceProvider = ({ children }) => {
         return copy;
       });
     });
-
     newSocket.on('voiceStateUpdate', (serverState) => {
       if (!serverState) return;
       Object.values(serverState).forEach(channelUsers => {
@@ -161,17 +191,21 @@ export const VoiceProvider = ({ children }) => {
   };
   useEffect(() => { applyVolumeSettings(); }, [userVolumes]);
 
+  // Ses seviyesi değişince Gain Node güncelle
   useEffect(() => {
-    if (inputGainNodeRef.current && audioContextRef.current) {
+    if (inputGainNodeRef.current && audioContextRef.current && !isMicMuted && (!inputMode || inputMode === 'VOICE_ACTIVITY' || isPTTPressedRef.current)) {
       let gainValue = 1.0;
       if (inputVolume === 0) gainValue = 0;
       else if (inputVolume <= 100) gainValue = inputVolume / 100;
       else gainValue = 1.0 + ((inputVolume - 100) / 30);
-      inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.05);
-    }
-  }, [inputVolume]);
 
-  // ✅ PTT: tek merkez (VoiceContext)
+      try {
+        inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.05);
+      } catch(e){}
+    }
+  }, [inputVolume, isMicMuted, inputMode]);
+
+  // --- PTT Logic ---
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') {
       isPTTPressedRef.current = false;
@@ -186,37 +220,24 @@ export const VoiceProvider = ({ children }) => {
     };
 
     const pttDown = () => {
-      if (isMicMuted) return;
+      if (isMicMuted) return; // Mute ise PTT çalışmaz
       if (isPTTPressedRef.current) return;
-
       isPTTPressedRef.current = true;
       setIsPTTPressed(true);
-
-      // ✅ gerçek mikrofon aç
       setLocalMicEnabled(true);
-
       updateSpeakingStatus(true);
     };
 
     const pttUp = () => {
       if (!isPTTPressedRef.current) return;
-
       isPTTPressedRef.current = false;
       setIsPTTPressed(false);
-
-      // ✅ gerçek mikrofon kapat
       setLocalMicEnabled(false);
-
       updateSpeakingStatus(false);
     };
 
-    const onKeyDown = (e) => {
-      if (!e.repeat && e.code === pttKeyCode) pttDown();
-    };
-    const onKeyUp = (e) => {
-      if (e.code === pttKeyCode) pttUp();
-    };
-
+    const onKeyDown = (e) => { if (!e.repeat && e.code === pttKeyCode) pttDown(); };
+    const onKeyUp = (e) => { if (e.code === pttKeyCode) pttUp(); };
     const onMouseDown = (e) => {
       if (!isMouseBinding(pttKeyCode)) return;
       const btn = mouseButtonFromCode(pttKeyCode);
@@ -227,30 +248,23 @@ export const VoiceProvider = ({ children }) => {
       const btn = mouseButtonFromCode(pttKeyCode);
       if (btn === e.button) pttUp();
     };
-
-    // Tarayıcı sekmeden çıkınca event gelmeyebilir -> “takılı kalmasın” diye blur’da bırak
     const onBlur = () => pttUp();
- const onVisibilityChange = () => {
-      if (document.hidden) pttUp();
-    };
+    const onVisibilityChange = () => { if (document.hidden) pttUp(); };
+
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('mousedown', onMouseDown, true);
     window.addEventListener('mouseup', onMouseUp, true);
     window.addEventListener('blur', onBlur, true);
-        document.addEventListener('visibilitychange', onVisibilityChange, true);
+    document.addEventListener('visibilitychange', onVisibilityChange, true);
 
-
-    // ✅ Electron global PTT event desteği (varsa)
-    // preload/main tarafında event gönderirsen, sekme/pencere odakta olmasa da çalışır.
-    let offDown = null;
-    let offUp = null;
+    let offDown = null, offUp = null;
     if (window.electronAPI?.onPTTDown && window.electronAPI?.onPTTUp) {
       offDown = window.electronAPI.onPTTDown(pttDown);
       offUp = window.electronAPI.onPTTUp(pttUp);
     }
 
-    // Başlangıçta PTT basılı değilken mic kapalı
+    // Başlangıç durumu: PTT ise kapalı başla
     setLocalMicEnabled(false);
 
     return () => {
@@ -259,13 +273,12 @@ export const VoiceProvider = ({ children }) => {
       window.removeEventListener('mousedown', onMouseDown, true);
       window.removeEventListener('mouseup', onMouseUp, true);
       window.removeEventListener('blur', onBlur, true);
-  document.removeEventListener('visibilitychange', onVisibilityChange, true);
+      document.removeEventListener('visibilitychange', onVisibilityChange, true);
       offDown && offDown();
       offUp && offUp();
     };
   }, [inputMode, pttKeyCode, isMicMuted, setLocalMicEnabled]);
 
-  // EKRAN PAYLAŞIMI BAŞLATMA
   const startScreenShare = async (electronSourceId = null) => {
     try {
       let stream;
@@ -277,34 +290,23 @@ export const VoiceProvider = ({ children }) => {
       } else {
         stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       }
-
       setMyScreenStream(stream);
       myScreenStreamRef.current = stream;
-
       Object.values(peersRef.current).forEach(peer => {
         try { if (peer && !peer.destroyed) peer.addStream(stream); } catch (err) {}
       });
-
       stream.getVideoTracks()[0].onended = () => stopScreenShare();
     } catch (err) { addToast("Ekran paylaşımı başlatılamadı", "error"); }
   };
 
   const stopScreenShare = () => {
     if (socketRef.current) {
-      socketRef.current.emit('screen-share-stopped', {
-        serverId: currentServerId,
-        channelId: currentVoiceChannelId
-      });
+      socketRef.current.emit('screen-share-stopped', { serverId: currentServerId, channelId: currentVoiceChannelId });
     }
-
     const stream = myScreenStreamRef.current;
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
-
-      Object.values(peersRef.current).forEach(p => {
-        try { p.removeStream(stream); } catch(e){}
-      });
-
+      Object.values(peersRef.current).forEach(p => { try { p.removeStream(stream); } catch(e){} });
       setMyScreenStream(null);
       myScreenStreamRef.current = null;
     }
@@ -312,24 +314,23 @@ export const VoiceProvider = ({ children }) => {
 
   const handleUserJoined = ({ socketId, userId }) => {
     if (userId) socketUserMapRef.current[userId] = userId;
-
     const audioStream = processedStreamRef.current || localStreamRef.current;
     const screenStream = myScreenStreamRef.current;
-
     const streams = [audioStream, screenStream].filter(Boolean);
-
     createPeer(socketId, true, streams, userId);
   };
 
-  // --- Ses İşleme / Gate ---
+  // --- Ses İşleme ---
   const processAudioStream = async (rawStream) => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return rawStream;
       const audioCtx = new AudioContext();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
+
       const source = audioCtx.createMediaStreamSource(rawStream);
       const destination = audioCtx.createMediaStreamDestination();
+
       const inputGain = audioCtx.createGain();
       const startVol = inputVolume > 100 ? 1.0 + ((inputVolume - 100) / 30) : inputVolume / 100;
       inputGain.gain.value = inputVolume === 0 ? 0 : startVol;
@@ -340,10 +341,12 @@ export const VoiceProvider = ({ children }) => {
       currentNode = inputGain;
 
       if (isNoiseSuppression) {
-        const highPass = audioCtx.createBiquadFilter(); highPass.type = 'highpass'; highPass.frequency.value = LOW_CUT_FREQ; highPass.Q.value = 0.7;
-        const lowPass = audioCtx.createBiquadFilter(); lowPass.type = 'lowpass'; lowPass.frequency.value = HIGH_CUT_FREQ; lowPass.Q.value = 0.6;
+        const highPass = audioCtx.createBiquadFilter(); highPass.type = 'highpass'; highPass.frequency.value = LOW_CUT_FREQ; highPass.Q.value = 0.5;
+        const lowPass = audioCtx.createBiquadFilter(); lowPass.type = 'lowpass'; lowPass.frequency.value = HIGH_CUT_FREQ; lowPass.Q.value = 0.5;
         const gateGain = audioCtx.createGain(); gateGain.gain.value = 0; gateGainNodeRef.current = gateGain;
-        const compressor = audioCtx.createDynamicsCompressor(); compressor.threshold.value = -30; compressor.ratio.value = 12;
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.value = -24; compressor.ratio.value = 4;
+        compressor.attack.value = 0.003; compressor.release.value = 0.25;
 
         currentNode.connect(highPass);
         highPass.connect(lowPass);
@@ -352,6 +355,7 @@ export const VoiceProvider = ({ children }) => {
         compressor.connect(destination);
 
         const analyser = audioCtx.createAnalyser();
+        analyser.smoothingTimeConstant = 0.8;
         lowPass.connect(analyser);
         startGateAnalysis(analyser, gateGain, audioCtx);
       } else {
@@ -374,22 +378,17 @@ export const VoiceProvider = ({ children }) => {
 
         const checkLoop = () => {
           if (simpleCtx.state === 'closed') return;
-
           if (inputMode === 'PUSH_TO_TALK') {
-            // ✅ PTT’de konuşma durumunu ref belirler; track enable/disable zaten PTT handler’da
             updateSpeakingStatus(isPTTPressedRef.current);
             requestAnimationFrame(checkLoop);
             return;
           }
-
           const arr = new Uint8Array(simpleAnalyser.frequencyBinCount);
           simpleAnalyser.getByteFrequencyData(arr);
           let sum = 0; for (let i = 0; i < arr.length; i++) sum += arr[i];
           updateSpeakingStatus((sum / arr.length) > 10);
-
           requestAnimationFrame(checkLoop);
         };
-
         checkLoop();
       } catch (e) {}
       return;
@@ -403,7 +402,6 @@ export const VoiceProvider = ({ children }) => {
       if (!gateGainNode || audioCtx.state === 'closed') return;
 
       if (inputMode === 'PUSH_TO_TALK') {
-        // ✅ PTT'de gate sadece "temizlik", asıl kapama track.enabled ile
         gateGainNode.gain.setTargetAtTime(isPTTPressedRef.current ? 1 : 0, audioCtx.currentTime, isPTTPressedRef.current ? 0.01 : 0.05);
         updateSpeakingStatus(isPTTPressedRef.current);
         requestAnimationFrame(checkVolume);
@@ -412,14 +410,14 @@ export const VoiceProvider = ({ children }) => {
 
       analyser.getByteFrequencyData(dataArray);
       let sum = 0; let count = 0;
-      for (let i = 10; i < 50 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
+      for (let i = 5; i < 60 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
       const average = count > 0 ? sum / count : 0;
 
       if ((average / 255) > GATE_THRESHOLD) {
-        gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.01);
+        gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.02);
         updateSpeakingStatus(true);
       } else {
-        gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+        gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
         updateSpeakingStatus(false);
       }
 
@@ -432,45 +430,11 @@ export const VoiceProvider = ({ children }) => {
   const updateSpeakingStatus = (isSpeaking) => {
     if (isSpeakingRef.current !== isSpeaking) {
       isSpeakingRef.current = isSpeaking;
-
       if (currentServerId && user) {
         const event = isSpeaking ? 'speaking-start' : 'speaking-stop';
         socketRef.current?.emit(event, { serverId: currentServerId, userId: user.id });
       }
-
       if (user) setSpeakingUsers(prev => ({ ...prev, [user.id]: isSpeaking }));
-    }
-  };
-
-  const cleanupMediaOnly = () => {
-    Object.keys(peersRef.current).forEach(id => {
-      peersRef.current[id]?.destroy();
-      audioElementsRef.current[id]?.remove();
-    });
-
-    peersRef.current = {};
-    audioElementsRef.current = {};
-    socketUserMapRef.current = {};
-
-    setPeersWithVideo({});
-    setSpeakingUsers({});
-    isSpeakingRef.current = false;
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
-      localStreamRef.current = null;
-    }
-    if (processedStreamRef.current) processedStreamRef.current = null;
-
-    if (myScreenStreamRef.current) {
-      myScreenStreamRef.current.getTracks().forEach(t => t.stop());
-      myScreenStreamRef.current = null;
-      setMyScreenStream(null);
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
     }
   };
 
@@ -485,11 +449,6 @@ export const VoiceProvider = ({ children }) => {
   const joinVoiceChannel = async (server, channel) => {
     const sId = server._id || server;
     const cId = channel._id || channel;
-
-    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-      alert("HTTPS gerekli!");
-      return;
-    }
 
     if (currentVoiceChannelId === cId) return;
 
@@ -506,38 +465,32 @@ export const VoiceProvider = ({ children }) => {
     if (channel.name) setCurrentVoiceChannelName(channel.name);
 
     try {
-      const constraints = {
-        audio: {
+      let finalConstraints = { audio: {}, video: false };
+      if (isNoiseSuppression) {
+        finalConstraints.audio = {
+          ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined
+        };
+      } else {
+        finalConstraints.audio = {
           deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-          echoCancellation: !!isNoiseSuppression,
-          noiseSuppression: !!isNoiseSuppression,
-          autoGainControl: false,
-          googEchoCancellation: true,
-          googNoiseSuppression: true,
-          googTypingNoiseDetection: true
-        },
-        video: false
-      };
-
-      if (!isNoiseSuppression) {
-        constraints.audio = { deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined };
+          echoCancellation: true,
+          autoGainControl: true
+        };
       }
 
       let rawStream;
       try {
-        rawStream = await navigator.mediaDevices.getUserMedia(constraints);
+        rawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
       } catch (e) {
         rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       }
 
       localStreamRef.current = rawStream;
-
       let streamToSend = await processAudioStream(rawStream);
       processedStreamRef.current = streamToSend;
 
-      // ✅ Burada track enable mantığı:
       if (inputMode === 'PUSH_TO_TALK') {
-        // PTT modunda ilk başta kapalı
         setLocalMicEnabled(isPTTPressedRef.current);
       } else {
         setLocalMicEnabled(true);
@@ -567,7 +520,6 @@ export const VoiceProvider = ({ children }) => {
 
   const rejoinChannel = () => {};
 
-  // Peer Oluşturma
   const createPeer = (targetSocketId, initiator, streams = [], userId = null) => {
     const p = new Peer({ initiator, trickle: false, streams, config: rtcConfig });
     p.on('signal', data => socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { targetSocketId, sdp: data, userId: user?.id }));
@@ -579,11 +531,9 @@ export const VoiceProvider = ({ children }) => {
   const handleOffer = ({ socketId, sdp, userId }) => {
     if (userId) socketUserMapRef.current[socketId] = userId;
     if (peersRef.current[socketId]) peersRef.current[socketId].destroy();
-
     const audioStream = processedStreamRef.current || localStreamRef.current;
     const screenStream = myScreenStreamRef.current;
     const streams = [audioStream, screenStream].filter(Boolean);
-
     const p = createPeer(socketId, false, streams, userId);
     p.signal(sdp);
   };
@@ -594,59 +544,45 @@ export const VoiceProvider = ({ children }) => {
   const handleUserLeft = ({ socketId }) => {
     peersRef.current[socketId]?.destroy();
     delete peersRef.current[socketId];
-
     audioElementsRef.current[socketId]?.remove();
     delete audioElementsRef.current[socketId];
-
     delete socketUserMapRef.current[socketId];
-
-    setPeersWithVideo(prev => {
-      const n = { ...prev };
-      delete n[socketId];
-      return n;
-    });
+    setPeersWithVideo(prev => { const n = { ...prev }; delete n[socketId]; return n; });
   };
 
+  // 🟢 DÜZELTME 2: YENİ GELEN SESLERİN SAĞIRLAŞTIRMA KONTROLÜ
   const handleRemoteStream = (stream, socketId, userId) => {
     if (userId) socketUserMapRef.current[socketId] = userId;
-
     if (stream.getVideoTracks().length > 0) {
       setPeersWithVideo(prev => ({ ...prev, [socketId]: stream }));
     } else {
       if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
-
       const audio = document.createElement('audio');
       audio.srcObject = stream;
       audio.autoplay = true;
       audio.style.display = 'none';
-      document.body.appendChild(audio);
 
+      // ✅ KRİTİK: Oluşturulurken Deaf durumunu kontrol et
+      audio.muted = isDeafened;
+
+      document.body.appendChild(audio);
       if (outputDeviceId && typeof audio.setSinkId === 'function') {
         audio.setSinkId(outputDeviceId).catch(() => {});
       }
-
       audioElementsRef.current[socketId] = audio;
       applyVolumeSettings();
     }
   };
 
+  // 🟢 DÜZELTME 3: DEAFEN DEĞİŞTİĞİNDE HEPSİNİ GÜNCELLE
   useEffect(() => {
     if (!audioElementsRef.current) return;
     Object.values(audioElementsRef.current).forEach((audio) => {
       if (!audio) return;
-      audio.muted = isDeafened;
+      audio.muted = isDeafened; // Anlık güncelle
       if (outputDeviceId && typeof audio.setSinkId === 'function') audio.setSinkId(outputDeviceId).catch(() => {});
     });
   }, [isDeafened, outputDeviceId, userVolumes]);
-
-  // ✅ Mevcut mute effect’ini bozma, ama PTT modunu da hesaba kat
-  useEffect(() => {
-    if (inputMode === 'PUSH_TO_TALK') {
-      setLocalMicEnabled(isPTTPressedRef.current);
-    } else {
-      setLocalMicEnabled(true);
-    }
-  }, [isMicMuted, inputMode, setLocalMicEnabled]);
 
   return (
     <VoiceContext.Provider value={{
@@ -665,8 +601,6 @@ export const VoiceProvider = ({ children }) => {
       myScreenStream,
       startScreenShare,
       stopScreenShare,
-
-      // ✅ EKLENDİ: UI göstergesi için
       isPTTPressed
     }}>
       {children}

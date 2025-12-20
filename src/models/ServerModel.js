@@ -16,6 +16,17 @@ const ServerSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  // 🟢 YENİ EKLENEN KISIM: SUNUCU ÖZELLİKLERİ
+  features: {
+    squadBuilder: {
+      type: Boolean,
+      default: true // Varsayılan olarak AÇIK gelir
+    },
+    vacationRoute: {
+      type: Boolean,
+      default: true // Varsayılan olarak AÇIK gelir
+    }
+  },
   // --- 1. DEĞİŞİKLİK ---
   // 'members' dizisi artık 'User' ID'lerini değil, 'Member' (Üyelik) ID'lerini tutacak
   members: [

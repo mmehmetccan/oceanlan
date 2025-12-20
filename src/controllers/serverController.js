@@ -318,6 +318,72 @@ const leaveServer = async (req, res) => {
   }
 };
 
+const updateServer = async (req, res) => {
+    try {
+        const { serverId } = req.params;
+        const updateData = req.body;
+        const userId = req.user.id;
+
+        // 1. Sunucuyu bul
+        const server = await Server.findById(serverId);
+        if (!server) {
+            return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
+        }
+
+        // 2. Yetki Kontrolü (Sahip mi veya Yönetici mi?)
+        // Not: Middleware kullanıyorsan orası halleder ama burada manuel kontrol ekledim güvenlik için.
+        let hasPermission = false;
+        if (server.owner.toString() === userId) {
+            hasPermission = true;
+        } else {
+            // Sahip değilse, üyenin yetkilerine bak (Member tablosundan)
+            const member = await Member.findOne({ server: serverId, user: userId }).populate('roles');
+            if (member) {
+                // Admin veya Sunucu Yönetme yetkisi var mı?
+                hasPermission = member.roles.some(role =>
+                    role.permissions.includes('ADMINISTRATOR') ||
+                    role.permissions.includes('MANAGE_SERVER')
+                );
+            }
+        }
+
+        if (!hasPermission) {
+            return res.status(403).json({ success: false, message: 'Bu sunucuyu güncelleme yetkiniz yok.' });
+        }
+
+        // 3. Sadece izin verilen alanları güncelle (Güvenlik için)
+        // Frontend'den gelen 'features' objesi burada işlenir.
+        const allowedUpdates = ['name', 'description', 'features'];
+        const actualUpdates = {};
+
+        Object.keys(updateData).forEach((key) => {
+            if (allowedUpdates.includes(key)) {
+                actualUpdates[key] = updateData[key];
+            }
+        });
+
+        // 4. Veritabanını güncelle
+        const updatedServer = await Server.findByIdAndUpdate(
+            serverId,
+            { $set: actualUpdates },
+            { new: true, runValidators: true }
+        )
+        .populate('owner', 'username email')
+        .populate('channels')
+        .populate('roles');
+
+        res.status(200).json({
+            success: true,
+            message: 'Sunucu ayarları güncellendi',
+            data: updatedServer,
+        });
+
+    } catch (error) {
+        console.error('SERVER UPDATE HATA:', error);
+        res.status(500).json({ success: false, message: 'Sunucu güncellenemedi', error: error.message });
+    }
+};
+
 module.exports = {
   createServer,
   generateInviteCode,
@@ -327,6 +393,7 @@ module.exports = {
     updateServerIcon,
   getBannedUsers,
   unbanUser,
-    leaveServer
+    leaveServer,
+    updateServer
 
 };
