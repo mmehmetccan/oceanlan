@@ -3,30 +3,37 @@ import React, { useContext, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ServerContext } from '../../context/ServerContext';
 import { AuthContext } from '../../context/AuthContext';
-import { ToastContext } from '../../context/ToastContext'; // 🟢 Toast Context Eklendi
+import { ToastContext } from '../../context/ToastContext';
 import axiosInstance from '../../utils/axiosInstance';
 import JoinServerModal from '../modals/JoinServerModal';
 import CreateServerModal from '../modals/CreateServerModal';
 import DeleteServerModal from '../../components/modals/DeleteServerModal';
 import { isElectron } from '../../utils/platformHelper.js';
-import { ArrowDownTrayIcon, FolderIcon, Cog6ToothIcon, UserIcon, PlusIcon } from '@heroicons/react/24/outline';
+
+// 🟢 DÜZELTME: 'CompassIcon' olmadığı için 'GlobeAltIcon' kullanıyoruz.
+import {
+    FolderIcon,
+    UserIcon,
+    PlusIcon,
+    TicketIcon,      // CompassIcon yerine bu eklendi (Keşfet)
+    SpeakerWaveIcon,   // Ses Ayarları
+    ComputerDesktopIcon // Masaüstü İndir
+} from '@heroicons/react/24/outline';
+
 import ServerContextMenu from '../modals/ServerContextMenu';
 import '../../styles/Sidebar.css';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 const Sidebar = ({ unreadCount }) => {
-  // 🟢 setServers ve fetchUserServers'ı context'ten çekiyoruz
   const { servers, activeServer, fetchServerDetails, createNewServer, fetchUserServers, setServers } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
-  const { addToast } = useContext(ToastContext); // 🟢 Bildirim fonksiyonu
+  const { addToast } = useContext(ToastContext);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const navigate = useNavigate();
   const [contextMenu, setContextMenu] = useState(null);
-
-  // Silinecek sunucuyu tutan state
   const [serverToDelete, setServerToDelete] = useState(null);
 
   // Drag & Drop State
@@ -43,13 +50,11 @@ const Sidebar = ({ unreadCount }) => {
     if (servers && servers.length > 0 && user) {
         const savedOrderKey = `sidebar_order_v5_${user._id}`;
         const savedOrder = localStorage.getItem(savedOrderKey);
-
         const currentItems = servers.map(s => ({ type: 'server', id: s._id, data: s }));
 
         if (savedOrder) {
             try {
                 const parsed = JSON.parse(savedOrder);
-                // Basit senkronizasyon: Kayıtlı sayı ile gerçek sayı tutmuyorsa sıfırla
                 const serverCountInStorage = parsed.reduce((acc, item) => {
                     return acc + (item.type === 'server' ? 1 : (item.children ? item.children.length : 0));
                 }, 0);
@@ -67,12 +72,10 @@ const Sidebar = ({ unreadCount }) => {
                                  const sId = typeof cId === 'object' ? cId._id : cId;
                                  return servers.find(sv => sv._id === sId);
                              }).filter(Boolean);
-
                              return foundChildren.length > 0 ? { ...item, children: foundChildren } : null;
                         }
                         return null;
                     }).filter(Boolean);
-
                     setOrderedItems(updatedOrder.length > 0 ? updatedOrder : currentItems);
                 }
             } catch (e) {
@@ -110,8 +113,7 @@ const Sidebar = ({ unreadCount }) => {
   };
 
   const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if (dragSource && dragSource.parentIndex === null && dragSource.index === index) return;
     setDragOverIndex(index);
     const rect = e.currentTarget.getBoundingClientRect();
@@ -124,11 +126,8 @@ const Sidebar = ({ unreadCount }) => {
   const handleDragLeave = () => {};
 
   const handleDrop = (e, targetIndex) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverIndex(null);
-    setDropAction(null);
-
+    e.preventDefault(); e.stopPropagation();
+    setDragOverIndex(null); setDropAction(null);
     if (!dragSource) return;
     const newItems = [...orderedItems];
     let draggedItemData = null;
@@ -159,12 +158,7 @@ const Sidebar = ({ unreadCount }) => {
                 targetItem.children.push(draggedItemData.data);
                 targetItem.isOpen = true;
             } else {
-                const newFolder = {
-                    type: 'folder',
-                    id: `folder_${Date.now()}`,
-                    isOpen: true,
-                    children: [targetItem.data, draggedItemData.data]
-                };
+                const newFolder = { type: 'folder', id: `folder_${Date.now()}`, isOpen: true, children: [targetItem.data, draggedItemData.data] };
                 newItems[targetIndex] = newFolder;
             }
         }
@@ -193,29 +187,17 @@ const Sidebar = ({ unreadCount }) => {
   const handleServerClick = (id) => navigate(`/dashboard/server/${id}`);
 
   const handleContextMenu = (e, server) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       setContextMenu({ x: e.clientX, y: e.clientY, server });
   };
 
-  // 🟢 DÜZELTİLEN: SUNUCUDAN AYRILMA (TOAST + GÜVENLİK)
   const handleLeaveServer = async (serverId) => {
       if(!window.confirm("Bu sunucudan ayrılmak istediğine emin misin?")) return;
-
       try {
           await axiosInstance.post(`/servers/${serverId}/leave`);
-
-          // 🟢 BAŞARILI BİLDİRİMİ
           addToast('Sunucudan başarıyla ayrıldınız.', 'info');
-
-          // Listeyi güncelle (Eğer context'te varsa kullan)
-          if (fetchUserServers) {
-             await fetchUserServers();
-          } else if (setServers) {
-             setServers(prev => prev.filter(s => s._id !== serverId));
-          }
-
-          // Sidebar'dan temizle
+          if (fetchUserServers) await fetchUserServers();
+          else if (setServers) setServers(prev => prev.filter(s => s._id !== serverId));
           const newItems = orderedItems.filter(item => {
              if(item.type === 'server') return item.id !== serverId;
              if(item.type === 'folder') {
@@ -225,43 +207,24 @@ const Sidebar = ({ unreadCount }) => {
              return true;
           });
           saveOrder(newItems);
-
           navigate('/dashboard/feed');
-
       } catch (err) {
-          console.error("Ayrılma hatası:", err);
-          // 🟢 HATA BİLDİRİMİ
           addToast(err.response?.data?.message || 'Ayrılırken bir hata oluştu.', 'error');
       }
   };
 
   const handleOpenDeleteModal = (server) => {
-    if (!server || !server._id) {
-        addToast("Hata: Sunucu bilgisi alınamadı.", "error");
-        return;
-    }
+    if (!server || !server._id) { addToast("Hata: Sunucu bilgisi alınamadı.", "error"); return; }
     setServerToDelete(server);
   };
 
-  // 🟢 DÜZELTİLEN: SUNUCU SİLME (TOAST + GÜVENLİK)
   const handleConfirmDelete = async () => {
-    if (!serverToDelete || !serverToDelete._id) {
-        addToast("Silinecek sunucu seçili değil.", "error");
-        return;
-    }
-
+    if (!serverToDelete || !serverToDelete._id) { addToast("Silinecek sunucu seçili değil.", "error"); return; }
     try {
         await axiosInstance.delete(`/servers/${serverToDelete._id}`);
-
-        // 🟢 BAŞARILI BİLDİRİMİ
         addToast(`"${serverToDelete.name}" sunucusu silindi.`, 'success');
-
-        if (fetchUserServers) {
-            await fetchUserServers();
-        } else if (setServers) {
-            setServers(prev => prev.filter(s => s._id !== serverToDelete._id));
-        }
-
+        if (fetchUserServers) await fetchUserServers();
+        else if (setServers) setServers(prev => prev.filter(s => s._id !== serverToDelete._id));
         const newItems = orderedItems.filter(item => {
             if (item.type === 'server') return item.id !== serverToDelete._id;
             if (item.type === 'folder') {
@@ -271,15 +234,10 @@ const Sidebar = ({ unreadCount }) => {
             return true;
         });
         saveOrder(newItems);
-
         navigate('/dashboard/feed');
         setServerToDelete(null);
-
     } catch(e) {
-        console.error("Silme hatası:", e);
-        // 🟢 HATA BİLDİRİMİ
-        const errorMsg = e.response?.data?.message || 'Sunucu silinemedi (Yetkiniz olmayabilir).';
-        addToast(errorMsg, 'error');
+        addToast(e.response?.data?.message || 'Sunucu silinemedi.', 'error');
     }
   };
 
@@ -361,18 +319,68 @@ const Sidebar = ({ unreadCount }) => {
             );
         })}
 
-        <button className="sidebar-icon" onClick={handleCreateServer} style={{color:'#3ba55c'}}><PlusIcon width={24}/></button>
-        <button className="sidebar-icon" onClick={handleJoinServer} style={{color:'#b9bbbe'}}><ArrowDownTrayIcon width={24}/></button>
+        {/* Sunucu Ekleme Butonları */}
+        <button className="sidebar-icon" onClick={handleCreateServer} style={{color:'#3ba55c'}} title="Sunucu Oluştur">
+            <PlusIcon width={24}/>
+        </button>
+
+        {/* 🟢 YENİ İKON: Arrow yerine GlobeAltIcon (Keşfet/Katıl) */}
+          <button className="sidebar-icon green-hover" onClick={handleJoinServer} title="Sunucuya Katıl">
+              <TicketIcon width={24}/>
+          </button>
       </div>
 
-      <div className="server-topbar-spacer" />
+        <div className="server-topbar-spacer"/>
 
-      <div style={{display:'flex', gap:'8px'}}>
+        {/* MASAÜSTÜ UYGULAMASI İNDİR BUTONU (METİN OLARAK) */}
         {!isApp && (
-            <a href={downloadUrl} className="sidebar-icon" title="İndir" style={{color:'#23a559'}} target="_blank"><ArrowDownTrayIcon width={20}/></a>
-        )}
-        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/audio')} title="Ses"><Cog6ToothIcon width={20}/></div>
-        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/profile')} title="Profil"><UserIcon width={20}/></div>
+        <a
+            href={downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#23a559',
+                color: 'white',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                textDecoration: 'none',
+
+                // 🟢 KONUM AYARLARI:
+                marginBottom: '15px', // Ayarların üzerine binmesin
+                marginTop: '10px',    // Yukarıdan biraz aşağı insin
+                marginRight: '12px',  // Biraz sola kaysın (Sağdan iterek)
+
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                transition: 'all 0.2s',
+                gap: '8px' // İkon ile yazı arası
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1e8e4c'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#23a559'}
+        >
+            <ComputerDesktopIcon width={20} />
+
+            {/* 🟢 METİN DÜZENİ: ALT ALTA */}
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.1', textAlign: 'left' }}>
+                <span style={{ fontSize: '9px', opacity: 0.9 }}>Masaüstü Uygulamasını</span>
+                <span style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px' }}>İNDİR</span>
+            </div>
+        </a>
+      )}
+
+      {/* ALT BUTONLAR (SES ve PROFİL) */}
+      <div style={{display:'flex', gap:'8px', justifyContent: 'center'}}>
+
+        {/* 🟢 YENİ İKON: Ses Ayarları için SpeakerWaveIcon */}
+        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/audio')} title="Ses Ayarları" style={{color: '#b9bbbe'}}>
+            <SpeakerWaveIcon width={20}/>
+        </div>
+
+        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/profile')} title="Profil" style={{color: '#b9bbbe'}}>
+            <UserIcon width={20}/>
+        </div>
       </div>
 
       {isModalOpen && <JoinServerModal onClose={() => setIsModalOpen(false)} />}
@@ -384,7 +392,6 @@ const Sidebar = ({ unreadCount }) => {
         />
       )}
 
-      {/* Silme Modalı */}
       {serverToDelete && (
         <DeleteServerModal
           serverName={serverToDelete.name}
@@ -393,7 +400,6 @@ const Sidebar = ({ unreadCount }) => {
         />
       )}
 
-      {/* Sağ Tık Menüsü */}
       {contextMenu && (
         <ServerContextMenu
           x={contextMenu.x}
@@ -402,7 +408,6 @@ const Sidebar = ({ unreadCount }) => {
           user={user}
           onClose={() => setContextMenu(null)}
           onLeave={handleLeaveServer}
-          // Delete'e basılınca Modalı Aç
           onDelete={() => handleOpenDeleteModal(contextMenu.server)}
           onSettings={(srv) => navigate(`/dashboard/server/${srv._id}/settings`)}
         />

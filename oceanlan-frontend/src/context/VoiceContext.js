@@ -14,8 +14,10 @@ const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 const GATE_OPEN_RMS = 0.020;
 const GATE_CLOSE_RMS = 0.014;  // konuşma bitince daha çabuk kısar
 const GATE_FLOOR = 0.08;     // 0.01-0.04 çok “keser”; 0.08 daha doğal
-const GATE_HOLD_MS = 140;    // konuşma biter bitmez kapamasın (kelime başı kesilmesin)
-const EXPANDER_POWER = 3.2;  // büyüdükçe uzaktan ses daha çok kısılır
+const GATE_HOLD_MS = 260;    // konuşma biter bitmez kapamasın (kelime başı kesilmesin)
+const EXPANDER_POWER = 3.0;  // büyüdükçe uzaktan ses daha çok kısılır
+const RMS_SMOOTHING = 0.88;      // ✅ 0.85-0.92 arası iyi; büyüdükçe daha stabil
+
 
 const LOW_CUT_FREQ = 150;    // süpürge/fan uğultusunu azaltır ama sesi çok inceltmez
 const HIGH_CUT_FREQ = 7000;    // 7kHz üstü kesildi (Rahatsız edici tıslama)
@@ -402,12 +404,13 @@ compressor.release.value = 0.18;
   };
 
 const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-   if (analyser && gateGainNode && audioCtx) {
+  if (analyser && gateGainNode && audioCtx) {
   analyser.fftSize = 1024;
   const timeData = new Float32Array(analyser.fftSize);
 
   let gateIsOpen = true;
   let lastOpenTime = performance.now();
+  let smoothedRms = 0; // ✅ smoothing state
 
   const checkVolume = () => {
     if (!gateGainNode || audioCtx.state === 'closed') return;
@@ -422,6 +425,7 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
     }
 
     analyser.getFloatTimeDomainData(timeData);
+
     let sumSq = 0;
     for (let i = 0; i < timeData.length; i++) {
       const v = timeData[i];
@@ -429,24 +433,34 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
     }
     const rms = Math.sqrt(sumSq / timeData.length);
 
+    // ✅ RMS smoothing (anlık düşüşler kelime ortası “cut” yapmasın)
+    smoothedRms = (RMS_SMOOTHING * smoothedRms) + ((1 - RMS_SMOOTHING) * rms);
+
     const now = performance.now();
 
-    // ✅ Hysteresis + Hold (kelime başı kesilmesin)
-    if (rms >= GATE_OPEN_RMS) {
+    // ✅ Hysteresis + Hold
+    if (smoothedRms >= GATE_OPEN_RMS) {
       gateIsOpen = true;
       lastOpenTime = now;
-    } else if (rms <= GATE_CLOSE_RMS) {
+    } else if (smoothedRms <= GATE_CLOSE_RMS) {
       if (now - lastOpenTime > GATE_HOLD_MS) gateIsOpen = false;
     }
 
-    // ✅ Downward expander: "tam kesme" yok, uzaktan gelenleri daha çok kısar
-    // rms küçükken gain hızlı düşer (EXPANDER_POWER büyüdükçe daha agresif olur)
-    const norm = Math.min(Math.max(rms / GATE_OPEN_RMS, 0), 1); // 0..1
-    const shaped = Math.pow(norm, EXPANDER_POWER);              // 0..1 (uzak sesler daha çok düşer)
-    const target = gateIsOpen ? (GATE_FLOOR + (1 - GATE_FLOOR) * shaped) : GATE_FLOOR;
+    // ✅ Downward expander
+    const norm = Math.min(Math.max(smoothedRms / GATE_OPEN_RMS, 0), 1); // 0..1
+    const shaped = Math.pow(norm, EXPANDER_POWER);                      // 0..1
 
-    // Daha doğal geçiş (kesme hissi azalır)
-    const tau = gateIsOpen ? 0.03 : 0.10;
+    let target;
+    if (gateIsOpen) {
+      // ✅ Konuşurken gain çok düşmesin (kelime ortası kesilmeyi bitirir)
+      target = GATE_FLOOR + (1 - GATE_FLOOR) * shaped;
+      target = Math.max(target, SPEECH_FLOOR);
+    } else {
+      target = GATE_FLOOR;
+    }
+
+    // Daha doğal geçiş
+    const tau = gateIsOpen ? 0.035 : 0.12;
     gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
 
     updateSpeakingStatus(gateIsOpen);
@@ -456,7 +470,6 @@ const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleM
   checkVolume();
   return;
 }
-
     if (rawStreamForSimpleMode) {
       try {
         const simpleCtx = new AudioContext();
