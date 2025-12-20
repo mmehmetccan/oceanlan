@@ -6,20 +6,17 @@ import { useSocket } from '../../hooks/useSocket';
 import { useParams } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import ScreenShareDisplay from './ScreenShareDisplay';
-// 👇 YENİ: Helper'ı import et
 import { getFullImageUrl } from '../../utils/urlHelper';
 import { ToastContext } from '../../context/ToastContext';
 
 import '../../styles/ChatArea.css'
-
-
-
 
 const ChatArea = () => {
   const { serverId, channelId } = useParams();
   const { activeServer, loading } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
+  const { addToast } = useContext(ToastContext);
 
   const [messages, setMessages] = useState([]);
   const [inputContent, setInputContent] = useState('');
@@ -29,12 +26,13 @@ const ChatArea = () => {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
-  // ------------------------------
 
   const messagesEndRef = useRef(null);
   const currentChannel = activeServer?.channels.find(c => c._id === channelId);
 
-  // --- Tarih Formatlama ---
+  // 🛠️ GÜVENLİ KULLANICI ID'Sİ (Profil güncellemelerinden etkilenmemesi için)
+  const currentUserId = user?._id || user?.id;
+
   const formatMessageDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -44,95 +42,85 @@ const ChatArea = () => {
     });
   };
 
-  const { addToast } = useContext(ToastContext);
+  const handleError = (error) => {
+    const message = error?.response?.data?.message || error?.message || 'Bir hata oluştu';
+    addToast(message, 'error');
+  };
 
-const handleError = (error) => {
-  const message =
-    error?.response?.data?.message ||
-    error?.message ||
-    'Bir hata oluştu';
-
-  addToast(message, 'error');
-};
-
-
-
-  // 1. KANALA KATILMA VE GEÇMİŞİ ÇEKME
+  // 🟢 DÜZELTME 1: Socket Bağlantı ve Oda Yönetimi (Kopmaları engeller)
   useEffect(() => {
-    if (socket && channelId && serverId) {
-      socket.emit('joinChannel', channelId);
+    if (!socket || !channelId || !serverId) return;
 
-      const fetchMessages = async () => {
-        try {
-          const res = await axiosInstance.get(`/servers/${serverId}/channels/${channelId}/messages`);
-          setMessages(res.data.data);
-        } catch (error) {
-          console.error('Mesaj geçmişi çekilemedi:', error);
-          setMessages([]);
-        }
-      };
+    const joinRoom = () => {
+        // Kanala katılma isteği gönder
+        socket.emit('joinChannel', channelId);
+    };
 
-      fetchMessages();
-    }
+    // İlk açılışta katıl
+    joinRoom();
 
-    return () => {
-      if (socket) {
-        socket.emit('leaveChannel', channelId);
+    // 🌟 Bağlantı kopup geri gelirse (reconnect) tekrar katıl!
+    // Bu sayede mesajların gelmemesi sorunu çözülür.
+    socket.on('connect', joinRoom);
+    socket.on('reconnect', joinRoom);
+
+    // Mesaj geçmişini çek
+    const fetchMessages = async () => {
+      try {
+        const res = await axiosInstance.get(`/servers/${serverId}/channels/${channelId}/messages`);
+        setMessages(res.data.data);
+      } catch (error) {
+        console.error('Mesaj geçmişi çekilemedi:', error);
+        setMessages([]);
       }
+    };
+    fetchMessages();
+
+    // Temizlik
+    return () => {
+      socket.emit('leaveChannel', channelId);
+      socket.off('connect', joinRoom);
+      socket.off('reconnect', joinRoom);
     };
   }, [socket, channelId, serverId]);
 
-  // 2. Yeni Gelen Mesajları Dinleme
+  // Yeni Mesajları Dinle
   useEffect(() => {
-    if (socket) {
-      const handleNewMessage = (message) => {
-        if (message.channel.toString() === channelId) {
-            setMessages(prevMessages => [...prevMessages, message]);
-        }
-      };
+    if (!socket) return;
 
-      socket.on('newMessage', handleNewMessage);
+    const handleNewMessage = (message) => {
+      // Sadece şu anki kanala ait mesajları ekle
+      if (message.channel === channelId || message.channel._id === channelId) {
+          setMessages(prev => [...prev, message]);
+      }
+    };
 
-      return () => {
-        if (socket) {
-          socket.off('newMessage', handleNewMessage);
-        }
-      };
-    }
+    const handleMessageDeleted = ({ messageId }) => {
+      setMessages(prev => prev.filter(m => m._id !== messageId));
+    };
+
+    socket.on('newMessage', handleNewMessage);
+    socket.on('messageDeleted', handleMessageDeleted);
+
+    return () => {
+      socket.off('newMessage', handleNewMessage);
+      socket.off('messageDeleted', handleMessageDeleted);
+    };
   }, [socket, channelId]);
 
-
-  useEffect(() => {
-  if (!socket) return;
-
-  const handleMessageDeleted = ({ messageId }) => {
-    setMessages(prev => prev.filter(m => m._id !== messageId));
-  };
-
-  socket.on('messageDeleted', handleMessageDeleted);
-  return () => socket.off('messageDeleted', handleMessageDeleted);
-}, [socket]);
-
-
-  // 3. MESAJ GÖNDERME
+  // MESAJ GÖNDERME
   const handleSendMessage = async (e) => {
     e.preventDefault();
 
     if (inputContent.trim() === '' && !file) return;
 
+    // Dosya Yükleme
     if (file) {
       setIsUploading(true);
       const formData = new FormData();
       formData.append('file', file);
-
-      // Yazı varsa onu da ekle (Yazı + Resim desteği)
-      if (inputContent.trim() !== '') {
-          formData.append('content', inputContent);
-      } else {
-          // Yazı yoksa boşluk veya varsayılan bir metin gönderebilirsin
-          // Bazı backendler content zorunlu tutabilir, kontrol et.
-          formData.append('content', '');
-      }
+      if (inputContent.trim() !== '') formData.append('content', inputContent);
+      else formData.append('content', '');
 
       try {
         await axiosInstance.post(
@@ -140,25 +128,27 @@ const handleError = (error) => {
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         );
-
-        // Başarılıysa temizle
         setInputContent('');
         setFile(null);
         setPreviewImage(null);
         if(fileInputRef.current) fileInputRef.current.value = null;
-
       } catch (error) {
-        alert(error.response?.data?.message || 'Dosya yüklenemedi');
+        handleError(error);
       } finally {
         setIsUploading(false);
       }
     }
-    // 🅱️ SADECE YAZI VARSA -> SOCKET KULLAN (Daha hızlı)
+    // Sadece Yazı
     else if (inputContent.trim() !== '') {
+      if (!currentUserId) {
+          addToast("Oturum hatası: Lütfen sayfayı yenileyin.", "error");
+          return;
+      }
+
       socket.emit('sendMessage', {
         content: inputContent,
         channelId: channelId,
-        authorId: user.id,
+        authorId: currentUserId, // 🛠️ Düzeltilmiş ID kullanılıyor
       });
       setInputContent('');
     }
@@ -178,10 +168,11 @@ const handleError = (error) => {
     return <div className="chat-area">Sunucu veya kanal yükleniyor...</div>;
   }
 
-  // 👇 GÜNCELLENEN RENDER FONKSİYONU
   const renderMessageContent = (msg) => {
-    // URL Helper kullanılarak doğru adresi al
     const fullFileUrl = getFullImageUrl(msg.fileUrl);
+
+    // 🛠️ Yazar ID kontrolü (String'e çevirerek karşılaştır)
+    const isMyMessage = String(msg.author._id) === String(currentUserId);
 
     return (
       <>
@@ -189,112 +180,72 @@ const handleError = (error) => {
           <div className="message-file-container">
             {msg.fileType === 'image' && (
               <img
-                src={fullFileUrl} // 👈 DÜZELTİLDİ
-                alt="Yüklenen resim"
+                src={fullFileUrl}
+                alt="Medya"
                 className="chat-image"
                 onClick={() => setPreviewImage(fullFileUrl)}
-                onError={(e) => {
-                    e.target.onerror = null; // Sonsuz döngüyü önle
-                    e.target.style.display = 'none'; // Resmi gizle
-                    // İstersen şununla değiştirebilirsin: e.target.src = 'https://via.placeholder.com/150?text=Silinmis';
-                }}
+                onError={(e) => { e.target.style.display = 'none'; }}
               />
             )}
             {msg.fileType === 'video' && (
               <video controls className="chat-video">
-                <source src={fullFileUrl} type={msg.fileType || 'video/mp4'} /> // 👈 DÜZELTİLDİ
-                Tarayıcınız video oynatmayı desteklemiyor.
+                <source src={fullFileUrl} type={msg.fileType || 'video/mp4'} />
               </video>
             )}
             {msg.fileType === 'other' && (
-              <a href={fullFileUrl} target="_blank" rel="noopener noreferrer"> {/* 👈 DÜZELTİLDİ */}
-                Dosyayı İndir
-              </a>
+              <a href={fullFileUrl} target="_blank" rel="noopener noreferrer">Dosyayı İndir</a>
             )}
           </div>
         )}
-        {msg.author._id === user.id && (
+
+        {/* 🟢 SİLME BUTONU: ID kontrolü sağlama alındı */}
+        {isMyMessage && (
             <button
                 className="message-delete-btn"
                 onClick={async () => {
+                  if(!window.confirm("Mesajı silmek istiyor musunuz?")) return;
                   try {
-                    await axiosInstance.delete(
-                        `/servers/${serverId}/channels/${channelId}/messages/${msg._id}`
-                    );
-
+                    await axiosInstance.delete(`/servers/${serverId}/channels/${channelId}/messages/${msg._id}`);
+                    // Socket'ten 'messageDeleted' gelince listeden silinecek,
+                    // ama anlık tepki için burada da silebiliriz:
                     setMessages(prev => prev.filter(m => m._id !== msg._id));
                     addToast('Mesaj silindi', 'success');
-
-                  } catch (error) {
-                    handleError(error);
-                  }
+                  } catch (error) { handleError(error); }
                 }}
             >
               🗑️
             </button>
         )}
-
-        {msg.content && (
-            <p className="message-content">{msg.content}</p>
-        )}
+        {msg.content && <p className="message-content">{msg.content}</p>}
       </>
     );
   };
 
   return (
       <div className="chat-area">
-        <header className="chat-header">
-          # {currentChannel.name}
-        </header>
-
-        <div className="chat-screen-share-section">
-          <ScreenShareDisplay/>
-        </div>
-
+        <header className="chat-header"># {currentChannel.name}</header>
+        <div className="chat-screen-share-section"><ScreenShareDisplay/></div>
         <div className="messages-container">
           {messages.map((msg, index) => (
               <div key={index} className="message-item">
                 <span className="message-author">{msg.author.username}</span>
-
-                {/* Tarih ve Saat */}
                 <span className="message-time" style={{fontSize: '11px', color: '#72767d', marginLeft: '6px'}}>
                     {formatMessageDate(msg.createdAt)}
                 </span>
-
-                {/* İçeriği Render Et */}
                 {renderMessageContent(msg)}
               </div>
           ))}
           <div ref={messagesEndRef}/>
         </div>
-
         {previewImage && (
             <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}>
-              <div className="image-modal">
-                <img src={previewImage} alt="Önizleme"/>
-              </div>
+              <div className="image-modal"><img src={previewImage} alt="Önizleme"/></div>
             </div>
         )}
-
         <footer className="message-input-area">
           <form onSubmit={handleSendMessage}>
-
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                style={{display: 'none'}}
-                accept="image/*,video/*"
-            />
-
-            <button
-                type="button"
-                className="attach-file-btn"
-                onClick={() => fileInputRef.current.click()}
-            >
-              📎
-            </button>
-
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display: 'none'}} accept="image/*,video/*"/>
+            <button type="button" className="attach-file-btn" onClick={() => fileInputRef.current.click()}>📎</button>
             <input
                 type="text"
                 placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
@@ -302,9 +253,7 @@ const handleError = (error) => {
                 onChange={(e) => setInputContent(e.target.value)}
                 disabled={isUploading}
             />
-            <button type="submit" disabled={!socket || isUploading}>
-              {isUploading ? '...' : 'Gönder'}
-            </button>
+            <button type="submit" disabled={!socket || isUploading}>{isUploading ? '...' : 'Gönder'}</button>
           </form>
         </footer>
       </div>

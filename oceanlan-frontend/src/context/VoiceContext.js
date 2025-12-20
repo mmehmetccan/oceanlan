@@ -10,10 +10,10 @@ export const VoiceContext = createContext();
 
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-// 🟢 GÜRÜLTÜ ENGELLEME AYARLARI
-const GATE_THRESHOLD = 0.02; // Daha hassas bir eşik
-const LOW_CUT_FREQ = 80;     // Alt frekansları kes (Uğultu)
-const HIGH_CUT_FREQ = 8000;  // Üst frekansları kes (Tıslama)
+// 🟢 İYİLEŞTİRİLMİŞ GÜRÜLTÜ ENGELLEME EŞİKLERİ
+const GATE_THRESHOLD = 0.06; // Eşik artırıldı (Nefes sesini ve dip gürültüyü keser)
+const LOW_CUT_FREQ = 120;    // 120Hz altı kesildi (Fan, motor, klima uğultusu)
+const HIGH_CUT_FREQ = 7000;  // 7kHz üstü kesildi (Rahatsız edici tıslama)
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -22,20 +22,21 @@ const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   sampleRate: 48000,
   sampleSize: 16,
   channelCount: 1,
-  // Google Chrome Gelişmiş Ayarları
+  // Chrome Özel Gelişmiş Ayarlar
   googEchoCancellation: true,
   googAutoGainControl: true,
   googNoiseSuppression: true,
   googHighpassFilter: true,
   googTypingNoiseDetection: true,
   googNoiseReduction: true,
+  googExperimentalNoiseSuppression: true
 };
 
 export const VoiceProvider = ({ children }) => {
   const socketRef = useRef(null);
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
-  const processedStreamRef = useRef(null); // İşlenmiş ses
+  const processedStreamRef = useRef(null);
   const audioElementsRef = useRef({});
   const socketUserMapRef = useRef({});
 
@@ -71,18 +72,18 @@ export const VoiceProvider = ({ children }) => {
   const [stayConnected, setStayConnected] = useState(false);
   const [peersWithVideo, setPeersWithVideo] = useState({});
 
-  // 🟢 MİKROFON AÇ/KAPA (Gain Node ve Track ile)
+  // 🟢 MİKROFON AÇ/KAPA (Gain Node + Track)
   const setLocalMicEnabled = useCallback((enabled) => {
     const shouldSendAudio = !!enabled && !isMicMuted;
 
-    // 1. Track Enable/Disable (Donanımsal durdurma gibi)
+    // 1. Track Seviyesinde (Donanımsal Tetikleme)
     const toggleTracks = (stream) => {
       if (stream) stream.getAudioTracks().forEach(t => t.enabled = shouldSendAudio);
     };
     toggleTracks(localStreamRef.current);
     toggleTracks(processedStreamRef.current);
 
-    // 2. Gain Node (Yazılımsal sessizlik - Gürültü engelleme açıkken şart)
+    // 2. Gain Node (Yazılımsal Sessizlik - Gürültü engelleme açıkken sızmayı önler)
     if (inputGainNodeRef.current && audioContextRef.current) {
         const ctx = audioContextRef.current;
         const targetVol = shouldSendAudio
@@ -96,6 +97,90 @@ export const VoiceProvider = ({ children }) => {
     if (!shouldSendAudio) updateSpeakingStatus(false);
   }, [isMicMuted, inputVolume]);
 
+  // 🟢 YENİ: AYARLAR DEĞİŞİNCE YAYINI CANLI GÜNCELLE (Kopmadan)
+  useEffect(() => {
+    if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
+
+    let isCancelled = false;
+
+    const refreshStream = async () => {
+        try {
+            const oldStream = processedStreamRef.current || localStreamRef.current;
+            const oldTrack = oldStream?.getAudioTracks()[0];
+
+            // 1. Yeni Constraints (Ayarlara Göre)
+            let finalConstraints = { audio: {}, video: false };
+            if (isNoiseSuppression) {
+                finalConstraints.audio = {
+                    ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+                    deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined
+                };
+            } else {
+                finalConstraints.audio = {
+                    deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+                    echoCancellation: true,
+                    autoGainControl: true
+                };
+            }
+
+            // 2. Yeni Stream Al
+            const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+
+            if (isCancelled) {
+                newRawStream.getTracks().forEach(t => t.stop());
+                return;
+            }
+
+            // Eski Raw Stream'i durdur
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
+            }
+            localStreamRef.current = newRawStream;
+
+            // 3. Web Audio İşlemlerini Yenile (Eski context'i kapat)
+            if (audioContextRef.current) {
+                audioContextRef.current.close().catch(() => {});
+            }
+
+            const newProcessedStream = await processAudioStream(newRawStream);
+            processedStreamRef.current = newProcessedStream;
+            const newTrack = newProcessedStream.getAudioTracks()[0];
+
+            // 4. Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
+            Object.values(peersRef.current).forEach(peer => {
+                if (peer && !peer.destroyed && oldTrack) {
+                    try {
+                        peer.replaceTrack(oldTrack, newTrack, newProcessedStream);
+                    } catch (e) {
+                        console.error("Track değişimi hatası:", e);
+                    }
+                }
+            });
+
+            // 5. Mute/PTT Durumunu Geri Yükle
+            if (inputMode === 'PUSH_TO_TALK') {
+                setLocalMicEnabled(isPTTPressedRef.current);
+            } else {
+                setLocalMicEnabled(true);
+            }
+
+            // 6. Analiz Başlat (NS kapalıysa ikon için)
+            if (!isNoiseSuppression) {
+                startGateAnalysis(null, null, null, newRawStream);
+            }
+
+        } catch (error) {
+            console.error("Stream yenileme hatası:", error);
+            addToast("Ses ayarları güncellenemedi.", "error");
+        }
+    };
+
+    refreshStream();
+
+    return () => { isCancelled = true; };
+  }, [isNoiseSuppression, inputDeviceId]);
+
+  // Mod değiştiğinde PTT ayarla
   useEffect(() => {
     if (inputMode === 'PUSH_TO_TALK') {
       setLocalMicEnabled(isPTTPressedRef.current);
@@ -104,7 +189,7 @@ export const VoiceProvider = ({ children }) => {
     }
   }, [inputMode, isPTTPressed, isMicMuted, setLocalMicEnabled]);
 
-  // ... (Socket bağlantı kodları aynen kalacak) ...
+  // ... (Socket bağlantı kodları aynen kalıyor) ...
   useEffect(() => {
     if (!token || !isAuthenticated) {
       if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; setIsConnected(false); }
@@ -149,7 +234,19 @@ export const VoiceProvider = ({ children }) => {
   };
   useEffect(() => { applyVolumeSettings(); }, [userVolumes]);
 
-  // ... (PTT Logic aynen kalacak) ...
+  useEffect(() => {
+    if (inputGainNodeRef.current && audioContextRef.current && !isMicMuted && (!inputMode || inputMode === 'VOICE_ACTIVITY' || isPTTPressedRef.current)) {
+      let gainValue = 1.0;
+      if (inputVolume === 0) gainValue = 0;
+      else if (inputVolume <= 100) gainValue = inputVolume / 100;
+      else gainValue = 1.0 + ((inputVolume - 100) / 30);
+      try {
+        inputGainNodeRef.current.gain.setTargetAtTime(gainValue, audioContextRef.current.currentTime, 0.05);
+      } catch(e){}
+    }
+  }, [inputVolume, isMicMuted, inputMode]);
+
+  // ... (PTT Logic aynen kalıyor) ...
   useEffect(() => {
     if (inputMode !== 'PUSH_TO_TALK') { isPTTPressedRef.current = false; setIsPTTPressed(false); return; }
     const isMouseBinding = (code) => typeof code === 'string' && code.startsWith('MOUSE_');
@@ -169,12 +266,41 @@ export const VoiceProvider = ({ children }) => {
     return () => { window.removeEventListener('keydown', onKeyDown, true); window.removeEventListener('keyup', onKeyUp, true); window.removeEventListener('mousedown', onMouseDown, true); window.removeEventListener('mouseup', onMouseUp, true); window.removeEventListener('blur', onBlur, true); document.removeEventListener('visibilitychange', onVisibilityChange, true); offDown && offDown(); offUp && offUp(); };
   }, [inputMode, pttKeyCode, isMicMuted, setLocalMicEnabled]);
 
-  const startScreenShare = async (electronSourceId = null) => { /* ... aynı ... */ };
-  const stopScreenShare = () => { /* ... aynı ... */ };
+  const startScreenShare = async (electronSourceId = null) => {
+    try {
+      let stream;
+      if (window.electronAPI && electronSourceId) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: electronSourceId, minWidth: 1280, maxWidth: 1920, minHeight: 720, maxHeight: 1080 } }
+        });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      }
+      setMyScreenStream(stream);
+      myScreenStreamRef.current = stream;
+      Object.values(peersRef.current).forEach(peer => {
+        try { if (peer && !peer.destroyed) peer.addStream(stream); } catch (err) {}
+      });
+      stream.getVideoTracks()[0].onended = () => stopScreenShare();
+    } catch (err) { addToast("Ekran paylaşımı başlatılamadı", "error"); }
+  };
+
+  const stopScreenShare = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('screen-share-stopped', { serverId: currentServerId, channelId: currentVoiceChannelId });
+    }
+    const stream = myScreenStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      Object.values(peersRef.current).forEach(p => { try { p.removeStream(stream); } catch(e){} });
+      setMyScreenStream(null);
+      myScreenStreamRef.current = null;
+    }
+  };
 
   const handleUserJoined = ({ socketId, userId }) => {
     if (userId) socketUserMapRef.current[userId] = userId;
-    // 🟢 DÜZELTME: Önce işlenmiş (Gürültü engellenmiş) yayını kontrol et
     const audioStream = processedStreamRef.current || localStreamRef.current;
     const screenStream = myScreenStreamRef.current;
     const streams = [audioStream, screenStream].filter(Boolean);
@@ -187,7 +313,6 @@ export const VoiceProvider = ({ children }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return rawStream;
       const audioCtx = new AudioContext();
-      // Tarayıcılar bazen context'i suspended başlatır, uyandıralım
       if (audioCtx.state === 'suspended') await audioCtx.resume();
 
       const source = audioCtx.createMediaStreamSource(rawStream);
@@ -223,7 +348,7 @@ export const VoiceProvider = ({ children }) => {
         // 4. Compressor (Ses dengeleyici)
         const compressor = audioCtx.createDynamicsCompressor();
         compressor.threshold.value = -24;
-        compressor.ratio.value = 4; // Oran
+        compressor.ratio.value = 4;
         compressor.attack.value = 0.003;
         compressor.release.value = 0.25;
 
@@ -233,10 +358,9 @@ export const VoiceProvider = ({ children }) => {
         gateGain.connect(compressor);
         compressor.connect(destination);
 
-        // Analiz
         const analyser = audioCtx.createAnalyser();
         analyser.smoothingTimeConstant = 0.8;
-        lowPass.connect(analyser); // Filtreli sesi analiz et
+        lowPass.connect(analyser); // Filtrelenmiş sesi analiz et
         startGateAnalysis(analyser, gateGain, audioCtx);
       } else {
         currentNode.connect(destination);
@@ -252,7 +376,7 @@ export const VoiceProvider = ({ children }) => {
   };
 
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-    // Noise Gate Mantığı (Gürültü Engelleme Açıksa)
+    // Noise Gate Aktif
     if (analyser && gateGainNode && audioCtx) {
         analyser.fftSize = 512;
         const bufferLength = analyser.frequencyBinCount;
@@ -271,16 +395,16 @@ export const VoiceProvider = ({ children }) => {
 
             analyser.getByteFrequencyData(dataArray);
             let sum = 0; let count = 0;
-            // İnsan sesi frekanslarına odaklan
+            // 85Hz - 3kHz arası insan sesi frekanslarına odaklan
             for (let i = 5; i < 60 && i < bufferLength; i++) { sum += dataArray[i]; count++; }
             const average = count > 0 ? sum / count : 0;
 
             if ((average / 255) > GATE_THRESHOLD) {
-                // Ses var -> Aç
+                // Konuşma var: Gate'i aç
                 gateGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.02);
                 updateSpeakingStatus(true);
             } else {
-                // Ses yok -> Kapat
+                // Konuşma bitti: Gate'i kapat (Release süresi ile yumuşakça)
                 gateGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
                 updateSpeakingStatus(false);
             }
@@ -290,7 +414,7 @@ export const VoiceProvider = ({ children }) => {
         return;
     }
 
-    // Basit Mod (Sadece konuşma ikonu için)
+    // Noise Gate Kapalı (Basit Mod - Sadece İkon İçin)
     if (rawStreamForSimpleMode) {
         try {
             const simpleCtx = new AudioContext();
@@ -348,6 +472,7 @@ export const VoiceProvider = ({ children }) => {
     if (channel.name) setCurrentVoiceChannelName(channel.name);
 
     try {
+      // Başlangıç Constraints
       let finalConstraints = { audio: {}, video: false };
       if (isNoiseSuppression) {
         finalConstraints.audio = {
@@ -370,13 +495,13 @@ export const VoiceProvider = ({ children }) => {
       }
 
       localStreamRef.current = rawStream;
-
-      // 🟢 ÖNCE SESİ İŞLE, SONRA GÖNDER
       let streamToSend = await processAudioStream(rawStream);
       processedStreamRef.current = streamToSend;
 
       if (inputMode === 'PUSH_TO_TALK') setLocalMicEnabled(isPTTPressedRef.current);
       else setLocalMicEnabled(true);
+
+      if (!isNoiseSuppression) startGateAnalysis(null, null, null, rawStream);
 
       socketRef.current.emit('join-voice-channel', {
         serverId: sId,
@@ -446,7 +571,7 @@ export const VoiceProvider = ({ children }) => {
       audio.srcObject = stream;
       audio.autoplay = true;
       audio.style.display = 'none';
-      audio.muted = isDeafened; // 🟢 Deaf kontrolü
+      audio.muted = isDeafened;
       document.body.appendChild(audio);
       if (outputDeviceId && typeof audio.setSinkId === 'function') { audio.setSinkId(outputDeviceId).catch(() => {}); }
       audioElementsRef.current[socketId] = audio;

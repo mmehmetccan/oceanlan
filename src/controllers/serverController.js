@@ -31,7 +31,13 @@ const createServer = async (req, res) => {
     const everyoneRole = await Role.create({
       name: '@everyone',
       server: newServer._id,
-      isDefault: true
+      isDefault: true,
+        permissions: [
+        'SEND_MESSAGES',   // Mesaj gönderme
+        'READ_MESSAGES',   // Mesaj okuma
+        'VOICE_SPEAK',     // Konuşma
+        'VOICE_CONNECT'    // Sesliye bağlanma
+      ]
     });
 
     // 3. Admin rolü
