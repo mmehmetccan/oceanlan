@@ -11,11 +11,11 @@ export const VoiceContext = createContext();
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
-const GATE_OPEN_RMS = 0.018;   // Gate açma eşiği (daha düşük = daha hassas)
-const GATE_CLOSE_RMS = 0.012;  // Gate kapama eşiği (hysteresis)
-const GATE_FLOOR = 0.04;       // Sessizde bile tamamen sıfırlama ("tam sessizlik" yerine çok düşük seviye)
-const LOW_CUT_FREQ = 120;      // 120Hz altı kesildi (Fan, motor, klima uğultusu)
-const HIGH_CUT_FREQ = 7000;    // 7kHz üstü kesildi (Rahatsız edici tıslama)
+const GATE_OPEN_RMS = 0.028;   // konuşmayı açmak biraz daha zorlaşır
+const GATE_CLOSE_RMS = 0.020;  // konuşma bitince daha çabuk kısar
+const GATE_FLOOR = 0.01;       // sessizde neredeyse tamamen kıs
+const LOW_CUT_FREQ = 180;      // süpürge/fan/rumble daha çok kesilir
+const HIGH_CUT_FREQ = 5500;   // 7kHz üstü kesildi (Rahatsız edici tıslama)
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -370,10 +370,10 @@ useEffect(() => {
         gateGainNodeRef.current = gateGain;
 
         const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -24;
-        compressor.ratio.value = 4;
-        compressor.attack.value = 0.003;
-        compressor.release.value = 0.25;
+        compressor.threshold.value = -30;  // daha erken devreye girer
+compressor.ratio.value = 6;        // daha güçlü sıkıştırır
+compressor.attack.value = 0.002;   // tık sesini hızlı yakalar
+compressor.release.value = 0.18;
 
         currentNode.connect(highPass);
         highPass.connect(lowPass);
