@@ -9,16 +9,22 @@ import '../../styles/FeedPage.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-const PostCard = ({ post, onPostUpdated,onPostDeleted,onDeleteClick, getAvatarUrl, handleAvatarError }) => {
+const PostCard = ({ post, onPostUpdated, onPostDeleted, onDeleteClick, getAvatarUrl, handleAvatarError }) => {
     const { user } = useContext(AuthContext);
     const [showComments, setShowComments] = useState(false);
 
-    const currentUserId = user?.id;
-    const isLiked = currentUserId ? post.likes.includes(currentUserId) : false;
-    const isDisliked = currentUserId ? post.dislikes.includes(currentUserId) : false;
-const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
-  const [confirmOpen, setConfirmOpen] = useState(false);
+    // 🛠️ DÜZELTME 1: Kullanıcı ID'sini her ihtimale karşı (id veya _id) güvenli al
+    const currentUserId = user?._id || user?.id;
 
+    // 🛠️ DÜZELTME 2: Like/Dislike kontrolünde String karşılaştırması yap
+    const isLiked = currentUserId ? post.likes.some(id => String(id) === String(currentUserId)) : false;
+    const isDisliked = currentUserId ? post.dislikes.some(id => String(id) === String(currentUserId)) : false;
+
+    // 🛠️ DÜZELTME 3: Sahiplik Kontrolünü String'e çevirerek yap (ObjectId hatasını önler)
+    const postUserId = post.user?._id || post.user;
+    const isOwner = String(postUserId) === String(currentUserId);
+
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     // 1. Profil Resmi URL'si
     const avatarRaw = post?.user?.avatarUrl || post?.user?.avatar;
@@ -26,8 +32,6 @@ const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
 
     // 2. Gönderi Medyası (Resim/Video) URL'si
     const mediaSrc = getFullImageUrl(post.mediaUrl);
-
-
 
     const handleAvatarErrorSafe = (event) => {
         if (typeof handleAvatarError === 'function') {
@@ -38,20 +42,6 @@ const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
             event.target.src = DEFAULT_AVATAR;
         }
     };
-
-
-    const handleDelete = async () => {
-        if (!window.confirm("Bu gönderiyi silmek istediğinize emin misiniz?")) return;
-        try {
-            await axiosInstance.delete(`/posts/${post._id}`);
-            // Parent component'e (FeedPage) haber ver
-            if (onPostDeleted) onPostDeleted(post._id);
-        } catch (error) {
-            console.error('Silme hatası:', error);
-            alert('Gönderi silinemedi.');
-        }
-    };
-
 
     const handleLike = async () => {
         try {
@@ -96,7 +86,7 @@ const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
                     </time>
                 </div>
 
-                {/* 👇 SİLME BUTONU (Sadece Sahibi Görür) */}
+                {/* 👇 SİLME BUTONU (Artık isOwner doğru hesaplandığı için görünecektir) */}
                 {isOwner && (
                     <button
                         onClick={onDeleteClick}
@@ -122,18 +112,17 @@ const isOwner = post.user?._id === currentUserId || post.user === currentUserId;
                 <p>{post.content}</p>
 
                 {post.mediaUrl && post.mediaType === 'image' && (
-    <img
-        src={mediaSrc}
-        alt={post.content || 'Gönderi görseli'}
-        className="post-media"
-        onError={(e) => {
-            // Resim yüklenemezse tamamen gizle
-            if (e?.target) {
-                e.target.style.display = 'none';
-            }
-        }}
-    />
-)}
+                    <img
+                        src={mediaSrc}
+                        alt={post.content || 'Gönderi görseli'}
+                        className="post-media"
+                        onError={(e) => {
+                            if (e?.target) {
+                                e.target.style.display = 'none';
+                            }
+                        }}
+                    />
+                )}
 
                 {post.mediaUrl && post.mediaType === 'video' && (
                     <video controls src={mediaSrc} className="post-media" />

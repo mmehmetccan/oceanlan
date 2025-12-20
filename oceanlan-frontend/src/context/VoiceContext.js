@@ -100,87 +100,112 @@ export const VoiceProvider = ({ children }) => {
   }, [isMicMuted, inputVolume]);
 
   // 🟢 YENİ: AYARLAR DEĞİŞİNCE YAYINI CANLI GÜNCELLE (Kopmadan)
-  useEffect(() => {
-    if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
+ // 🟢 YENİ: AYARLAR DEĞİŞİNCE YAYINI CANLI GÜNCELLE (Kopmadan)
+useEffect(() => {
+  if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
 
-    let isCancelled = false;
+  let isCancelled = false;
 
-    const refreshStream = async () => {
-      try {
-        const oldStream = processedStreamRef.current || localStreamRef.current;
-        const oldTrack = oldStream?.getAudioTracks()[0];
+  const refreshStream = async () => {
+    try {
+      // ✅ ÖNEMLİ: Eski stream/track adaylarını daha hiçbir şeyi stop etmeden yakala
+      const oldRawStream = localStreamRef.current;
+      const oldProcessedStream = processedStreamRef.current;
 
-        // 1. Yeni Constraints
-        let finalConstraints = { audio: {}, video: false };
-        if (isNoiseSuppression) {
-          finalConstraints.audio = {
-            ...AGGRESSIVE_AUDIO_CONSTRAINTS,
-            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined
-          };
-        } else {
-          finalConstraints.audio = {
-            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-            echoCancellation: true,
-            autoGainControl: true
-          };
-        }
+      const oldCandidates = [
+        { stream: oldProcessedStream, track: oldProcessedStream?.getAudioTracks?.()[0] },
+        { stream: oldRawStream, track: oldRawStream?.getAudioTracks?.()[0] },
+      ].filter(x => x?.stream && x?.track);
 
-        // 2. Yeni Stream Al
-        const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+      // 1) Yeni Constraints (Ayarlara Göre)
+      let finalConstraints = { audio: {}, video: false };
 
-        if (isCancelled) {
-          newRawStream.getTracks().forEach(t => t.stop());
-          return;
-        }
+      if (isNoiseSuppression) {
+        finalConstraints.audio = {
+          ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+        };
+      } else {
+        finalConstraints.audio = {
+          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+          echoCancellation: true,
+          autoGainControl: true,
+        };
+      }
 
-        // Eski Raw Stream'i durdur
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(t => t.stop());
-        }
-        localStreamRef.current = newRawStream;
+      // 2) Yeni Stream Al
+      const newRawStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
 
-        // 3. Web Audio İşlemlerini Yenile
-        if (audioContextRef.current) {
-          audioContextRef.current.close().catch(() => {});
-        }
+      if (isCancelled) {
+        newRawStream.getTracks().forEach(t => t.stop());
+        return;
+      }
 
-        const newProcessedStream = await processAudioStream(newRawStream);
-        processedStreamRef.current = newProcessedStream;
-        const newTrack = newProcessedStream.getAudioTracks()[0];
+      // 3) Eski WebAudio context'i kapat (yeni zinciri kuracağız)
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
 
-        // 4. Peer'lerde Track Değiştir
+      // 4) Yeni processed stream üret
+      const newProcessedStream = await processAudioStream(newRawStream);
+      const newTrack = newProcessedStream?.getAudioTracks?.()[0];
+
+      // ✅ refs'i güncelle (setLocalMicEnabled yeni ref'leri görsün)
+      localStreamRef.current = newRawStream;
+      processedStreamRef.current = newProcessedStream;
+
+      // 5) Peer'lerdeki Track'i Değiştir (Bağlantı kopmaz)
+      if (newTrack) {
         Object.values(peersRef.current).forEach(peer => {
-          if (peer && !peer.destroyed && oldTrack) {
+          if (!peer || peer.destroyed) return;
+
+          let replaced = false;
+
+          // ✅ Hem oldProcessed hem oldRaw dene
+          for (const cand of oldCandidates) {
             try {
-              peer.replaceTrack(oldTrack, newTrack, newProcessedStream);
+              // ✅ KRİTİK: 3. parametre "oldTrack’in ait olduğu stream" olmalı
+              peer.replaceTrack(cand.track, newTrack, cand.stream);
+              replaced = true;
+              break;
             } catch (e) {
-              console.error("Track değişimi hatası:", e);
+              // denemeye devam
             }
           }
+
+          // (İstersen debug için aç)
+          // if (!replaced) console.warn("replaceTrack başarısız (peer).");
         });
-
-        // 5. Mute/PTT Durumunu Geri Yükle
-        if (inputMode === 'PUSH_TO_TALK') {
-          setLocalMicEnabled(isPTTPressedRef.current);
-        } else {
-          setLocalMicEnabled(true);
-        }
-
-        // 6. Analiz Başlat (NS kapalıysa ikon için)
-        if (!isNoiseSuppression) {
-          startGateAnalysis(null, null, null, newRawStream);
-        }
-
-      } catch (error) {
-        console.error("Stream yenileme hatası:", error);
-        addToast("Ses ayarları güncellenemedi.", "error");
       }
-    };
 
-    refreshStream();
+      // 6) Eski raw stream'i durdur (artık yeni stream kullanıyoruz)
+      if (oldRawStream) {
+        oldRawStream.getTracks().forEach(t => t.stop());
+      }
 
-    return () => { isCancelled = true; };
-  }, [isNoiseSuppression, inputDeviceId, currentVoiceChannelId, isConnected]);
+      // 7) Mute/PTT Durumunu Geri Yükle
+      if (inputMode === 'PUSH_TO_TALK') {
+        setLocalMicEnabled(isPTTPressedRef.current);
+      } else {
+        setLocalMicEnabled(true);
+      }
+
+      // 8) Analiz Başlat (NS kapalıysa ikon için)
+      if (!isNoiseSuppression) {
+        startGateAnalysis(null, null, null, newRawStream);
+      }
+
+    } catch (error) {
+      console.error("Stream yenileme hatası:", error);
+      addToast("Ses ayarları güncellenemedi.", "error");
+    }
+  };
+
+  refreshStream();
+
+  return () => { isCancelled = true; };
+}, [isNoiseSuppression, inputDeviceId]);
+
 
   // Mod değiştiğinde PTT ayarla
   useEffect(() => {
