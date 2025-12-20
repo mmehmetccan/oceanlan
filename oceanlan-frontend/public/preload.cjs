@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('ptt-up', handler);
   },
 
+
+  setPTTKeyCode: (code) => ipcRenderer.send('ptt:setKeyCode', code),
+
   // Ekran Kaynakları
   getScreenSources: () => ipcRenderer.invoke('DESKTOP_CAPTURER_GET_SOURCES'),
 

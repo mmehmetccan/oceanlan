@@ -2,6 +2,7 @@
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { ServerContext } from '../../context/ServerContext';
+import { ToastContext } from '../../context/ToastContext'; // 🟢 Toast Context Eklendi
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -10,18 +11,19 @@ const API_URL = `${API_BASE}/api/v1/invites`;
 const JoinServerModal = ({ onClose }) => {
     const [inviteCode, setInviteCode] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
 
-    // 👇 fetchUserServers fonksiyonunu context'ten alıyoruz
+    // Hata state'ine gerek kalmadı, toast kullanacağız
+    // const [error, setError] = useState('');
+
     const { fetchServerDetails, fetchUserServers } = useContext(ServerContext);
+    const { addToast } = useContext(ToastContext); // 🟢 addToast çekildi
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
 
-        if (!inviteCode) {
-            setError('Lütfen bir davet kodu girin.');
+        if (!inviteCode.trim()) {
+            addToast('Lütfen geçerli bir davet kodu girin.', 'warning'); // 🟢 Uyarı Toast
             return;
         }
 
@@ -39,25 +41,29 @@ const JoinServerModal = ({ onClose }) => {
             // 1. Yeni sunucunun detaylarını çek
             await fetchServerDetails(newServerId);
 
-            // 2. 📢 KRİTİK ADIM: Sol menüdeki sunucu listesini yenile
+            // 2. Sol menüdeki sunucu listesini yenile
             if (fetchUserServers) {
                 await fetchUserServers();
             }
 
             navigate(`/dashboard/server/${newServerId}`);
-            alert(res.data.message);
+
+            // 🟢 Başarı Toast
+            addToast(res.data.message || 'Sunucuya başarıyla katıldınız!', 'success');
             onClose();
 
         } catch (err) {
             const errorMsg = err.response?.data?.message || 'Sunucuya katılım başarısız oldu.';
-            setError(errorMsg);
-
             const serverId = err.response?.data?.serverId;
-            if (serverId && errorMsg.includes('zaten üyesiniz')) {
+
+            // Eğer kullanıcı zaten üyeyse
+            if (serverId && errorMsg.toLowerCase().includes('zaten üye')) {
+                addToast('Zaten bu sunucunun üyesisiniz.', 'info'); // 🟢 Bilgi Toast
                 navigate(`/dashboard/server/${serverId}`);
                 onClose();
+            } else {
+                addToast(errorMsg, 'error'); // 🟢 Hata Toast
             }
-
         } finally {
             setLoading(false);
         }
@@ -78,7 +84,7 @@ const JoinServerModal = ({ onClose }) => {
                     <button type="submit" disabled={loading}>
                         {loading ? 'Katılıyor...' : 'Katıl'}
                     </button>
-                    {error && <p className="error-message">{error}</p>}
+                    {/* Error mesajı artık Toast ile gösterildiği için buradan kaldırıldı */}
                 </form>
                 <button className="close-button" onClick={onClose}>X</button>
             </div>

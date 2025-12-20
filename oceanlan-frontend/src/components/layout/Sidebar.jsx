@@ -9,6 +9,7 @@ import JoinServerModal from '../modals/JoinServerModal';
 import CreateServerModal from '../modals/CreateServerModal';
 import DeleteServerModal from '../../components/modals/DeleteServerModal';
 import { isElectron } from '../../utils/platformHelper.js';
+import msIcon from "../../assets/ms-icon-310x310.png"; // yolu kendi yapına göre düzelt
 
 // 🟢 DÜZELTME: 'CompassIcon' olmadığı için 'GlobeAltIcon' kullanıyoruz.
 import {
@@ -42,8 +43,23 @@ const Sidebar = ({ unreadCount }) => {
   const [dropAction, setDropAction] = useState(null);
   const [dragSource, setDragSource] = useState(null);
 
-  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+   const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
   const isApp = isElectron();
+
+  useEffect(() => {
+    if (!isApp) {
+      fetch('https://oceanlan.com/version.json')
+        .then(response => response.json())
+        .then(data => {
+          // package.json build ayarına uygun link yapısı:
+          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+          setDownloadUrl(newLink);
+        })
+        .catch(err => {
+          console.error("Sidebar versiyon kontrolü başarısız:", err);
+        });
+    }
+  }, [isApp]);
 
   // 1. Verileri Yükle ve Sıralamayı Ayarla
   useEffect(() => {
@@ -249,8 +265,12 @@ const Sidebar = ({ unreadCount }) => {
            onDrop={(e) => handleDrop(e, orderedItems.length)}
       >
         <Link to="/dashboard/feed" className="sidebar-icon" title="Ana Sayfa" style={{borderRadius: '12px'}}>
-            <img src="/ms-icon-310x310.png" alt="Home" style={{width:'24px'}} onError={e => e.target.style.display='none'} />
-            {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
+<img
+  src={msIcon}
+  alt="Home"
+  style={{width: 24}}
+  onError={(e) => (e.currentTarget.style.display = "none")}
+/> {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
         </Link>
 
         {orderedItems.map((item, index) => {

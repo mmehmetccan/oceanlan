@@ -47,9 +47,28 @@ export const AudioSettingsProvider = ({ children }) => {
     return !isNaN(parsed) ? parsed : 100;
   });
 
+
+
+
   // --------------------------------------------------
   // 🔁 pttKeyCode → pttKey (UI LABEL SENKRONU)
   // --------------------------------------------------
+
+    // ✅ GERÇEK PTT KODU
+useEffect(() => {
+  localStorage.setItem('pttKeyCode', pttKeyCode);
+}, [pttKeyCode]);
+
+// ✅ ELECTRON MAIN'E PTT KODUNU BİLDİR (GLOBAL PTT İÇİN)
+useEffect(() => {
+  try {
+    // sadece Electron'da varsa çalışır
+    window.electronAPI?.setPTTKeyCode?.(pttKeyCode);
+  } catch (e) {}
+}, [pttKeyCode]);
+
+
+
   useEffect(() => {
     if (!pttKeyCode) return;
 

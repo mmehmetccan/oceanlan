@@ -64,7 +64,7 @@ const ServerInviteModal = ({ serverId, onClose }) => {
                 <input
                   type="text"
                   readOnly
-                  value={inviteCode || 'Kod alınamadı (Konsola bak)'}
+                  value={inviteCode || 'Yetkiniz Yok!'}
                   className="invite-code-input"
                 />
                 <button
