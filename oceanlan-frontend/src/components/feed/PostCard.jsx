@@ -120,7 +120,8 @@ const PostCard = ({
               {post?.user?.username || 'Kullanıcı'}
             </strong>
             {/* 👇 LEVEL EKLENDİ */}
-            <UserLevelTag level={post?.user?.level}
+            <UserLevelTag
+              level={post?.user?.level}
               activeBadge={post?.user?.activeBadge}
             />
           </div>

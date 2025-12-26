@@ -18,14 +18,14 @@ const createServer = async (req, res) => {
     // --- EKLENEN KISIM: Resim Yolu ---
     let iconUrl = null;
     if (req.file && req.file.filename) {
-        // serverIconMiddleware dosya adını req.file.filename'e ekliyor
-        iconUrl = `/uploads/server_icons/${req.file.filename}`;
+      // serverIconMiddleware dosya adını req.file.filename'e ekliyor
+      iconUrl = `/uploads/server_icons/${req.file.filename}`;
     }
     // 1. Sunucuyu oluştur
     const newServer = await Server.create({
       name: name,
       owner: ownerId,
-        iconUrl: iconUrl // DB'ye kaydet
+      iconUrl: iconUrl // DB'ye kaydet
     });
 
     // 2. @everyone rolü
@@ -33,7 +33,7 @@ const createServer = async (req, res) => {
       name: '@everyone',
       server: newServer._id,
       isDefault: true,
-        permissions: [
+      permissions: [
         'SEND_MESSAGES',   // Mesaj gönderme
         'READ_MESSAGES',   // Mesaj okuma
         'VOICE_SPEAK',     // Konuşma
@@ -43,27 +43,27 @@ const createServer = async (req, res) => {
 
     // 3. Admin rolü
     const adminRole = await Role.create({
-        name: 'Admin',
-        server: newServer._id,
-        permissions: ['ADMINISTRATOR'],
-        color: '#F1C40F'
+      name: 'Admin',
+      server: newServer._id,
+      permissions: ['ADMINISTRATOR'],
+      color: '#F1C40F'
     });
 
     // --- HATA DÜZELTMESİ BURADA ---
     // 4. Varsayılan Kanal (created By eklendi)
     const defaultChannel = await Channel.create({
-        name: 'genel',
-        server: newServer._id,
-        type: 'text',
-         createdBy: ownerId
+      name: 'genel',
+      server: newServer._id,
+      type: 'text',
+      createdBy: ownerId
     });
     // -----------------------------
 
     // 5. Sunucu Sahibi Üyeliği
     const ownerMember = await Member.create({
-        user: ownerId,
-        server: newServer._id,
-        roles: [everyoneRole._id, adminRole._id]
+      user: ownerId,
+      server: newServer._id,
+      roles: [everyoneRole._id, adminRole._id]
     });
 
     // 6. Her şeyi ana sunucu kaydına bağla
@@ -79,8 +79,8 @@ const createServer = async (req, res) => {
       .populate('owner', 'username email')
       .populate('defaultRole')
       .populate({
-          path: 'channels',
-          select: 'name type _id maxUsers allowedRoles'
+        path: 'channels',
+        select: 'name type _id maxUsers allowedRoles'
       })
       .populate('roles')
       .populate({
@@ -98,12 +98,12 @@ const createServer = async (req, res) => {
       data: populatedServer,
     });
     try {
-        const io = req.app.get('io');
-        if (io) {
-            processGamification(req.user._id, 'CREATE_SERVER', io);
-        }
+      const io = req.app.get('io');
+      if (io) {
+        processGamification(req.user._id, 'CREATE_SERVER', io);
+      }
     } catch (gError) {
-        console.error("Gamification Hatası (Önemsiz):", gError.message);
+      console.error("Gamification Hatası (Önemsiz):", gError.message);
     }
 
   } catch (error) {
@@ -113,55 +113,55 @@ const createServer = async (req, res) => {
 };
 // 📢 YENİ: Sunucu Resmini Güncelle
 const updateServerIcon = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ success: false, message: 'Resim dosyası yok' });
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Resim dosyası yok' });
 
-        const { serverId } = req.params;
-        const iconUrl = `/uploads/server_icons/${req.file.filename}`;
+    const { serverId } = req.params;
+    const iconUrl = `/uploads/server_icons/${req.file.filename}`;
 
-        const server = await Server.findByIdAndUpdate(
-            serverId,
-            { iconUrl: iconUrl },
-            { new: true }
-        );
+    const server = await Server.findByIdAndUpdate(
+      serverId,
+      { iconUrl: iconUrl },
+      { new: true }
+    );
 
-        res.status(200).json({ success: true, message: 'Sunucu resmi güncellendi', data: server });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Resim yüklenemedi', error: error.message });
-    }
+    res.status(200).json({ success: true, message: 'Sunucu resmi güncellendi', data: server });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Resim yüklenemedi', error: error.message });
+  }
 };
 
 // 📢 YENİ: Yasaklı Kullanıcıları Listele
 const getBannedUsers = async (req, res) => {
-    try {
-        const { serverId } = req.params;
-        // Ban tablosundan bu sunucuya ait olanları bul, kullanıcı bilgilerini doldur
-        const bans = await Ban.find({ server: serverId })
-            .populate('user', 'username avatarUrl') // Yasaklı kişi
-            .populate('bannedBy', 'username');      // Yasaklayan yetkili
+  try {
+    const { serverId } = req.params;
+    // Ban tablosundan bu sunucuya ait olanları bul, kullanıcı bilgilerini doldur
+    const bans = await Ban.find({ server: serverId })
+      .populate('user', 'username avatarUrl') // Yasaklı kişi
+      .populate('bannedBy', 'username');      // Yasaklayan yetkili
 
-        res.status(200).json({ success: true, data: bans });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Liste alınamadı', error: error.message });
-    }
+    res.status(200).json({ success: true, data: bans });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Liste alınamadı', error: error.message });
+  }
 };
 
 // 📢 YENİ: Ban Kaldır (Unban)
 const unbanUser = async (req, res) => {
-    try {
-        const { serverId, userId } = req.params; // URL'den banned user ID'sini al
+  try {
+    const { serverId, userId } = req.params; // URL'den banned user ID'sini al
 
-        // Ban kaydını sil
-        const deletedBan = await Ban.findOneAndDelete({ server: serverId, user: userId });
+    // Ban kaydını sil
+    const deletedBan = await Ban.findOneAndDelete({ server: serverId, user: userId });
 
-        if (!deletedBan) {
-            return res.status(404).json({ success: false, message: 'Ban kaydı bulunamadı' });
-        }
-
-        res.status(200).json({ success: true, message: 'Kullanıcının yasağı kaldırıldı.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'İşlem başarısız', error: error.message });
+    if (!deletedBan) {
+      return res.status(404).json({ success: false, message: 'Ban kaydı bulunamadı' });
     }
+
+    res.status(200).json({ success: true, message: 'Kullanıcının yasağı kaldırıldı.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'İşlem başarısız', error: error.message });
+  }
 };
 // @desc    Sunucu detaylarını getirir
 const getServerDetails = async (req, res) => {
@@ -182,13 +182,13 @@ const getServerDetails = async (req, res) => {
         path: 'channels',
         select: 'name type'
       })
-     .populate('roles')
+      .populate('roles')
       .populate({
         path: 'members',
         populate: [
           // 🔴 ESKİSİ: { path: 'user', select: 'username email avatarUrl' },
           // 🟢 YENİSİ (Bunu Yapıştır):
-          { path: 'user', select: 'username email avatarUrl level badges' },
+          { path: 'user', select: 'username email avatarUrl level badges activeBadge' },
           { path: 'roles', select: 'name color permissions' }
         ]
       });
@@ -215,7 +215,7 @@ const getUserServers = async (req, res) => {
 
     // 👇 DÜZELTME: 'iconUrl' alanını da seçiyoruz!
     const servers = await Server.find({ _id: { $in: serverIds } })
-                                .select('name owner channels iconUrl');
+      .select('name owner channels iconUrl');
 
     res.status(200).json({
       success: true,
@@ -260,38 +260,38 @@ const generateInviteCode = async (req, res) => {
 };
 
 const deleteServer = async (req, res) => {
-    try {
-        const { serverId } = req.params;
-        const userId = req.user.id;
+  try {
+    const { serverId } = req.params;
+    const userId = req.user.id;
 
-        const server = await Server.findById(serverId);
+    const server = await Server.findById(serverId);
 
-        if (!server) {
-            return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
-        }
-
-        if (server.owner.toString() !== userId) {
-            return res.status(403).json({ success: false, message: 'Sunucuyu silme yetkiniz yok. Sadece sahip silebilir.' });
-        }
-
-        // Sunucuya ait her şeyi temizle
-        await Channel.deleteMany({ server: serverId });
-        await Role.deleteMany({ server: serverId });
-        await Member.deleteMany({ server: serverId });
-        await Ban.deleteMany({ server: serverId });
-        await Message.deleteMany({ server: serverId });
-
-        // Son olarak sunucuyu sil
-        await Server.findByIdAndDelete(serverId);
-
-        // TODO: Socket ile 'serverDeleted' emit et
-
-        res.status(200).json({ success: true, message: 'Sunucu ve tüm içeriği başarıyla silindi.' });
-
-    } catch (error) {
-        console.error("SUNUCU SİLME HATASI:", error); // Hatanın ne olduğunu logla
-        res.status(500).json({ success: false, message: 'Sunucu silinemedi', error: error.message });
+    if (!server) {
+      return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
     }
+
+    if (server.owner.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Sunucuyu silme yetkiniz yok. Sadece sahip silebilir.' });
+    }
+
+    // Sunucuya ait her şeyi temizle
+    await Channel.deleteMany({ server: serverId });
+    await Role.deleteMany({ server: serverId });
+    await Member.deleteMany({ server: serverId });
+    await Ban.deleteMany({ server: serverId });
+    await Message.deleteMany({ server: serverId });
+
+    // Son olarak sunucuyu sil
+    await Server.findByIdAndDelete(serverId);
+
+    // TODO: Socket ile 'serverDeleted' emit et
+
+    res.status(200).json({ success: true, message: 'Sunucu ve tüm içeriği başarıyla silindi.' });
+
+  } catch (error) {
+    console.error("SUNUCU SİLME HATASI:", error); // Hatanın ne olduğunu logla
+    res.status(500).json({ success: false, message: 'Sunucu silinemedi', error: error.message });
+  }
 };
 
 const leaveServer = async (req, res) => {
@@ -334,69 +334,69 @@ const leaveServer = async (req, res) => {
 };
 
 const updateServer = async (req, res) => {
-    try {
-        const { serverId } = req.params;
-        const updateData = req.body;
-        const userId = req.user.id;
+  try {
+    const { serverId } = req.params;
+    const updateData = req.body;
+    const userId = req.user.id;
 
-        // 1. Sunucuyu bul
-        const server = await Server.findById(serverId);
-        if (!server) {
-            return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
-        }
-
-        // 2. Yetki Kontrolü (Sahip mi veya Yönetici mi?)
-        // Not: Middleware kullanıyorsan orası halleder ama burada manuel kontrol ekledim güvenlik için.
-        let hasPermission = false;
-        if (server.owner.toString() === userId) {
-            hasPermission = true;
-        } else {
-            // Sahip değilse, üyenin yetkilerine bak (Member tablosundan)
-            const member = await Member.findOne({ server: serverId, user: userId }).populate('roles');
-            if (member) {
-                // Admin veya Sunucu Yönetme yetkisi var mı?
-                hasPermission = member.roles.some(role =>
-                    role.permissions.includes('ADMINISTRATOR') ||
-                    role.permissions.includes('MANAGE_SERVER')
-                );
-            }
-        }
-
-        if (!hasPermission) {
-            return res.status(403).json({ success: false, message: 'Bu sunucuyu güncelleme yetkiniz yok.' });
-        }
-
-        // 3. Sadece izin verilen alanları güncelle (Güvenlik için)
-        // Frontend'den gelen 'features' objesi burada işlenir.
-        const allowedUpdates = ['name', 'description', 'features'];
-        const actualUpdates = {};
-
-        Object.keys(updateData).forEach((key) => {
-            if (allowedUpdates.includes(key)) {
-                actualUpdates[key] = updateData[key];
-            }
-        });
-
-        // 4. Veritabanını güncelle
-        const updatedServer = await Server.findByIdAndUpdate(
-            serverId,
-            { $set: actualUpdates },
-            { new: true, runValidators: true }
-        )
-        .populate('owner', 'username email')
-        .populate('channels')
-        .populate('roles');
-
-        res.status(200).json({
-            success: true,
-            message: 'Sunucu ayarları güncellendi',
-            data: updatedServer,
-        });
-
-    } catch (error) {
-        console.error('SERVER UPDATE HATA:', error);
-        res.status(500).json({ success: false, message: 'Sunucu güncellenemedi', error: error.message });
+    // 1. Sunucuyu bul
+    const server = await Server.findById(serverId);
+    if (!server) {
+      return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
     }
+
+    // 2. Yetki Kontrolü (Sahip mi veya Yönetici mi?)
+    // Not: Middleware kullanıyorsan orası halleder ama burada manuel kontrol ekledim güvenlik için.
+    let hasPermission = false;
+    if (server.owner.toString() === userId) {
+      hasPermission = true;
+    } else {
+      // Sahip değilse, üyenin yetkilerine bak (Member tablosundan)
+      const member = await Member.findOne({ server: serverId, user: userId }).populate('roles');
+      if (member) {
+        // Admin veya Sunucu Yönetme yetkisi var mı?
+        hasPermission = member.roles.some(role =>
+          role.permissions.includes('ADMINISTRATOR') ||
+          role.permissions.includes('MANAGE_SERVER')
+        );
+      }
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({ success: false, message: 'Bu sunucuyu güncelleme yetkiniz yok.' });
+    }
+
+    // 3. Sadece izin verilen alanları güncelle (Güvenlik için)
+    // Frontend'den gelen 'features' objesi burada işlenir.
+    const allowedUpdates = ['name', 'description', 'features'];
+    const actualUpdates = {};
+
+    Object.keys(updateData).forEach((key) => {
+      if (allowedUpdates.includes(key)) {
+        actualUpdates[key] = updateData[key];
+      }
+    });
+
+    // 4. Veritabanını güncelle
+    const updatedServer = await Server.findByIdAndUpdate(
+      serverId,
+      { $set: actualUpdates },
+      { new: true, runValidators: true }
+    )
+      .populate('owner', 'username email')
+      .populate('channels')
+      .populate('roles');
+
+    res.status(200).json({
+      success: true,
+      message: 'Sunucu ayarları güncellendi',
+      data: updatedServer,
+    });
+
+  } catch (error) {
+    console.error('SERVER UPDATE HATA:', error);
+    res.status(500).json({ success: false, message: 'Sunucu güncellenemedi', error: error.message });
+  }
 };
 
 module.exports = {
@@ -405,10 +405,10 @@ module.exports = {
   getServerDetails,
   getUserServers,
   deleteServer,
-    updateServerIcon,
+  updateServerIcon,
   getBannedUsers,
   unbanUser,
-    leaveServer,
-    updateServer
+  leaveServer,
+  updateServer
 
 };

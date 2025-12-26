@@ -340,7 +340,9 @@ const FeedPage = () => {
                       {friend.username}
                     </span>
                     {/* 👇 LEVEL EKLENDİ */}
-                    <UserLevelTag level={friend.level} />
+                    <UserLevelTag level={friend.level}
+                      activeBadge={friend?.activeBadge}
+                    />
                   </div>
 
                   <span className="rail-user-status">
@@ -420,7 +422,9 @@ const FeedPage = () => {
                         {dmUser.username}
                       </span>
                       {/* 👇 LEVEL EKLENDİ */}
-                      <UserLevelTag level={dmUser.level} />
+                      <UserLevelTag level={dmUser.level}
+                        activeBadge={dmUser?.activeBadge}
+                      />
                     </div>
 
                     <span className="rail-user-status">

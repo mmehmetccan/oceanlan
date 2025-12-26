@@ -29,8 +29,8 @@ const ChatArea = () => {
   const [showProfileId, setShowProfileId] = useState(null);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState({
-      isOpen: false,
-      messageId: null
+    isOpen: false,
+    messageId: null
   });
 
   const [file, setFile] = useState(null);
@@ -103,7 +103,7 @@ const ChatArea = () => {
 
       try {
         await axiosInstance.post(`/servers/${serverId}/channels/${channelId}/file`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setInputContent(''); setFile(null); setPreviewImage(null); if(fileInputRef.current) fileInputRef.current.value = null;
+        setInputContent(''); setFile(null); setPreviewImage(null); if (fileInputRef.current) fileInputRef.current.value = null;
       } catch (error) { handleError(error); } finally { setIsUploading(false); }
     } else if (inputContent.trim() !== '') {
       if (!currentUserId) { addToast("Oturum hatası", "error"); return; }
@@ -113,10 +113,10 @@ const ChatArea = () => {
   };
 
   const handleDeleteClick = (msgId) => {
-      setDeleteConfirmation({
-          isOpen: true,
-          messageId: msgId
-      });
+    setDeleteConfirmation({
+      isOpen: true,
+      messageId: msgId
+    });
   };
 
   // 🟢 2. Modalda "Evet" denilince Silme İşlemini Yap
@@ -131,13 +131,13 @@ const ChatArea = () => {
     } catch (error) {
       handleError(error);
     } finally {
-        // Modalı Kapat
-        setDeleteConfirmation({ isOpen: false, messageId: null });
+      // Modalı Kapat
+      setDeleteConfirmation({ isOpen: false, messageId: null });
     }
   };
 
   const handleDeleteMessage = async (msgId) => {
-    if(!window.confirm("Mesajı silmek istiyor musunuz?")) return;
+    if (!window.confirm("Mesajı silmek istiyor musunuz?")) return;
     try {
       await axiosInstance.delete(`/servers/${serverId}/channels/${channelId}/messages/${msgId}`);
       setMessages(prev => prev.filter(m => m._id !== msgId));
@@ -158,7 +158,7 @@ const ChatArea = () => {
           <div className="message-file-container">
             {msg.fileType === 'image' && <img src={fullFileUrl} alt="Medya" className="chat-image" onClick={() => setPreviewImage(fullFileUrl)} onError={(e) => e.target.style.display = 'none'} />}
             {msg.fileType === 'video' && <video controls className="chat-video"><source src={fullFileUrl} type={msg.fileType || 'video/mp4'} /></video>}
-            {msg.fileType === 'other' && <a href={fullFileUrl} target="_blank" rel="noopener noreferrer" style={{color:'#00aff4'}}>Dosyayı İndir</a>}
+            {msg.fileType === 'other' && <a href={fullFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#00aff4' }}>Dosyayı İndir</a>}
           </div>
         )}
         {msg.content && <p className="message-content">{msg.content}</p>}
@@ -167,105 +167,108 @@ const ChatArea = () => {
   };
 
   return (
-      <div className="chat-area">
-        <header className="chat-header"># {currentChannel.name}</header>
-        <div className="chat-screen-share-section"><ScreenShareDisplay/></div>
+    <div className="chat-area">
+      <header className="chat-header"># {currentChannel.name}</header>
+      <div className="chat-screen-share-section"><ScreenShareDisplay /></div>
 
-        <div className="messages-container">
-          {messages.map((msg, index) => {
-              const avatarSrc = getFullImageUrl(msg.author?.avatarUrl || msg.author?.avatar);
-              const authorId = msg.author._id || msg.author.id;
-              const isMyMessage = String(authorId) === String(currentUserId);
+      <div className="messages-container">
+        {messages.map((msg, index) => {
+          const avatarSrc = getFullImageUrl(msg.author?.avatarUrl || msg.author?.avatar);
+          const authorId = msg.author._id || msg.author.id;
+          const isMyMessage = String(authorId) === String(currentUserId);
 
-              return (
-                <div key={index} className="message-item">
-                    {/* SOL: Avatar */}
-                    <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
-                        <img
-                            src={avatarSrc}
-                            alt={msg.author.username}
-                            className="message-avatar"
-                            onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
-                        />
-                    </div>
+          return (
+            <div key={index} className="message-item">
+              {/* SOL: Avatar */}
+              <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
+                <img
+                  src={avatarSrc}
+                  alt={msg.author.username}
+                  className="message-avatar"
+                  onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                />
+              </div>
 
-                    {/* SAĞ: İçerik */}
-                    <div className="message-body">
-                        <div className="message-header">
-                            <span className="message-author" onClick={() => setShowProfileId(authorId)}>
-                                {msg.author.username}
-                            </span>
-                          <UserLevelTag level={msg.author?.level} />
-                            <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
-                        </div>
-
-                        <div className="message-content-wrapper">
-                            {renderMessageContent(msg)}
-                        </div>
-                    </div>
-
-                    {/* 🟢 SİLME BUTONU (Floating Action Bar) */}
-                    {isMyMessage && (
-                        <div className="message-actions-group">
-                            <button
-                                className="message-delete-btn"
-                                title="Sil"
-                                onClick={() => handleDeleteClick(msg._id)}
-                            >
-                                <TrashIcon />
-                            </button>
-                        </div>
-                    )}
+              {/* SAĞ: İçerik */}
+              <div className="message-body">
+                <div className="message-header">
+                  <span className="message-author" onClick={() => setShowProfileId(authorId)}>
+                    {msg.author.username}
+                  </span>
+                  <UserLevelTag
+                    level={msg.author?.level}
+                    activeBadge={msg.author?.activeBadge}
+                  />
+                  <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
                 </div>
-              );
-          })}
-          <div ref={messagesEndRef}/>
-        </div>
 
-        {/* Profil Modalı */}
-        {showProfileId && (
-            <UserProfileModal
-                userId={showProfileId}
-                onClose={() => setShowProfileId(null)}
-            />
-        )}
+                <div className="message-content-wrapper">
+                  {renderMessageContent(msg)}
+                </div>
+              </div>
 
-        {previewImage && <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}><div className="image-modal"><img src={previewImage} alt="Önizleme"/></div></div>}
-
-        {/* 🟢 ONAY MODALI */}
-        <ConfirmationModal
-            isOpen={deleteConfirmation.isOpen}
-            title="Mesajı Sil"
-            message="Bu mesajı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
-            onConfirm={confirmDeleteMessage}
-            onClose={() => setDeleteConfirmation({ isOpen: false, messageId: null })}
-            isDanger={true}
-            confirmText="Sil"
-        />
-
-        {/* INPUT ALANI */}
-        <footer className="message-input-area">
-          <form onSubmit={handleSendMessage}>
-            <button type="button" className="attach-file-btn" onClick={() => fileInputRef.current.click()}>
-                <PlusCircleIcon style={{ width: 24, height: 24 }} />
-            </button>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display: 'none'}} accept="image/*,video/*"/>
-
-            <input
-                type="text"
-                placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
-                value={inputContent}
-                onChange={(e) => setInputContent(e.target.value)}
-                disabled={isUploading}
-            />
-
-            {/* 🟢 GÖNDER BUTONU */}
-            <button type="submit" className="send-message-btn" disabled={(!inputContent.trim() && !file) || isUploading}>
-                <PaperAirplaneIcon />
-            </button>
-          </form>
-        </footer>
+              {/* 🟢 SİLME BUTONU (Floating Action Bar) */}
+              {isMyMessage && (
+                <div className="message-actions-group">
+                  <button
+                    className="message-delete-btn"
+                    title="Sil"
+                    onClick={() => handleDeleteClick(msg._id)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
       </div>
+
+      {/* Profil Modalı */}
+      {showProfileId && (
+        <UserProfileModal
+          userId={showProfileId}
+          onClose={() => setShowProfileId(null)}
+        />
+      )}
+
+      {previewImage && <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}><div className="image-modal"><img src={previewImage} alt="Önizleme" /></div></div>}
+
+      {/* 🟢 ONAY MODALI */}
+      <ConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        title="Mesajı Sil"
+        message="Bu mesajı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+        onConfirm={confirmDeleteMessage}
+        onClose={() => setDeleteConfirmation({ isOpen: false, messageId: null })}
+        isDanger={true}
+        confirmText="Sil"
+      />
+
+      {/* INPUT ALANI */}
+      <footer className="message-input-area">
+        <form onSubmit={handleSendMessage}>
+          <button type="button" className="attach-file-btn" onClick={() => fileInputRef.current.click()}>
+            <PlusCircleIcon style={{ width: 24, height: 24 }} />
+          </button>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*" />
+
+          <input
+            type="text"
+            placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
+            value={inputContent}
+            onChange={(e) => setInputContent(e.target.value)}
+            disabled={isUploading}
+          />
+
+          {/* 🟢 GÖNDER BUTONU */}
+          <button type="submit" className="send-message-btn" disabled={(!inputContent.trim() && !file) || isUploading}>
+            <PaperAirplaneIcon />
+          </button>
+        </form>
+      </footer>
+    </div>
   );
 };
 

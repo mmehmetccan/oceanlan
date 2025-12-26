@@ -223,9 +223,10 @@ const FriendListItem = ({ friend, onMessage, onRemove }) => (
 
                     {/* 👇 SADECE LEVEL EKLENDİ */}
                     <UserLevelTag
-                        level={member.user?.level}
-                        activeBadge={member.user?.activeBadge}
-                    />                </div>
+                        level={friend.level}
+                        activeBadge={friend.activeBadge}
+                    />
+                </div>
                 <span
                     className="friend-status-text">{friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}</span>
             </div>
