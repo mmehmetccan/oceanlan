@@ -225,13 +225,29 @@ io.on('connection', (socket) => {
   // 🎙️ KONUŞMA GÖSTERGESİ (GLOBAL YEŞİL IŞIK)
   // -------------------------------------
   socket.on('speaking-start', ({ serverId, userId }) => {
-      // Sunucudaki HERKESE "Bu kişi konuşuyor" de
+      // 1. Konuşma başladığı anı socket üzerine kaydet
+      socket.speakingStartTime = Date.now();
+
       io.to(serverId).emit('user-speaking-change', { userId, isSpeaking: true });
   });
 
   socket.on('speaking-stop', ({ serverId, userId }) => {
-      // Sunucudaki HERKESE "Bu kişi sustu" de
       io.to(serverId).emit('user-speaking-change', { userId, isSpeaking: false });
+
+      // 2. Konuşma bittiğinde süreyi hesapla ve XP ver
+      if (socket.speakingStartTime) {
+          const durationMs = Date.now() - socket.speakingStartTime;
+          const durationSeconds = durationMs / 1000;
+
+          // En az 1 saniyelik konuşmaları ciddiye al (Mikrofon cızırtısı vb. için)
+          if (durationSeconds >= 1) {
+              // XP Motorunu Çağır (userId olarak socket.userId kullanmak daha güvenlidir)
+              processGamification(socket.userId || userId, 'VOICE_SPEAKING', io, durationSeconds);
+          }
+
+          // Süreyi sıfırla
+          delete socket.speakingStartTime;
+      }
   });
 
   // -------------------------------------
