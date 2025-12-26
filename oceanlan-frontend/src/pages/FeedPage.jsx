@@ -12,6 +12,7 @@ import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { getImageUrl } from '../utils/urlHelper';
 import UserLevelTag from '../components/gamification/UserLevelTag';
+import LevelUpModal from '../components/gamification/LevelUpModal';
 import '../styles/FeedPage.css';
 
 const getAvatarUrlWrapper = (entity) => getImageUrl(entity?.avatarUrl || entity?.avatar);
@@ -564,6 +565,7 @@ const FeedPage = () => {
         isDanger={confirmModal.isDanger}
         confirmText={confirmModal.confirmText}
       />
+      <LevelUpModal />
     </div>
   );
 };

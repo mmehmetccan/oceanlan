@@ -1,6 +1,6 @@
+// src/utils/gamificationEngine.js
 const User = require('../models/UserModel');
 
-// 🏆 ROZET TANIMLARI
 const BADGE_DEFINITIONS = {
   // --- ÖZEL ROZETLER ---
   VETERAN_2025: {
@@ -8,8 +8,8 @@ const BADGE_DEFINITIONS = {
     name: '2025 Üyesi',
     description: '2025 yılı bitmeden aramıza katıldın.',
     xpReward: 200,
-    icon: '2025badge',
-    // 2025'ten önce kayıt olanlar
+    // 🟢 DÜZELTME: Burası dosya adı değil, "ANAHTAR KELİME" olmalı
+    icon: 'veteran_2025',
     condition: async (user) => {
       const limitDate = new Date('2026-01-01');
       return user.createdAt < limitDate;
@@ -20,20 +20,16 @@ const BADGE_DEFINITIONS = {
     name: 'Öncü Kaşif',
     description: 'Sunucunun ilk 1000 üyesinden birisin.',
     xpReward: 500,
-    icon: 'friend_gold',
-    // Kendisinden önce kayıtlı kişi sayısı 1000'den azsa
+    // 🟢 DÜZELTME: Anahtar kelime
+    icon: 'early_adopter',
     condition: async (user) => {
       try {
         const count = await User.countDocuments({ createdAt: { $lt: user.createdAt } });
         return count < 1000;
-      } catch (e) {
-        console.error("Rozet kontrol hatası (Early Adopter):", e);
-        return false;
-      }
+      } catch (e) { return false; }
     }
   },
-
-  // --- SUNUCU ROZETLERİ ---
+  // --- DİĞERLERİ AYNI ---
   SERVER_CREATOR_1: {
     id: 'SERVER_CREATOR_1',
     name: 'Topluluk Kurucusu',
@@ -50,8 +46,6 @@ const BADGE_DEFINITIONS = {
     icon: 'server_gold',
     condition: async (user) => (user.stats?.createdServers || 0) >= 5
   },
-
-  // --- ARKADAŞ ROZETLERİ ---
   FRIENDLY_1: {
     id: 'FRIENDLY_1',
     name: 'Sosyal Kelebek',
@@ -70,123 +64,66 @@ const BADGE_DEFINITIONS = {
   }
 };
 
-// 📈 SEVİYE HESAPLAMA
-const calculateLevel = (totalXp) => {
-  return Math.floor(0.1 * Math.sqrt(totalXp)) + 1;
-};
+// ... (calculateLevel ve processGamification fonksiyonları AYNI KALSIN)
 
-// 🔥 ANA FONKSİYON
+const calculateLevel = (totalXp) => Math.floor(0.1 * Math.sqrt(totalXp)) + 1;
+
 const processGamification = async (userId, actionType, io, extraValue = 0) => {
+  // ... (Bu kısım önceki güvenli versiyonun aynısı olarak kalsın)
+  // Sadece üstteki BADGE_DEFINITIONS kısmını güncellemen yeterli.
   try {
-    // Kullanıcıyı bul
     const user = await User.findById(userId);
     if (!user) return;
 
-    // 🛡️ GÜVENLİK KONTROLÜ (CRITICAL FIX)
-    // Eski kullanıcılarda 'stats' veya 'badges' alanı olmayabilir.
-    // Eğer yoksa varsayılan değerlerle başlatıyoruz.
-    if (!user.stats) {
-        user.stats = {
-            createdServers: 0,
-            friendCount: 0,
-            messagesSent: 0,
-            voiceTime: 0
-        };
-    }
-    if (!user.badges) {
-        user.badges = [];
-    }
+    if (!user.stats) user.stats = { createdServers: 0, friendCount: 0, messagesSent: 0, voiceTime: 0 };
+    if (!user.badges) user.badges = [];
 
     let xpGained = 0;
     let newBadges = [];
 
-    // 1. İstatistikleri Güncelle
-    if (actionType === 'CREATE_SERVER') {
-       user.stats.createdServers = (user.stats.createdServers || 0) + 1;
-    }
-    if (actionType === 'ADD_FRIEND') {
-       user.stats.friendCount = (user.stats.friendCount || 0) + 1;
-    }
+    if (actionType === 'CREATE_SERVER') user.stats.createdServers = (user.stats.createdServers || 0) + 1;
+    if (actionType === 'ADD_FRIEND') user.stats.friendCount = (user.stats.friendCount || 0) + 1;
     if (actionType === 'SEND_MESSAGE') {
        user.stats.messagesSent = (user.stats.messagesSent || 0) + 1;
        xpGained += 0.05;
     }
     if (actionType === 'VOICE_SPEAKING') {
-       const durationSeconds = extraValue || 0;
-       const earnedVoiceXP = durationSeconds * 0.01;
-       if (earnedVoiceXP > 0) {
-           xpGained += earnedVoiceXP;
-           user.stats.voiceTime = (user.stats.voiceTime || 0) + durationSeconds;
-       }
+       const duration = extraValue || 0;
+       xpGained += duration * 0.01;
+       user.stats.voiceTime = (user.stats.voiceTime || 0) + duration;
     }
 
-    // 2. Rozetleri Kontrol Et (ASYNC FOR LOOP)
-    // forEach yerine for...of kullanmalıyız çünkü async/await beklemeli
     for (const key of Object.keys(BADGE_DEFINITIONS)) {
       const badge = BADGE_DEFINITIONS[key];
-
-      // Kullanıcının bu rozeti zaten var mı?
       const hasBadge = user.badges.some(b => b.id === badge.id);
-
       if (!hasBadge) {
           try {
-              // Condition fonksiyonunu çalıştır ve bekle
-              const isEligible = await badge.condition(user);
-
-              if (isEligible) {
-                user.badges.push({
-                  id: badge.id,
-                  name: badge.name,
-                  icon: badge.icon,
-                  earnedAt: new Date()
-                });
-
+              if (await badge.condition(user)) {
+                user.badges.push({ id: badge.id, name: badge.name, icon: badge.icon, earnedAt: new Date() });
                 xpGained += badge.xpReward;
                 newBadges.push(badge);
-                console.log(`[Gamification] Rozet Kazanıldı: ${user.username} -> ${badge.name}`);
               }
-          } catch (err) {
-              console.error(`[Gamification] Rozet kontrol hatası (${badge.id}):`, err);
-          }
+          } catch (e) { console.error(`Rozet hatası (${badge.id}):`, e); }
       }
     }
 
-    // 3. XP ve Seviye Güncelleme
     if (xpGained > 0) {
-      let newTotalXP = (user.xp || 0) + xpGained;
-      newTotalXP = Math.round(newTotalXP * 100) / 100;
-
-      user.xp = newTotalXP;
+      user.xp = Math.round(((user.xp || 0) + xpGained) * 100) / 100;
       const newLevel = calculateLevel(user.xp);
-
       if (newLevel > (user.level || 1)) {
         user.level = newLevel;
-        if (io) {
-            io.to(userId.toString()).emit('level-up', {
-                level: newLevel,
-                xp: user.xp
-            });
-        }
+        if (io) io.to(userId.toString()).emit('level-up', { level: newLevel, xp: user.xp });
       }
     }
 
-    // Tüm değişiklikleri kaydet
     await user.save();
 
-    // 🎉 YENİ ROZET VARSA BİLDİRİM GÖNDER
     if (newBadges.length > 0 && io) {
-      newBadges.forEach(badge => {
-        io.to(userId.toString()).emit('badge-earned', {
-          name: badge.name,
-          description: badge.description,
-          icon: badge.icon,
-          xp: badge.xpReward
-        });
-      });
+      newBadges.forEach(b => io.to(userId.toString()).emit('badge-earned', { name: b.name, icon: b.icon, xp: b.xpReward, description: b.description }));
     }
 
   } catch (error) {
-    console.error("[Gamification] Kritik Hata:", error);
+    console.error("[Gamification] Hata:", error);
   }
 };
 

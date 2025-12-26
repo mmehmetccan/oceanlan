@@ -16,6 +16,10 @@ const PERMISSIONS = [
   'VOICE_SPEAK',     // Sesli sohbette konuşma
   'MUTE_MEMBERS',    // Üyeleri susturma (YENİ)
   'DEAFEN_MEMBERS',  // Üyeleri sağırlaştırma (YENİ)
+        'READ_MESSAGES',     // ← EKLE
+        'VOICE_CONNECT',     // ← EKLE
+
+
 ];
 const RoleSchema = new mongoose.Schema({
   name: {
