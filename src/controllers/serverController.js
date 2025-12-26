@@ -54,7 +54,7 @@ const createServer = async (req, res) => {
     const defaultChannel = await Channel.create({
         name: 'genel',
         server: newServer._id,
-        type: 'text'
+        type: 'text',
     });
     // -----------------------------
 
@@ -96,12 +96,18 @@ const createServer = async (req, res) => {
       message: 'Sunucu, roller ve kanal başarıyla oluşturuldu',
       data: populatedServer,
     });
-    processGamification(req.user._id, 'CREATE_SERVER', req.app.get('io'));
+    try {
+        const io = req.app.get('io');
+        if (io) {
+            processGamification(req.user._id, 'CREATE_SERVER', io);
+        }
+    } catch (gError) {
+        console.error("Gamification Hatası (Önemsiz):", gError.message);
+    }
 
   } catch (error) {
-    // Hatayı logla (zaten yapıyorsunuz)
-    console.error('SERVER CREATE HATA:', error);
-    res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
+    console.error('SERVER CREATE HATA DETAYI:', error); // Terminale detaylı hata basar
+    res.status(500).json({ success: false, message: 'Sunucu oluşturulamadı', error: error.message });
   }
 };
 // 📢 YENİ: Sunucu Resmini Güncelle
