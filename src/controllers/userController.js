@@ -8,28 +8,28 @@ const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 
 const ensureGamificationData = async (user) => {
-    let changed = false;
+  let changed = false;
 
-    if (user.xp === undefined) { user.xp = 0; changed = true; }
-    if (user.level === undefined) { user.level = 1; changed = true; }
-    if (!user.badges) { user.badges = []; changed = true; }
+  if (user.xp === undefined) { user.xp = 0; changed = true; }
+  if (user.level === undefined) { user.level = 1; changed = true; }
+  if (!user.badges) { user.badges = []; changed = true; }
 
-    if (!user.stats) {
-        user.stats = { createdServers: 0, friendCount: 0, messagesSent: 0, voiceTime: 0 };
-        changed = true;
-    } else {
-        // Stats var ama içi eksikse tamamla
-        if (user.stats.createdServers === undefined) { user.stats.createdServers = 0; changed = true; }
-        if (user.stats.friendCount === undefined) { user.stats.friendCount = 0; changed = true; }
-        if (user.stats.messagesSent === undefined) { user.stats.messagesSent = 0; changed = true; }
-        if (user.stats.voiceTime === undefined) { user.stats.voiceTime = 0; changed = true; }
-    }
+  if (!user.stats) {
+    user.stats = { createdServers: 0, friendCount: 0, messagesSent: 0, voiceTime: 0 };
+    changed = true;
+  } else {
+    // Stats var ama içi eksikse tamamla
+    if (user.stats.createdServers === undefined) { user.stats.createdServers = 0; changed = true; }
+    if (user.stats.friendCount === undefined) { user.stats.friendCount = 0; changed = true; }
+    if (user.stats.messagesSent === undefined) { user.stats.messagesSent = 0; changed = true; }
+    if (user.stats.voiceTime === undefined) { user.stats.voiceTime = 0; changed = true; }
+  }
 
-    if (changed) {
-        await user.save(); // Eksik verileri veritabanına kaydet
-        console.log(`[UserRepair] Kullanıcı verileri onarıldı: ${user.username}`);
-    }
-    return user;
+  if (changed) {
+    await user.save(); // Eksik verileri veritabanına kaydet
+    console.log(`[UserRepair] Kullanıcı verileri onarıldı: ${user.username}`);
+  }
+  return user;
 };
 
 
@@ -42,7 +42,7 @@ const getMe = async (req, res) => {
     let user = await User.findById(req.user.id);
 
     if (!user) {
-        return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
     }
 
     // Eksik verileri kontrol et ve tamamla
@@ -164,11 +164,11 @@ const updateMe = async (req, res) => {
 
     // 1. Şifre Değişikliği (Aynı)
     if (newPassword) {
-       // ... (eski şifre kontrol kodların aynı kalsın)
-       if (!currentPassword) return res.status(400).json({success: false, message: 'Mevcut şifre gerekli'});
-       const isMatch = await bcrypt.compare(currentPassword, user.password);
-       if (!isMatch) return res.status(401).json({success: false, message: 'Mevcut şifre yanlış'});
-       user.password = newPassword;
+      // ... (eski şifre kontrol kodların aynı kalsın)
+      if (!currentPassword) return res.status(400).json({ success: false, message: 'Mevcut şifre gerekli' });
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) return res.status(401).json({ success: false, message: 'Mevcut şifre yanlış' });
+      user.password = newPassword;
     }
 
     // 2. Kullanıcı Adı (Direkt değişir)
@@ -235,12 +235,12 @@ const updateProfilePicture = async (req, res) => {
     user.avatarUrl = `/uploads/avatars/${req.file.filename}`;
 
     await user.save();
-const updatedUserPublicData = {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        avatarUrl: user.avatarUrl, // <-- BU ALAN KESİNLİKLE OLMALIDIR
-        // Diğer gerekli alanlar buraya eklenebilir
+    const updatedUserPublicData = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl, // <-- BU ALAN KESİNLİKLE OLMALIDIR
+      // Diğer gerekli alanlar buraya eklenebilir
     };
     res.status(200).json({
       success: true,
@@ -257,31 +257,82 @@ const updatedUserPublicData = {
 };
 
 const verifyNewEmail = async (req, res) => {
-    try {
-        const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  try {
+    const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
-        const user = await User.findOne({
-            newEmailToken: tokenHash,
-            newEmailExpire: { $gt: Date.now() }
-        });
+    const user = await User.findOne({
+      newEmailToken: tokenHash,
+      newEmailExpire: { $gt: Date.now() }
+    });
 
-        if (!user) {
-            return res.status(400).json({ success: false, message: 'Token geçersiz veya süresi dolmuş.' });
-        }
-
-        // Değişikliği uygula
-        user.email = user.newEmail; // Asıl emaili güncelle
-        user.newEmail = undefined;
-        user.newEmailToken = undefined;
-        user.newEmailExpire = undefined;
-
-        await user.save();
-
-        res.status(200).json({ success: true, message: 'E-posta adresiniz başarıyla güncellendi!' });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Token geçersiz veya süresi dolmuş.' });
     }
+
+    // Değişikliği uygula
+    user.email = user.newEmail; // Asıl emaili güncelle
+    user.newEmail = undefined;
+    user.newEmailToken = undefined;
+    user.newEmailExpire = undefined;
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'E-posta adresiniz başarıyla güncellendi!' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+const equipBadge = async (req, res) => {
+  try {
+    const { badgeId } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
+    }
+
+    // Eğer badgeId boş geldiyse (null), rozeti çıkar demektir
+    if (!badgeId) {
+      user.activeBadge = undefined; // veya null
+      await user.save();
+      return res.status(200).json({ success: true, message: 'Rozet çıkarıldı.', data: null });
+    }
+
+    // Kullanıcının bu rozete sahip olup olmadığını kontrol et
+    const badgeToEquip = user.badges.find(b => b.id === badgeId);
+
+    if (!badgeToEquip) {
+      return res.status(400).json({ success: false, message: 'Bu rozete sahip değilsiniz.' });
+    }
+
+    // Rozeti kuşan
+    user.activeBadge = {
+      id: badgeToEquip.id,
+      name: badgeToEquip.name,
+      icon: badgeToEquip.icon
+    };
+
+    await user.save();
+
+    // İSTEĞE BAĞLI: Socket ile tüm sunucuya kullanıcının güncellendiğini bildir
+    // Böylece chatte anlık olarak rozet değişir.
+    if (req.io) {
+      req.io.emit('memberUpdated', { userId: user._id });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${badgeToEquip.name} kuşanıldı!`,
+      data: user.activeBadge
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Sunucu hatası.' });
+  }
 };
 
 module.exports = {
@@ -290,4 +341,5 @@ module.exports = {
   verifyNewEmail,
   updateProfilePicture,
   getUserProfile,
+  equipBadge,
 };

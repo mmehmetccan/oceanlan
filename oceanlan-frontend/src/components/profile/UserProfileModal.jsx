@@ -98,11 +98,24 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const isRequestSent = profile?.isRequestSent ?? false;
   const userAvatarSrc = getImageUrl(user.avatarUrl || user.avatar);
 
-  const handleEquipBadge = (badge) => {
-    setEquippedBadge(badge);
-    addToast(`${badge.name} rozeti profile takıldı!`, 'success');
-    // İstersen burada backend isteği atabilirsin:
-    // axiosInstance.put('/users/equip-badge', { badgeId: badge.id });
+  const handleEquipBadge = async (badge) => { // async yap
+    try {
+      // 1. Önce görsel olarak hemen güncelle (Hızlı tepki için)
+      setEquippedBadge(badge);
+
+      // 2. Backend'e kaydet
+      await axiosInstance.put('/users/equip-badge', { badgeId: badge.id });
+
+      // 3. Bildirim ver
+      addToast(`${badge.name} rozeti profile takıldı!`, 'success');
+
+      // 4. (Opsiyonel) Eğer context kullanıyorsan global user'ı güncellemen gerekebilir
+      // dispatch({ type: 'UPDATE_USER_BADGE', payload: badge }); 
+
+    } catch (error) {
+      console.error(error);
+      addToast('Rozet takılırken hata oluştu.', 'error');
+    }
   };
 
   // XP VE LEVEL HESAPLAMASI
@@ -142,39 +155,39 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                   {/* Kuşanılan Rozet (Varsa Göster) */}
                   {equippedBadge && (
                     <div
-                        title={`${equippedBadge.name} rozeti kuşanıldı`}
-                        className="animate-bounce-in"
-                        style={{
-                            width: '28px', height: '28px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: 'rgba(0,0,0,0.3)', borderRadius: '50%',
-                            border: '1px solid gold', padding: '2px',
-                            cursor: 'help'
-                        }}
+                      title={`${equippedBadge.name} rozeti kuşanıldı`}
+                      className="animate-bounce-in"
+                      style={{
+                        width: '28px', height: '28px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(0,0,0,0.3)', borderRadius: '50%',
+                        border: '1px solid gold', padding: '2px',
+                        cursor: 'help'
+                      }}
                     >
-                        <img
-                            src={getBadgeImg(equippedBadge.icon)}
-                            alt="Badge"
-                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        />
+                      <img
+                        src={getBadgeImg(equippedBadge.icon)}
+                        alt="Badge"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
                     </div>
                   )}
                 </div>
 
                 {/* XP Barı */}
                 <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '280px', marginTop: '6px', marginBottom: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#b9bbbe', marginBottom: '2px' }}>
-                        <span>XP: {Math.floor(currentXP)}</span>
-                        <span>Sonraki: {Math.floor(xpForNextLevel)}</span>
-                    </div>
-                    <div style={{ height: '6px', background: '#202225', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{
-                            width: `${progress}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #5865F2, #00b0f4)',
-                            transition: 'width 0.5s ease'
-                        }}></div>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#b9bbbe', marginBottom: '2px' }}>
+                    <span>XP: {Math.floor(currentXP)}</span>
+                    <span>Sonraki: {Math.floor(xpForNextLevel)}</span>
+                  </div>
+                  <div style={{ height: '6px', background: '#202225', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${progress}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #5865F2, #00b0f4)',
+                      transition: 'width 0.5s ease'
+                    }}></div>
+                  </div>
                 </div>
 
                 {user.createdAt && (
@@ -185,10 +198,10 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
 
                 {/* Rozetler Listesi */}
                 {user.badges && user.badges.length > 0 && (
-                    <div className="user-profile-badges-section">
-                      {/* 🟢 DÜZELTME 3: onEquip prop'u eklendi */}
-                      <UserBadgeList badges={user.badges} onEquip={handleEquipBadge} />
-                    </div>
+                  <div className="user-profile-badges-section">
+                    {/* 🟢 DÜZELTME 3: onEquip prop'u eklendi */}
+                    <UserBadgeList badges={user.badges} onEquip={handleEquipBadge} />
+                  </div>
                 )}
 
                 {error && <div className="user-profile-error">{error}</div>}
@@ -243,10 +256,10 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
 
                       return (
                         <li
-                            key={friendId}
-                            className="friend-item clickable"
-                            onClick={() => setCurrentUserId(friendId)}
-                            title="Profili Görüntüle"
+                          key={friendId}
+                          className="friend-item clickable"
+                          onClick={() => setCurrentUserId(friendId)}
+                          title="Profili Görüntüle"
                         >
                           <div className="friend-avatar">
                             <img src={friendAvatarSrc} alt={friendName} onError={handleAvatarError} />

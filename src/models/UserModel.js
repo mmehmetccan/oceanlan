@@ -98,6 +98,12 @@ const UserSchema = new mongoose.Schema({
       earnedAt: { type: Date, default: Date.now }
     }
   ],
+  // ✅ YENİ EKLENECEK ALAN:
+  activeBadge: {
+    id: String,
+    name: String,
+    icon: String
+  },
 
   // İstatistikleri takip etmek için sayaçlar (Performans için)
   stats: {
