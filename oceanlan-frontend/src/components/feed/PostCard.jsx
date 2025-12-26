@@ -99,8 +99,8 @@ const PostCard = ({
           style={{ cursor: 'pointer' }}
           title="Profili Görüntüle"
         >
-            {/* 👇 LEVEL EKLENDİ */}
-            <UserLevelTag level={post?.user?.level}/>
+          {/* 👇 LEVEL EKLENDİ */}
+          <UserLevelTag level={post?.user?.level} />
           <img
             src={avatarSrc}
             alt={`${post?.user?.username || 'Kullanıcı'} avatarı`}
@@ -110,17 +110,19 @@ const PostCard = ({
         </div>
 
         <div className="post-author-details">
-          <div style={{display: 'flex', alignItems: 'center'}}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <strong
-                className="post-author-name"
-                onClick={openPostOwnerProfile}
-                style={{cursor: 'pointer'}}
-                title="Profili Görüntüle"
+              className="post-author-name"
+              onClick={openPostOwnerProfile}
+              style={{ cursor: 'pointer' }}
+              title="Profili Görüntüle"
             >
               {post?.user?.username || 'Kullanıcı'}
             </strong>
             {/* 👇 LEVEL EKLENDİ */}
-            <UserLevelTag level={post?.user?.level}/>
+            <UserLevelTag level={post?.user?.level}
+              activeBadge={post?.user?.activeBadge}
+            />
           </div>
 
           <time className="post-date" dateTime={post.createdAt}>
@@ -128,23 +130,23 @@ const PostCard = ({
           </time>
         </div>
         {isOwner && (
-            <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteClick?.();
-                }}
-                title="Gönderiyi Sil"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#ed4245',
-                  cursor: 'pointer',
-                  padding: '5px',
-                  borderRadius: '50%',
-                  transition: 'background 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteClick?.();
+            }}
+            title="Gönderiyi Sil"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#ed4245',
+              cursor: 'pointer',
+              padding: '5px',
+              borderRadius: '50%',
+              transition: 'background 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <TrashIcon style={{ width: '20px', height: '20px' }} />
           </button>

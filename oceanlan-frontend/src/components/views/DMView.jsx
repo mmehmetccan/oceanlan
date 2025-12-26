@@ -30,8 +30,8 @@ const DMView = () => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleString('tr-TR', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   };
 
@@ -70,7 +70,7 @@ const DMView = () => {
     fetchDmMessages();
 
     return () => {
-        if(socket) socket.emit('leaveConversation', conversationId);
+      if (socket) socket.emit('leaveConversation', conversationId);
     };
   }, [conversationId, socket, dispatch]);
 
@@ -78,11 +78,11 @@ const DMView = () => {
   useEffect(() => {
     if (!socket) return;
     const handleNewPrivateMessage = (newMessage) => {
-        if(newMessage.conversation === conversationId) {
-            setMessages((prev) => [...prev, newMessage]);
-            // Mesaj geldikçe de okundu işaretle (Eğer o ekrandaysak)
-            dispatch({ type: 'MARK_DM_AS_READ', payload: { readConversationId: conversationId } });
-        }
+      if (newMessage.conversation === conversationId) {
+        setMessages((prev) => [...prev, newMessage]);
+        // Mesaj geldikçe de okundu işaretle (Eğer o ekrandaysak)
+        dispatch({ type: 'MARK_DM_AS_READ', payload: { readConversationId: conversationId } });
+      }
     };
     socket.on('newPrivateMessage', handleNewPrivateMessage);
     return () => {
@@ -96,7 +96,7 @@ const DMView = () => {
   }, [messages]);
 
   const handleFileChange = (e) => {
-      if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+    if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
   };
 
   // 5. Mesaj Gönderme
@@ -105,42 +105,42 @@ const DMView = () => {
     if (inputContent.trim() === '' && !file) return;
 
     if (file) {
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('content', inputContent);
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('content', inputContent);
 
-        try {
-            await axiosInstance.post(`/friends/dm/${conversationId}/file`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            setInputContent('');
-            setFile(null);
-            fileInputRef.current.value = null;
-        } catch (error) {
-            alert(error.response?.data?.message || 'Dosya gönderilemedi.');
-        } finally {
-            setIsUploading(false);
-        }
+      try {
+        await axiosInstance.post(`/friends/dm/${conversationId}/file`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setInputContent('');
+        setFile(null);
+        fileInputRef.current.value = null;
+      } catch (error) {
+        alert(error.response?.data?.message || 'Dosya gönderilemedi.');
+      } finally {
+        setIsUploading(false);
+      }
     }
     else if (inputContent.trim() !== '') {
-        const userId = user.id || user._id; // ID Garantisi
-        const messageData = {
-            content: inputContent,
-            conversationId: conversationId,
-            authorId: userId,
-        };
-        socket.emit('sendPrivateMessage', messageData);
-        setInputContent('');
+      const userId = user.id || user._id; // ID Garantisi
+      const messageData = {
+        content: inputContent,
+        conversationId: conversationId,
+        authorId: userId,
+      };
+      socket.emit('sendPrivateMessage', messageData);
+      setInputContent('');
     }
   };
 
   const renderMessageContent = (msg) => {
-      const fullFileUrl = getFullImageUrl(msg.fileUrl);
+    const fullFileUrl = getFullImageUrl(msg.fileUrl);
     return (
       <>
         {msg.fileUrl && (
-          <div className="message-file-container" style={{marginBottom: '5px'}}>
+          <div className="message-file-container" style={{ marginBottom: '5px' }}>
             {msg.fileType === 'image' && (
               <img src={fullFileUrl} alt="Ek" className="chat-image" style={{ maxWidth: '300px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setPreviewImage(fullFileUrl)} />
             )}
@@ -150,7 +150,7 @@ const DMView = () => {
               </video>
             )}
             {msg.fileType === 'other' && (
-              <a href={fullFileUrl} target="_blank" rel="noopener noreferrer" style={{color: '#7289da'}}>Dosyayı İndir</a>
+              <a href={fullFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#7289da' }}>Dosyayı İndir</a>
             )}
           </div>
         )}
@@ -177,38 +177,42 @@ const DMView = () => {
 
           return (
             <div key={index} className={`dm-message ${isOwn ? 'from-me' : 'from-them'}`}>
-                <div className="dm-message-meta">
-                    <span className="dm-message-author">{msg.author?.username}</span>
+              <div className="dm-message-meta">
+                <span className="dm-message-author">{msg.author?.username}</span>
 
-                    {/* 👇 SADECE LEVEL EKLENDİ */}
-                    <UserLevelTag level={msg.author?.level}/>
+                {/* 👇 SADECE LEVEL EKLENDİ */}
+                <UserLevelTag
+                  level={msg.author?.level}
+                  activeBadge={msg.author?.activeBadge}
+                />
 
-                    <span className="dm-time" style={{marginLeft: '8px', fontSize: '11px', color: '#99aab5'}}>
-        {formatMessageDate(msg.createdAt)}
-    </span>
-                    {isOwn && <span className="dm-badge">Sen</span>}
-                </div>
-                <div className="dm-bubble">
-                    {renderMessageContent(msg)}
-                </div>
+                <span className="dm-time" style={{ marginLeft: '8px', fontSize: '11px', color: '#99aab5' }}>
+                  {formatMessageDate(msg.createdAt)}
+                </span>
+                {isOwn && <span className="dm-badge">Sen</span>}
+              </div>
+              <div className="dm-bubble">
+                {renderMessageContent(msg)}
+              </div>
             </div>
           );
         })}
-          <div ref={messagesEndRef}/>
+        <div ref={messagesEndRef} />
       </div>
 
-        {previewImage && (
-            <div className="image-modal-overlay" onClick={() => setPreviewImage(null)} style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.8)',
-                zIndex: 1000,
-                display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+      {previewImage && (
+        <div className="image-modal-overlay" onClick={() => setPreviewImage(null)} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
           <div className="image-modal">
-            <img src={previewImage} alt="Önizleme" style={{maxWidth: '90vw', maxHeight: '90vh'}} />
+            <img src={previewImage} alt="Önizleme" style={{ maxWidth: '90vw', maxHeight: '90vh' }} />
           </div>
         </div>
       )}

@@ -50,17 +50,20 @@ const CommentItem = ({ comment, getAvatarUrl, handleAvatarError, onOpenProfile }
       </div>
 
       <div className="comment-body">
-        <div style={{display: 'flex', alignItems: 'center', marginBottom: '2px'}}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
           <strong
-              className="comment-author"
-              onClick={openCommentUserProfile}
-              style={{cursor: 'pointer'}}
-              title="Profili Görüntüle"
+            className="comment-author"
+            onClick={openCommentUserProfile}
+            style={{ cursor: 'pointer' }}
+            title="Profili Görüntüle"
           >
             {commentUser.username || 'Bilinmeyen Kullanıcı'}
           </strong>
           {/* 👇 LEVEL EKLENDİ */}
-          <UserLevelTag level={commentUser.level}/>
+          <UserLevelTag
+            level={commentUser.level}
+            activeBadge={commentUser?.activeBadge}
+          />
         </div>
 
         <span className="comment-content">{comment.content}</span>
