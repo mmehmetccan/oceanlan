@@ -11,6 +11,7 @@ import { getFullImageUrl } from '../../utils/urlHelper';
 import UserProfileModal from '../profile/UserProfileModal';
 import { TrashIcon, PaperAirplaneIcon, PlusCircleIcon } from '@heroicons/react/24/outline'; // İkonları import et
 import ConfirmationModal from '../modals/ConfirmationModal'; // 🟢 Modal Import Edildi
+import UserLevelTag from '../gamification/UserLevelTag';
 import '../../styles/ChatArea.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -194,6 +195,7 @@ const ChatArea = () => {
                             <span className="message-author" onClick={() => setShowProfileId(authorId)}>
                                 {msg.author.username}
                             </span>
+                          <UserLevelTag level={msg.author?.level} />
                             <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
                         </div>
 

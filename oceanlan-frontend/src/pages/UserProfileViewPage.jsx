@@ -1,10 +1,12 @@
 // src/pages/UserProfileViewPage.jsx
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // navigate eklendi
+import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { getImageUrl } from '../utils/urlHelper';
+import UserLevelTag from '../components/gamification/UserLevelTag';
+import UserBadgeList from '../components/gamification/UserBadgeList';
 
 import '../styles/UserProfileView.css';
 
@@ -18,7 +20,7 @@ const handleAvatarError = (e) => {
 
 const UserProfileViewPage = () => {
   const { userId } = useParams();
-  const navigate = useNavigate(); // Yönlendirme için
+  const navigate = useNavigate();
   const { user: currentUser } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
 
@@ -27,8 +29,7 @@ const UserProfileViewPage = () => {
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 🟢 SAĞ TIK MENÜSÜ STATE'İ
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, targetUserId }
+  const [contextMenu, setContextMenu] = useState(null);
 
   const isSelf = currentUser && currentUser.id === userId;
 
@@ -37,7 +38,7 @@ const UserProfileViewPage = () => {
       try {
         setLoading(true);
         setError(null);
-        setContextMenu(null); // Sayfa değişince menüyü kapat
+        setContextMenu(null);
 
         const res = await axiosInstance.get(`/users/${userId}/profile`);
         setProfile(res.data);
@@ -82,10 +83,8 @@ const UserProfileViewPage = () => {
     }
   };
 
-  // 🟢 SAĞ TIK OLAĞI (Context Menu Handler)
   const handleContextMenu = (e, friendId) => {
-      e.preventDefault(); // Tarayıcı menüsünü engelle
-      // Menüyü farenin olduğu yerde aç
+      e.preventDefault();
       setContextMenu({
           x: e.pageX,
           y: e.pageY,
@@ -93,7 +92,6 @@ const UserProfileViewPage = () => {
       });
   };
 
-  // 🟢 PROFİLE GİT
   const goToProfile = () => {
       if (contextMenu && contextMenu.targetUserId) {
           navigate(`/dashboard/user/${contextMenu.targetUserId}`);
@@ -111,6 +109,19 @@ const UserProfileViewPage = () => {
   const isRequestSent = !!profile.isRequestSent;
   const profileAvatarUrl = getImageUrl(user.avatarUrl || user.avatar);
 
+  // 🟢 XP VE LEVEL HESAPLAMASI
+  const currentLevel = user.level || 1;
+  const currentXP = user.xp || 0;
+
+
+
+  // Formül: Level = 0.1 * sqrt(XP) + 1  =>  XP = ((Level - 1) / 0.1)^2
+  const xpForCurrentLevel = Math.pow((currentLevel - 1) / 0.1, 2);
+  const xpForNextLevel = Math.pow((currentLevel) / 0.1, 2);
+
+  const progressRaw = ((currentXP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100;
+  const progress = Math.min(Math.max(progressRaw, 0), 100);
+
   return (
     <div className="user-profile-page" onClick={() => setContextMenu(null)}>
       <div className="user-profile-card">
@@ -121,13 +132,43 @@ const UserProfileViewPage = () => {
             <img src={profileAvatarUrl} alt={user.username} onError={handleAvatarError} />
           </div>
           <div className="user-profile-main">
-            <div className="user-profile-name-row"><h2>{user.username}</h2></div>
-            <div className="user-profile-sub">Katılma: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '-'}</div>
-          </div>
-          {!isSelf && (
+            <div className="user-profile-name-row">
+              <h2>{user.username}</h2>
+              {/* 1. SEVİYE ETİKETİ */}
+              <UserLevelTag level={user.level}/>
+            </div>
+
+            {/* 2. XP BARI (YENİ EKLENDİ) */}
+            <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '300px', marginTop: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#b9bbbe', marginBottom: '2px' }}>
+                    <span>XP: {Math.floor(currentXP)}</span>
+                    <span>Sonraki: {Math.floor(xpForNextLevel)}</span>
+                </div>
+                <div style={{ height: '8px', background: '#202225', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                        width: `${progress}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #5865F2, #00b0f4)',
+                        transition: 'width 0.5s ease'
+                    }}></div>
+                </div>
+            </div>
+
+            <div className="user-profile-sub">
+              Katılma: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '-'}
+            </div>
+
+            {/* 3. ROZETLER */}
+            {user.badges && user.badges.length > 0 && (
+                <div className="user-profile-badges-section">
+                  <UserBadgeList badges={user.badges}/>
+                </div>
+            )}
+        </div>
+        {!isSelf && (
             <div className="user-profile-actions">
               {isFriend ? (
-                <button className="btn-secondary" onClick={handleRemoveFriend} disabled={friendRequestLoading}>Arkadaşlıktan Çıkar</button>
+                  <button className="btn-secondary" onClick={handleRemoveFriend} disabled={friendRequestLoading}>Arkadaşlıktan Çıkar</button>
               ) : isRequestSent ? (
                 <button className="btn-secondary" disabled>İstek Gönderildi</button>
               ) : (
@@ -162,13 +203,14 @@ const UserProfileViewPage = () => {
                     <li
                         key={friendId}
                         className="friend-item"
-                        // 🟢 SAĞ TIK TETİKLEYİCİSİ
                         onContextMenu={(e) => handleContextMenu(e, friendId)}
                     >
                       <div className="friend-avatar">
                         <img src={friendAvatar} alt={friendName} onError={handleAvatarError} />
                       </div>
                       <span className="friend-name">{friendName}</span>
+                      {/* Arkadaş listesinde de level görünsün istersen: */}
+                      <UserLevelTag level={friendUser.level} />
                     </li>
                   );
                 })}
@@ -178,7 +220,7 @@ const UserProfileViewPage = () => {
         </div>
       </div>
 
-      {/* 🟢 ÖZEL SAĞ TIK MENÜSÜ */}
+      {/* ÖZEL SAĞ TIK MENÜSÜ */}
       {contextMenu && (
           <div
             className="custom-context-menu"

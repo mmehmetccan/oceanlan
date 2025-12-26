@@ -11,15 +11,15 @@ export const VoiceContext = createContext();
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
-const GATE_OPEN_RMS = 0.020;
-const GATE_CLOSE_RMS = 0.014;  // konuşma bitince daha çabuk kısar
-const GATE_FLOOR = 0.08;     // 0.01-0.04 çok “keser”; 0.08 daha doğal
-const GATE_HOLD_MS = 260;    // konuşma biter bitmez kapamasın (kelime başı kesilmesin)
-const EXPANDER_POWER = 3.0;  // büyüdükçe uzaktan ses daha çok kısılır
-const RMS_SMOOTHING = 0.88;      // ✅ 0.85-0.92 arası iyi; büyüdükçe daha stabil
+const GATE_OPEN_RMS = 0.006;  // ESKİSİ: 0.020 (Artık fısıltıyı bile algılar)
+const GATE_CLOSE_RMS = 0.003; // ESKİSİ: 0.014 (Cümle sonlarını yutmaz)
+const GATE_FLOOR = 0.001;     // ESKİSİ: 0.08  (Konuşmadığında fan sesi TAMAMEN kesilir)
+const GATE_HOLD_MS = 400;     // ESKİSİ: 260   (Kesik kesik konuşmayı engeller)
+const EXPANDER_POWER = 6.0;   // Gürültüyü daha sert bastırır
+const RMS_SMOOTHING = 0.90;   // Dalgalanmayı önler
 
-const LOW_CUT_FREQ = 150;    // süpürge/fan uğultusunu azaltır ama sesi çok inceltmez
-const HIGH_CUT_FREQ = 7000;  // 7kHz üstü kesildi (Rahatsız edici tıslama)
+const LOW_CUT_FREQ = 100;     // 80-100Hz altı fan uğultusunu keser
+const HIGH_CUT_FREQ = 16000;
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -137,6 +137,7 @@ export const VoiceProvider = ({ children }) => {
             deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
             echoCancellation: true,
             autoGainControl: true,
+            noiseSuppression: false // ✅ Bunu açıkça false yaparsan tarayıcı kendi NS'ini kapatır
           };
         }
 
@@ -463,10 +464,11 @@ export const VoiceProvider = ({ children }) => {
         gateGainNodeRef.current = gateGain;
 
         const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -30;
-        compressor.ratio.value = 6;
-        compressor.attack.value = 0.002;
-        compressor.release.value = 0.18;
+       compressor.threshold.value = -24; // ESKİSİ: -30 (Çok erkenden sesi kısmasın)
+        compressor.knee.value = 30;       // Daha yumuşak geçiş
+        compressor.ratio.value = 4;       // ESKİSİ: 6 (Sesi çok ezmesin)
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.25;
 
         currentNode.connect(highPass);
         highPass.connect(lowPass);

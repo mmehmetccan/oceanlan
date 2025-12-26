@@ -7,7 +7,7 @@ const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
-  const { token, isAuthenticated } = useContext(AuthContext); // Token ve Auth durumunu al
+  const { token, isAuthenticated ,dispatch} = useContext(AuthContext); // Token ve Auth durumunu al
 
   useEffect(() => {
     // Eğer giriş yapılmamışsa veya token yoksa socket açma (veya varsa kapat)
@@ -53,6 +53,38 @@ export const SocketProvider = ({ children }) => {
       newSocket.disconnect();
     };
   }, [token, isAuthenticated]); // Token veya Auth değişince burası çalışır
+
+  useEffect(() => {
+    if (!socket) return;
+
+    // 🏆 ROZET KAZANILDIĞINDA
+    socket.on('badge-earned', (data) => {
+       // Backend'den sadece rozet bilgisi geliyor, mevcut user'a eklemeliyiz
+       // (Not: En sağlıklısı backend'in tüm user objesini dönmesidir ama manuel ekleyelim)
+       // Burada sadece Toast göstersek yeterli, veri güncellemeyi 'level-up' veya profil çekmede yaparız.
+       // Ama eğer anlık rozet ikonunu göstermek istiyorsan backend'den güncel 'badges' arrayini istemek en iyisidir.
+    });
+
+    // ⭐ LEVEL ATLADIĞINDA
+    socket.on('level-up', (data) => {
+        // data: { level: 5, xp: 1250 }
+        dispatch({
+            type: 'UPDATE_USER_STATS',
+            payload: {
+                level: data.level,
+                xp: data.xp
+            }
+        });
+    });
+
+    // Mesaj atınca gelen ufak XP güncellemeleri için (Opsiyonel)
+    // Backend'e "xp-updated" eventi eklediysen buraya yazabilirsin.
+
+    return () => {
+        socket.off('badge-earned');
+        socket.off('level-up');
+    };
+  }, [socket, dispatch]);
 
   return (
     <SocketContext.Provider value={{ socket }}>

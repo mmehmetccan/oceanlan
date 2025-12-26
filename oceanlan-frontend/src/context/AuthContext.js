@@ -62,6 +62,23 @@ const AuthReducer = (state, action) => {
         isAuthenticated: false,
       };
 
+
+      case 'UPDATE_USER_STATS':
+      const updatedUser = {
+        ...state.user,
+        xp: action.payload.xp !== undefined ? action.payload.xp : state.user.xp,
+        level: action.payload.level !== undefined ? action.payload.level : state.user.level,
+        badges: action.payload.badges ? action.payload.badges : state.user.badges
+      };
+
+      // LocalStorage'ı da güncelle ki sayfa yenilenince gitmesin
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      return {
+        ...state,
+        user: updatedUser
+      };
+
     case 'NEW_UNREAD_DM':
       const { conversationId } = action.payload;
       if (!state.unreadDmConversations.includes(conversationId)) {
@@ -71,6 +88,8 @@ const AuthReducer = (state, action) => {
         };
       }
       return state;
+
+
 
     // 💡 YENİ CASE: DM okunduğunda (Siz bir konuşma odasına katıldığınızda)
     case 'MARK_DM_AS_READ':

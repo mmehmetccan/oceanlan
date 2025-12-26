@@ -8,6 +8,10 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const hpp = require('hpp');
 
 // Modeller
 const Message = require('./models/MessageModel');
@@ -16,6 +20,8 @@ const Conversation = require('./models/ConversationModel');
 const PrivateMessage = require('./models/PrivateMessageModel');
 const Member = require('./models/MemberModel');
 const User = require('./models/UserModel');
+const { generalLimiter } = require('./middleware/rateLimiters');
+const { processGamification } = require('./utils/gamificationEngine');
 
 // Medya Sunucusu
 const nms = require('./mediaServer');
@@ -37,8 +43,14 @@ const io = new Server(server, {
 });
 
 app.set('io', io);
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cors());
+app.use(helmet());
+
+
+// 3. HTTP Parameter Pollution önleme (Aynı parametreden 2 tane gelmesini engeller)
+app.use(hpp());
 
 // =========================================================================
 // 🖼 Statik Dosyalar
@@ -60,6 +72,8 @@ app.use('/uploads/post_media', express.static(path.join(uploadsPath, 'post_media
 app.get('/api/ping', (req, res) => {
   res.status(200).json({ success: true, message: 'Pong' });
 });
+
+app.use('/api', generalLimiter);
 
 // =========================================================================
 // 📦 API Rotaları (HEPSİ KORUNDU)
@@ -391,8 +405,11 @@ io.on('connection', (socket) => {
         server: channel.server,
       });
 
-      const populated = await Message.findById(newMessage._id).populate('author', 'username avatarUrl onlineStatus');
+      const populated = await Message.findById(newMessage._id).populate('author', 'username avatarUrl onlineStatus badges level');
       io.to(data.channelId).emit('newMessage', populated);
+
+
+      processGamification(data.authorId, 'SEND_MESSAGE', io);
     } catch (e) { console.error(e); }
   });
 
@@ -419,7 +436,7 @@ io.on('connection', (socket) => {
               conversation: data.conversationId,
           });
           await Conversation.findByIdAndUpdate(data.conversationId, { lastMessageAt: Date.now() });
-          const populated = await PrivateMessage.findById(newDm._id).populate('author', 'username');
+          const populated = await PrivateMessage.findById(newDm._id).populate('author', 'username level badges');
           io.to(data.conversationId).emit('newPrivateMessage', populated);
 
           // Bildirim

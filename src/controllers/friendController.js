@@ -4,7 +4,7 @@ const User = require('../models/UserModel');
 const FriendRequest = require('../models/FriendRequestModel');
 const Conversation = require('../models/ConversationModel');
 const PrivateMessage = require('../models/PrivateMessageModel');
-
+const { processGamification } = require('../../src/utils/gamificationEngine');
 // 1. İSTEK GÖNDERME
 const sendFriendRequest = async (req, res) => {
   try {
@@ -80,12 +80,18 @@ const respondToFriendRequest = async (req, res) => {
       const io = req.app.get('io');
       if (io) {
           // Kabul eden kişinin (bizim) bilgilerimizi gönderene yolla
-          const acceptorUser = await User.findById(recipientId).select('username avatarUrl onlineStatus lastSeenAt email');
-          io.to(requesterId).emit('friendRequestAccepted', acceptorUser);
+        const acceptorUser = await User.findById(recipientId).select('username avatarUrl onlineStatus lastSeenAt email level badges');
+        io.to(requesterId).emit('friendRequestAccepted', acceptorUser);
+
+          // ✨ YENİ: İKİ TARAFA DA XP VE ROZET VER ✨
+          // 1. İsteği Kabul Eden (Biz)
+          processGamification(recipientId, 'ADD_FRIEND', io);
+          // 2. İsteği Gönderen (O)
+          processGamification(requesterId, 'ADD_FRIEND', io);
       }
 
       // Bize (kabul edene) yeni arkadaşın bilgisini dön
-      const newFriendForMe = await User.findById(requesterId).select('username avatarUrl onlineStatus lastSeenAt email');
+        const newFriendForMe = await User.findById(requesterId).select('username avatarUrl onlineStatus lastSeenAt email level badges');
       return res.status(200).json({ success: true, message: 'Kabul edildi', data: newFriendForMe });
 
     } else if (response === 'rejected') {
@@ -150,8 +156,8 @@ const getPendingRequests = async (req, res) => {
       $or: [{ recipient: userId }, { requester: userId }],
       status: 'pending',
     })
-    .populate('requester', 'username email avatarUrl onlineStatus lastSeenAt')
-    .populate('recipient', 'username email avatarUrl onlineStatus lastSeenAt');
+    .populate('requester', 'username email avatarUrl onlineStatus lastSeenAt level badges')
+.populate('recipient', 'username email avatarUrl onlineStatus lastSeenAt level badges');
 
     res.status(200).json({ success: true, count: requests.length, data: requests });
   } catch (error) { res.status(500).json({ success: false, message: 'Hata', error: error.message }); }
@@ -163,7 +169,7 @@ const getFriends = async (req, res) => {
 
     // 1. Arkadaşları çek
     const user = await User.findById(userId)
-      .populate('friends', 'username email avatar avatarUrl onlineStatus lastSeenAt');
+      .populate('friends', 'username email avatar avatarUrl onlineStatus lastSeenAt badges level');
 
     if (!user) return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
 
@@ -203,7 +209,9 @@ const getFriends = async (req, res) => {
 const getDmMessages = async (req, res) => {
     try {
         const { conversationId } = req.params;
-        const messages = await PrivateMessage.find({ conversation: conversationId }).sort('createdAt').populate('author', 'username');
+        const messages = await PrivateMessage.find({ conversation: conversationId })
+            .sort('createdAt')
+            .populate('author', 'username level badges');
         res.status(200).json({ success: true, data: messages });
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 };

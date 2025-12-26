@@ -6,6 +6,8 @@ import { AuthContext } from '../../context/AuthContext';
 import MemberContextMenu from '../modals/MemberContextMenu';
 import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
+import UserBadgeList from '../gamification/UserBadgeList';
+import UserLevelTag from '../gamification/UserLevelTag';
 
 const handleAvatarError = (e) => {
   if (e?.target?.dataset?.fallbackApplied === 'true') return;
@@ -142,13 +144,15 @@ const ServerMembersPanel = () => {
                                 </div>
 
                                 <div className="smp-info">
-                                    <span
-                                        className="smp-name"
-                                        style={{ color: isOnline ? '#fff' : '#96989d' }}
-                                    >
-                                        {member.user?.username || 'Bilinmeyen'}
-                                    </span>
-                                    {isOwner && <span className="smp-badge">👑</span>}
+                                    <div style={{display: 'flex', alignItems: 'center'}}>
+                                        <span className="smp-name" style={{color: isOnline ? '#fff' : '#96989d'}}>
+                                            {member.user?.username || 'Bilinmeyen'}
+                                        </span>
+                                        {isOwner && <span className="smp-badge">👑</span>}
+
+                                        {/* 👇 SADECE LEVEL EKLENDİ */}
+                                        <UserLevelTag level={member.user?.level}/>
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -158,15 +162,15 @@ const ServerMembersPanel = () => {
         ))}
       </div>
 
-      {contextMenu && (
-          <MemberContextMenu
-              member={contextMenu.member}
-              x={contextMenu.x}
-              y={contextMenu.y}
-              serverId={activeServer._id}
-              onClose={() => setContextMenu(null)}
-          />
-      )}
+        {contextMenu && (
+            <MemberContextMenu
+                member={contextMenu.member}
+                x={contextMenu.x}
+                y={contextMenu.y}
+                serverId={activeServer._id}
+                onClose={() => setContextMenu(null)}
+            />
+        )}
     </div>
   );
 };

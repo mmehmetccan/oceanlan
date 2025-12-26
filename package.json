@@ -18,6 +18,10 @@
     "electron-updater": "^6.6.2",
     "events": "^3.3.0",
     "express": "^5.1.0",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
     "multer": "^2.0.2",
@@ -26,7 +30,8 @@
     "sharp": "^0.34.5",
     "simple-peer": "^9.11.1",
     "socket.io": "^4.8.1",
-    "util": "^0.12.5"
+    "util": "^0.12.5",
+    "xss-clean": "^0.1.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

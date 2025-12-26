@@ -11,7 +11,9 @@ import { useServerSocket } from '../../hooks/useServerSocket';
 import { VoiceContext } from '../../context/VoiceContext';
 import ServerInviteModal from '../modals/ServerInviteModal';
 import { UserPlusIcon, Cog6ToothIcon, UsersIcon, GlobeAltIcon, MapIcon } from '@heroicons/react/24/solid';
-import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper';
+import { getImageUrl, DEFAULT_AVATAR_URL } from '../../utils/urlHelper'
+    import UserLevelTag from '../gamification/UserLevelTag';;
+import UserBadgeList from '../gamification/UserBadgeList';
 
 import '../../styles/ServerView.css';
 
@@ -233,8 +235,17 @@ const ServerView = () => {
                                                 {isSpeaking && <span className="voice-speaking-ring" />}
                                             </div>
                                             <div className="voice-user-details">
-                                                <span className={`voice-user-name ${isMuted ? 'text-muted' : ''}`}>{displayName}</span>
-                                                <div className="voice-user-tags">{isSelf && <span className="voice-user-tag">Sen</span>}{isMuted && <span className="voice-user-tag voice-user-tag-muted">Mute</span>}{isDeafened && <span className="voice-user-tag voice-user-tag-deafened">Deaf</span>}</div>
+                                                <div style={{display: 'flex', alignItems: 'center'}}>
+                                                    <span className="voice-user-name">{displayName}</span>
+
+                                                    {/* 👇 SADECE LEVEL EKLENDİ */}
+                                                    {member?.user && <UserLevelTag level={member.user.level}/>}
+                                                </div>
+                                                <div className="voice-user-tags">{isSelf &&
+                                                    <span className="voice-user-tag">Sen</span>}{isMuted && <span
+                                                    className="voice-user-tag voice-user-tag-muted">Mute</span>}{isDeafened &&
+                                                    <span
+                                                        className="voice-user-tag voice-user-tag-deafened">Deaf</span>}</div>
                                             </div>
                                         </div>
                                     );
@@ -247,7 +258,7 @@ const ServerView = () => {
           </div>
       </div>
 
-      {showInviteModal && <ServerInviteModal serverId={serverId} onClose={() => setShowInviteModal(false)} />}
+        {showInviteModal && <ServerInviteModal serverId={serverId} onClose={() => setShowInviteModal(false)} />}
       {contextMenu && <MemberContextMenu member={contextMenu.member} x={contextMenu.x} y={contextMenu.y} serverId={serverId} onClose={() => setContextMenu(null)} />}
     </div>
   );

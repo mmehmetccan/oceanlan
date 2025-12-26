@@ -135,8 +135,13 @@ const getChannelMessages = async (req, res) => {
     const { channelId } = req.params;
 
     const messages = await Message.find({ channel: channelId })
-      .sort('createdAt')
-      .populate('author', 'username');
+      .populate({
+        path: 'author',
+        // 🔴 ESKİSİ: select: 'username avatarUrl onlineStatus'
+        // 🟢 YENİSİ (Bunu Yapıştır):
+        select: 'username avatarUrl onlineStatus level badges'
+      })
+      .sort({ createdAt: 1 });
 
     res.status(200).json({
       success: true,

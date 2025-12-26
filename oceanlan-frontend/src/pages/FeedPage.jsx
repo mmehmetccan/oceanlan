@@ -11,7 +11,7 @@ import { useSocket } from '../hooks/useSocket';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
 import { getImageUrl } from '../utils/urlHelper';
-
+import UserLevelTag from '../components/gamification/UserLevelTag';
 import '../styles/FeedPage.css';
 
 const getAvatarUrlWrapper = (entity) => getImageUrl(entity?.avatarUrl || entity?.avatar);
@@ -237,6 +237,7 @@ const FeedPage = () => {
     return friends
       .filter(f => f?._id && String(f._id) !== String(currentUserId))
       .map(f => ({ ...f, avatar: getImageUrl(f.avatarUrl || f.avatar) }))
+        .sort((a, b) => (b.level || 0) - (a.level || 0))
       .slice(0, 7);
   }, [friends, currentUserId]);
 
@@ -311,46 +312,53 @@ const FeedPage = () => {
 
           <div className="rail-list">
             {friendSuggestions.map(friend => (
-              <div
-                key={friend._id}
-                className="rail-user"
-                onContextMenu={(e) => handleContextMenu(e, friend, 'friend')}
-              >
-                {/* ✅ Avatar tıklanınca profil */}
                 <div
-                  className="rail-user-avatar"
-                  onClick={() => openProfile(friend)}
-                  style={{ cursor: 'pointer' }}
-                  title="Profili Görüntüle"
+                    key={friend._id}
+                    className="rail-user"
+                    onContextMenu={(e) => handleContextMenu(e, friend, 'friend')}
                 >
-                  <img src={friend.avatar} onError={handleAvatarErrorWrapper} alt={friend.username} />
-                </div>
-
-                <div className="rail-user-meta">
-                  {/* ✅ İsim tıklanınca profil */}
-                  <span
-                    className="rail-user-name"
-                    onClick={() => openProfile(friend)}
-                    style={{ cursor: 'pointer' }}
-                    title="Profili Görüntüle"
+                  {/* ✅ Avatar tıklanınca profil */}
+                  <div
+                      className="rail-user-avatar"
+                      onClick={() => openProfile(friend)}
+                      style={{cursor: 'pointer'}}
+                      title="Profili Görüntüle"
                   >
-                    {friend.username}
-                  </span>
+                    <img src={friend.avatar} onError={handleAvatarErrorWrapper} alt={friend.username}/>
+                  </div>
 
-                  <span className="rail-user-status">
-                    <span className={`status-dot ${friend.onlineStatus === 'online' ? 'online' : 'offline'}`} />
-                    {getStatusText(friend)}
-                  </span>
+                  <div className="rail-user-meta">
+                    {/* ✅ İsim tıklanınca profil */}
+                    <div style={{display: 'flex', alignItems: 'center'}}>
+        <span
+            className="rail-user-name"
+            onClick={() => openProfile(friend)}
+            style={{cursor: 'pointer'}}
+            title="Profili Görüntüle"
+        >
+            {friend.username}
+        </span>
+                      {/* 👇 LEVEL EKLENDİ */}
+                      <UserLevelTag level={friend.level}/>
+                    </div>
+
+                    <span className="rail-user-status">
+        <span className={`status-dot ${friend.onlineStatus === 'online' ? 'online' : 'offline'}`}/>
+                      {getStatusText(friend)}
+    </span>
+                  </div>
+
+                  {/* ✅ Mesaj butonu: tıklama modal açmasın */}
+                  <button
+                      className="rail-btn rail-btn-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startDmFromRail(friend._id);
+                      }}
+                  >
+                    Mesaj
+                  </button>
                 </div>
-
-                {/* ✅ Mesaj butonu: tıklama modal açmasın */}
-                <button
-                  className="rail-btn rail-btn-primary"
-                  onClick={(e) => { e.stopPropagation(); startDmFromRail(friend._id); }}
-                >
-                  Mesaj
-                </button>
-              </div>
             ))}
           </div>
         </div>
@@ -358,13 +366,13 @@ const FeedPage = () => {
         {/* DM KUTUSU */}
         <div className="rail-card">
           <div className="rail-card-header">
-            <h4 onClick={goToAllDmsPage} style={{ cursor: 'pointer' }}>DM Kutusu</h4>
+            <h4 onClick={goToAllDmsPage} style={{cursor: 'pointer'}}>DM Kutusu</h4>
             <button className="rail-link" type="button" onClick={goToAllDmsPage}>Tümünü gör</button>
           </div>
 
           <div className="rail-list dm-list">
             {dmShortlist.length === 0 ? (
-              <p className="rail-empty">DM geçmişi yok.</p>
+                <p className="rail-empty">DM geçmişi yok.</p>
             ) : dmShortlist.map((dmUser) => {
               const hasUnread = unreadDmConversations.some(id => String(id) === String(dmUser.conversationId));
               const isOnline = dmUser.onlineStatus === 'online';
@@ -401,33 +409,37 @@ const FeedPage = () => {
                   </div>
 
                   <div className="rail-user-meta">
-                    <span
-                      className="rail-user-name"
-                      onClick={() => openProfile(dmUser)}
-                      style={{ cursor: 'pointer', fontWeight: hasUnread ? 'bold' : 'normal', color: hasUnread ? '#fff' : '' }}
-                      title="Profili Görüntüle"
-                    >
-                      {dmUser.username}
-                    </span>
+                    <div style={{display: 'flex', alignItems: 'center'}}>
+        <span
+            className="rail-user-name"
+            onClick={() => openProfile(dmUser)}
+            style={{cursor: 'pointer', fontWeight: hasUnread ? 'bold' : 'normal', color: hasUnread ? '#fff' : ''}}
+            title="Profili Görüntüle"
+        >
+            {dmUser.username}
+        </span>
+                      {/* 👇 LEVEL EKLENDİ */}
+                      <UserLevelTag level={dmUser.level}/>
+                    </div>
 
                     <span className="rail-user-status">
                       {hasUnread ? (
-                        <span style={{ color: '#6ded42', fontWeight: 'bold', fontSize: '11px' }}>YENİ MESAJ</span>
+                          <span style={{color: '#6ded42', fontWeight: 'bold', fontSize: '11px'}}>YENİ MESAJ</span>
                       ) : (
-                        <>
-                          <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
-                          {getStatusText(dmUser)}
-                        </>
+                          <>
+                            <span className={`status-dot ${isOnline ? 'online' : 'offline'}`}/>
+                            {getStatusText(dmUser)}
+                          </>
                       )}
                     </span>
                   </div>
 
                   <button
-                    className="rail-btn rail-btn-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startDmFromRail(dmUser._id);
-                    }}
+                      className="rail-btn rail-btn-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startDmFromRail(dmUser._id);
+                      }}
                   >
                     Mesaj
                   </button>
@@ -472,22 +484,27 @@ const FeedPage = () => {
                   </div>
 
                   <div className="rail-user-meta">
-                    {/* ✅ EKLENDİ: İsim tıklanınca profil */}
-                    <span
-                      className="rail-user-name"
-                      onClick={() => openProfile(otherUser)}
-                      style={{ cursor: 'pointer' }}
-                      title="Profili Görüntüle"
-                    >
-                      {otherUser?.username}
-                    </span>
+                    <div style={{display: 'flex', alignItems: 'center'}}>
+        <span
+            className="rail-user-name"
+            onClick={() => openProfile(otherUser)}
+            style={{cursor: 'pointer'}}
+            title="Profili Görüntüle"
+        >
+            {otherUser?.username}
+        </span>
+                      {/* 👇 LEVEL EKLENDİ */}
+                      <UserLevelTag level={otherUser?.level}/>
+                    </div>
 
                     {isOutgoing ? (
-                      <span className="rail-user-status" style={{ color: '#faa61a', fontWeight: '600', fontSize: '12px' }}>
+                        <span className="rail-user-status"
+                              style={{color: '#faa61a', fontWeight: '600', fontSize: '12px'}}>
                         ⏳ İstek Gönderildi
                       </span>
                     ) : (
-                      <span className="rail-user-status" style={{ color: '#3ba55c', fontWeight: '600', fontSize: '12px' }}>
+                        <span className="rail-user-status"
+                              style={{color: '#3ba55c', fontWeight: '600', fontSize: '12px'}}>
                         Sana istek gönderdi
                       </span>
                     )}
@@ -495,14 +512,14 @@ const FeedPage = () => {
 
                   <div className="rail-actions">
                     {isOutgoing ? (
-                      <span style={{ fontSize: '11px', color: '#72767d', fontStyle: 'italic' }}>
+                        <span style={{fontSize: '11px', color: '#72767d', fontStyle: 'italic'}}>
                         Bekleniyor
                       </span>
                     ) : (
-                      <>
-                        <button
-                          className="rail-btn rail-btn-primary"
-                          style={{ padding: '4px 8px', background: '#3ba55c' }}
+                        <>
+                          <button
+                              className="rail-btn rail-btn-primary"
+                              style={{ padding: '4px 8px', background: '#3ba55c' }}
                           onClick={(e) => { e.stopPropagation(); handleFriendResponse(req._id, 'accepted'); }}
                         >
                           ✓

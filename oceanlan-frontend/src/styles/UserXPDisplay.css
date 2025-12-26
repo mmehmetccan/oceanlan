@@ -1,0 +1,68 @@
+.user-gamification-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 8px;
+    margin-top: 4px;
+    width: 100%;
+}
+
+/* --- ROZETLER --- */
+.badges-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.badge-item {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+}
+
+.badge-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.badge-icon.gold { color: #FFD700; }
+.badge-icon.bronze { color: #CD7F32; }
+.badge-icon.default { color: #5865F2; }
+
+/* --- XP BAR --- */
+.xp-info-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.level-badge {
+    font-size: 10px;
+    font-weight: bold;
+    color: #fff;
+    background: linear-gradient(45deg, #5865F2, #4752C4);
+    padding: 1px 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.xp-bar-container {
+    flex: 1;
+    height: 6px;
+    background-color: #202225;
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.xp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00b0f4, #00d4ff);
+    transition: width 0.5s ease-out;
+    border-radius: 3px;
+    box-shadow: 0 0 5px rgba(0, 176, 244, 0.5);
+}

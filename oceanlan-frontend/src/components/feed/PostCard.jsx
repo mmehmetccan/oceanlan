@@ -5,6 +5,8 @@ import { AuthContext } from '../../context/AuthContext';
 import CommentSection from './CommentSection';
 import { getFullImageUrl } from '../../utils/urlHelper';
 import { TrashIcon } from '@heroicons/react/24/outline';
+import UserLevelTag from '../gamification/UserLevelTag';
+
 import '../../styles/FeedPage.css';
 
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -97,44 +99,52 @@ const PostCard = ({
           style={{ cursor: 'pointer' }}
           title="Profili Görüntüle"
         >
+            {/* 👇 LEVEL EKLENDİ */}
+            <UserLevelTag level={post?.user?.level}/>
           <img
             src={avatarSrc}
             alt={`${post?.user?.username || 'Kullanıcı'} avatarı`}
             onError={handleAvatarErrorSafe}
           />
+
         </div>
 
         <div className="post-author-details">
-          {/* ✅ İsim tıklanınca profil */}
-          <strong
-            className="post-author-name"
-            onClick={openPostOwnerProfile}
-            style={{ cursor: 'pointer' }}
-            title="Profili Görüntüle"
-          >
-            {post?.user?.username || 'Kullanıcı'}
-          </strong>
+          <div style={{display: 'flex', alignItems: 'center'}}>
+            <strong
+                className="post-author-name"
+                onClick={openPostOwnerProfile}
+                style={{cursor: 'pointer'}}
+                title="Profili Görüntüle"
+            >
+              {post?.user?.username || 'Kullanıcı'}
+            </strong>
+            {/* 👇 LEVEL EKLENDİ */}
+            <UserLevelTag level={post?.user?.level}/>
+          </div>
 
           <time className="post-date" dateTime={post.createdAt}>
             {new Date(post.createdAt).toLocaleString()}
           </time>
         </div>
-
         {isOwner && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDeleteClick?.(); }}
-            title="Gönderiyi Sil"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ed4245',
-              cursor: 'pointer',
-              padding: '5px',
-              borderRadius: '50%',
-              transition: 'background 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+            <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteClick?.();
+                }}
+                title="Gönderiyi Sil"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ed4245',
+                  cursor: 'pointer',
+                  padding: '5px',
+                  borderRadius: '50%',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <TrashIcon style={{ width: '20px', height: '20px' }} />
           </button>

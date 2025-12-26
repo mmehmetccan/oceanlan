@@ -34,8 +34,10 @@ const getUserProfile = async (req, res) => {
 
     // 1) Profiline baktığımız hedef kullanıcı
     const targetUser = await User.findById(userId).select(
-      '_id username createdAt avatarUrl friends'
+      '_id username createdAt avatarUrl friends level xp badges'
     );
+
+    console.log("Çekilen Kullanıcı Verisi:", targetUser);
 
     if (!targetUser) {
       return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
@@ -53,7 +55,7 @@ const getUserProfile = async (req, res) => {
     if (targetUser.friends && targetUser.friends.length > 0) {
       friendDocs = await User.find({
         _id: { $in: targetUser.friends },
-      }).select('_id username avatarUrl');
+      }).select('_id username avatarUrl level badges');
     }
 
     const servers = [];
@@ -75,6 +77,8 @@ const getUserProfile = async (req, res) => {
       _id: friend._id,
       username: friend.username,
       avatarUrl: friend.avatarUrl,
+      level: friend.level,
+      badges: friend.badges
     }));
 
     // 5) İstek yapan kişi, hedef kullanıcının friends listesinde mi?
@@ -102,6 +106,9 @@ const getUserProfile = async (req, res) => {
         username: targetUser.username,
         createdAt: targetUser.createdAt,
         avatarUrl: targetUser.avatarUrl,
+        level: targetUser.level,
+        xp: targetUser.xp,
+        badges: targetUser.badges
       },
       servers,
       friends,

@@ -5,7 +5,9 @@ import axiosInstance from '../../utils/axiosInstance';
 import { useSocket } from '../../hooks/useSocket';
 import { AuthContext } from '../../context/AuthContext';
 import { getFullImageUrl } from '../../utils/urlHelper';
+import UserLevelTag from '../gamification/UserLevelTag';
 import '../../styles/DMView.css';
+import UserBadgeList from '../gamification/UserBadgeList';
 
 const DMView = () => {
   const { friendId, conversationId } = useParams();
@@ -175,24 +177,36 @@ const DMView = () => {
 
           return (
             <div key={index} className={`dm-message ${isOwn ? 'from-me' : 'from-them'}`}>
-              <div className="dm-message-meta">
-                <span className="dm-message-author">{msg.author?.username || 'Bilinmeyen'}</span>
-                <span className="dm-time" style={{ marginLeft: '8px', fontSize: '11px', color: '#99aab5' }}>
-                    {formatMessageDate(msg.createdAt)}
-                </span>
-                {isOwn && <span className="dm-badge">Sen</span>}
-              </div>
-              <div className="dm-bubble">
-                {renderMessageContent(msg)}
-              </div>
+                <div className="dm-message-meta">
+                    <span className="dm-message-author">{msg.author?.username}</span>
+
+                    {/* 👇 SADECE LEVEL EKLENDİ */}
+                    <UserLevelTag level={msg.author?.level}/>
+
+                    <span className="dm-time" style={{marginLeft: '8px', fontSize: '11px', color: '#99aab5'}}>
+        {formatMessageDate(msg.createdAt)}
+    </span>
+                    {isOwn && <span className="dm-badge">Sen</span>}
+                </div>
+                <div className="dm-bubble">
+                    {renderMessageContent(msg)}
+                </div>
             </div>
           );
         })}
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef}/>
       </div>
 
-      {previewImage && (
-        <div className="image-modal-overlay" onClick={() => setPreviewImage(null)} style={{position: 'fixed', top:0, left:0, right:0, bottom:0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+        {previewImage && (
+            <div className="image-modal-overlay" onClick={() => setPreviewImage(null)} style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                zIndex: 1000,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
           <div className="image-modal">
             <img src={previewImage} alt="Önizleme" style={{maxWidth: '90vw', maxHeight: '90vh'}} />
           </div>

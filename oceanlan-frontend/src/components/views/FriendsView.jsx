@@ -6,7 +6,10 @@ import { useSocket } from '../../hooks/useSocket';
 import { ToastContext } from '../../context/ToastContext'; // 🔔 Toast eklendi
 import axiosInstance from '../../utils/axiosInstance';
 import ConfirmationModal from '../modals/ConfirmationModal'; // 🔔 Modal eklendi
+
+import UserLevelTag from '../gamification/UserLevelTag';
 import '../../styles/FriendsView.css';
+import UserBadgeList from '../gamification/UserBadgeList';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const API_URL = `/friends`;
@@ -215,8 +218,14 @@ const FriendListItem = ({ friend, onMessage, onRemove }) => (
                 <span className={`friend-status-dot ${friend.onlineStatus}`} />
             </div>
             <div className="friend-info">
-                <span className="friend-username">{friend.username}</span>
-                <span className="friend-status-text">{friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}</span>
+                <div style={{display: 'flex', alignItems: 'center'}}>
+                    <span className="friend-username">{friend.username}</span>
+
+                    {/* 👇 SADECE LEVEL EKLENDİ */}
+                    <UserLevelTag level={friend.level}/>
+                </div>
+                <span
+                    className="friend-status-text">{friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}</span>
             </div>
         </div>
         <div className="friend-actions">
@@ -226,7 +235,7 @@ const FriendListItem = ({ friend, onMessage, onRemove }) => (
     </li>
 );
 
-const PendingListItem = ({ user, isOutgoing, onAccept, onReject, onCancel }) => (
+const PendingListItem = ({user, isOutgoing, onAccept, onReject, onCancel}) => (
     <li className="friend-item">
         <div className="friend-main">
             <div className="friend-avatar-wrapper">

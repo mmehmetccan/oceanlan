@@ -69,13 +69,14 @@ const UserSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false, // Artık varsayılan olarak doğrulanmamış
+    default: false,
   },
+
   verificationToken: String,
   verificationExpire: Date,
 
   // --- 2. E-POSTA DEĞİŞİKLİĞİ İÇİN ALANLAR ---
-  newEmail: String, // Kullanıcı yeni e-postasını buraya yazar, onaylarsa email alanına geçer
+  newEmail: String,
   newEmailToken: String,
   newEmailExpire: Date,
 
@@ -87,6 +88,23 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
+  badges: [
+    {
+      id: String,        // Örn: 'SERVER_MASTER_1'
+      name: String,      // Örn: 'Acemi Sunucu Sahibi'
+      icon: String,      // Örn: 'server-bronze'
+      earnedAt: { type: Date, default: Date.now }
+    }
+  ],
+
+  // İstatistikleri takip etmek için sayaçlar (Performans için)
+  stats: {
+    createdServers: { type: Number, default: 0 },
+    friendCount: { type: Number, default: 0 },
+    messagesSent: { type: Number, default: 0 }
+  }
 });
 
 // Şifre hashleme
@@ -106,23 +124,16 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
-
-
 // 📢 YENİ: 6 Haneli Kod Oluşturucu
 UserSchema.methods.createVerificationCode = function () {
-  // 100000 ile 999999 arasında rastgele sayı
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // Kodu hashleyerek sakla (Güvenlik için)
   this.verificationToken = crypto.createHash('sha256').update(code).digest('hex');
-
-  // 10 dakika geçerli olsun
   this.verificationExpire = Date.now() + 10 * 60 * 1000;
-
-  return code; // Hashlenmemiş halini kullanıcıya mail atacağız
+  return code;
 };
 
-module.exports = mongoose.model('User', UserSchema);
+// ❌ BURADA OLAN module.exports SATIRINI SİLDİM.
+// Metot tanımları bitmeden export yaparsan, alttaki metotlar modele eklenmez.
 
 // Şifre Sıfırlama Token Oluşturucu Metot
 UserSchema.methods.getResetPasswordToken = function () {
@@ -141,4 +152,5 @@ UserSchema.methods.getResetPasswordToken = function () {
   return resetToken;
 };
 
+// ✅ EXPORT SADECE EN SONDA OLMALI
 module.exports = mongoose.model('User', UserSchema);

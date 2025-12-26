@@ -7,6 +7,7 @@ const Member = require('../models/MemberModel');
 const Channel = require('../models/ChannelModel');
 const Message = require('../models/MessageModel');
 const Ban = require('../models/BanModel');
+const { processGamification } = require('../../src/utils/gamificationEngine');
 const fs = require('fs'); // Eski resmi silmek için fs modülü
 // @desc    Yeni bir sunucu oluşturur
 const createServer = async (req, res) => {
@@ -84,11 +85,11 @@ const createServer = async (req, res) => {
       .populate('roles')
       .populate({
         path: 'members',
-        populate: {
-          path: 'user roles',
-          // 💡 DÜZENLEME YAPILAN SATIR: avatarUrl eklendi
-          select: 'username name color permissions isMuted isDeafened avatarUrl'
-        }
+        populate: [
+          // 👇 'badges' ve 'level' EKLENDİ
+          { path: 'user', select: 'username email avatarUrl badges level' },
+          { path: 'roles', select: 'name color permissions' }
+        ]
       });
 
     res.status(201).json({
@@ -96,6 +97,7 @@ const createServer = async (req, res) => {
       message: 'Sunucu, roller ve kanal başarıyla oluşturuldu',
       data: populatedServer,
     });
+    processGamification(req.user._id, 'CREATE_SERVER', req.app.get('io'));
 
   } catch (error) {
     // Hatayı logla (zaten yapıyorsunuz)
@@ -174,12 +176,13 @@ const getServerDetails = async (req, res) => {
         path: 'channels',
         select: 'name type'
       })
-      .populate('roles') // 🚨 YENİ EKLENTİ
+     .populate('roles')
       .populate({
         path: 'members',
         populate: [
-          // 💡 DÜZENLEME YAPILAN SATIR: avatarUrl eklendi
-          { path: 'user', select: 'username email avatarUrl' },
+          // 🔴 ESKİSİ: { path: 'user', select: 'username email avatarUrl' },
+          // 🟢 YENİSİ (Bunu Yapıştır):
+          { path: 'user', select: 'username email avatarUrl level badges' },
           { path: 'roles', select: 'name color permissions' }
         ]
       });
