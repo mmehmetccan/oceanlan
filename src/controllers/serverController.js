@@ -55,6 +55,7 @@ const createServer = async (req, res) => {
         name: 'genel',
         server: newServer._id,
         type: 'text',
+         createdBy: ownerId
     });
     // -----------------------------
 

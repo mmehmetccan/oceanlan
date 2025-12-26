@@ -7,21 +7,53 @@ const FriendRequest = require('../models/FriendRequestModel');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 
+const ensureGamificationData = async (user) => {
+    let changed = false;
+
+    if (user.xp === undefined) { user.xp = 0; changed = true; }
+    if (user.level === undefined) { user.level = 1; changed = true; }
+    if (!user.badges) { user.badges = []; changed = true; }
+
+    if (!user.stats) {
+        user.stats = { createdServers: 0, friendCount: 0, messagesSent: 0, voiceTime: 0 };
+        changed = true;
+    } else {
+        // Stats var ama içi eksikse tamamla
+        if (user.stats.createdServers === undefined) { user.stats.createdServers = 0; changed = true; }
+        if (user.stats.friendCount === undefined) { user.stats.friendCount = 0; changed = true; }
+        if (user.stats.messagesSent === undefined) { user.stats.messagesSent = 0; changed = true; }
+        if (user.stats.voiceTime === undefined) { user.stats.voiceTime = 0; changed = true; }
+    }
+
+    if (changed) {
+        await user.save(); // Eksik verileri veritabanına kaydet
+        console.log(`[UserRepair] Kullanıcı verileri onarıldı: ${user.username}`);
+    }
+    return user;
+};
+
 
 // @desc    Giriş yapan kullanıcının profilini getir
 // @route   GET /api/v1/users/me
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    // req.user, authMiddleware'den geliyor
+    // 🟢 DÜZELTME: Kullanıcıyı veritabanından taze çek ve onar
+    let user = await User.findById(req.user.id);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+
+    // Eksik verileri kontrol et ve tamamla
+    user = await ensureGamificationData(user);
+
     res.status(200).json({
       success: true,
-      data: req.user,
+      data: user,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: 'Sunucu Hatası', error: error.message });
+    res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };
 
@@ -33,15 +65,17 @@ const getUserProfile = async (req, res) => {
     const { userId } = req.params;
 
     // 1) Profiline baktığımız hedef kullanıcı
-    const targetUser = await User.findById(userId).select(
-      '_id username createdAt avatarUrl friends level xp badges'
+    // 🟢 DÜZELTME: Tüm gamification alanlarını seçiyoruz
+    let targetUser = await User.findById(userId).select(
+      '_id username createdAt avatarUrl friends level xp badges stats'
     );
-
-    console.log("Çekilen Kullanıcı Verisi:", targetUser);
 
     if (!targetUser) {
       return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
     }
+
+    // 🟢 DÜZELTME: Hedef kullanıcı eskiyse hemen onar
+    targetUser = await ensureGamificationData(targetUser);
 
     // 2) İstek yapan (giriş yapmış) kullanıcı
     const requesterId = req.user ? req.user.id : null;
@@ -77,11 +111,10 @@ const getUserProfile = async (req, res) => {
       _id: friend._id,
       username: friend.username,
       avatarUrl: friend.avatarUrl,
-      level: friend.level,
-      badges: friend.badges
+      level: friend.level || 1, // Default değer
+      badges: friend.badges || []
     }));
 
-    // 5) İstek yapan kişi, hedef kullanıcının friends listesinde mi?
     let isFriend = false;
     if (requesterId && targetUser.friends && targetUser.friends.length > 0) {
       isFriend = targetUser.friends.some(
@@ -89,7 +122,6 @@ const getUserProfile = async (req, res) => {
       );
     }
 
-    // Şimdilik arkadaşlık isteği mantığını kurmadık
     let isRequestSent = false;
     if (requesterId && !isFriend) {
       isRequestSent = !!(await FriendRequest.exists({
@@ -99,13 +131,13 @@ const getUserProfile = async (req, res) => {
       }));
     }
 
-    // 6) Frontend'e döneceğimiz objeyi sadeleştir
     return res.json({
       user: {
         _id: targetUser._id,
         username: targetUser.username,
         createdAt: targetUser.createdAt,
         avatarUrl: targetUser.avatarUrl,
+        // Artık bu verilerin dolu olduğundan eminiz
         level: targetUser.level,
         xp: targetUser.xp,
         badges: targetUser.badges
@@ -117,9 +149,7 @@ const getUserProfile = async (req, res) => {
     });
   } catch (err) {
     console.error('[getUserProfile] error', err);
-    return res
-      .status(500)
-      .json({ message: 'Profil bilgileri alınırken bir hata oluştu.' });
+    return res.status(500).json({ message: 'Profil bilgileri alınırken bir hata oluştu.' });
   }
 };
 
