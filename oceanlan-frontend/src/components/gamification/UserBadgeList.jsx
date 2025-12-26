@@ -6,14 +6,14 @@ import { XMarkIcon, CheckBadgeIcon } from '@heroicons/react/24/solid';
 const BADGE_PATH = '/assets/badges';
 
 // 🟢 1. ADIM: Export eklendi ve bileşen dışına taşındı
-export const BADGE_IMAGES = {
+const BADGE_IMAGES = {
   'veteran_2025': '2025badge.png',
   'early_adopter': 'earlymember.png',
   'default': 'default-badge.png'
 };
 
 // 🟢 2. ADIM: Helper fonksiyon dışarı taşındı ve export edildi
-export const getBadgeImg = (iconName) => {
+const getBadgeImg = (iconName) => {
   // Eğer backend'den gelen isim listede varsa onu kullan, yoksa default'u kullan
   const fileName = BADGE_IMAGES[iconName] || BADGE_IMAGES['default'];
   return `${BADGE_PATH}/${fileName}`;
