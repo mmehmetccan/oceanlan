@@ -7,7 +7,7 @@ const Member = require('../models/MemberModel');
 const Channel = require('../models/ChannelModel');
 const Message = require('../models/MessageModel');
 const Ban = require('../models/BanModel');
-const { processGamification } = require('../../src/utils/gamificationEngine');
+const { processGamification } = require('../utils/gamificationEngine');
 const fs = require('fs'); // Eski resmi silmek için fs modülü
 // @desc    Yeni bir sunucu oluşturur
 const createServer = async (req, res) => {
@@ -54,8 +54,7 @@ const createServer = async (req, res) => {
     const defaultChannel = await Channel.create({
         name: 'genel',
         server: newServer._id,
-        type: 'text',
-        createdBy: ownerId // <-- EKSİK OLAN SATIR BUYDU
+        type: 'text'
     });
     // -----------------------------
 
