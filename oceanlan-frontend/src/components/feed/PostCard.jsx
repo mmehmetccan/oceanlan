@@ -100,7 +100,6 @@ const PostCard = ({
           title="Profili Görüntüle"
         >
           {/* 👇 LEVEL EKLENDİ */}
-          <UserLevelTag level={post?.user?.level} />
           <img
             src={avatarSrc}
             alt={`${post?.user?.username || 'Kullanıcı'} avatarı`}

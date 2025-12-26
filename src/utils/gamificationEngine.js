@@ -5,8 +5,8 @@ const User = require('../models/UserModel');
 const BADGE_DEFINITIONS = {
   EARLY_ADOPTER: {
     id: 'EARLY_ADOPTER',
-    name: 'Öncü Kaşif', // Veya "Kurucu Üye"
-    description: 'Topluluğun ilk 1000 üyesinden birisin.',
+    name: 'ilk 1000 Kullanıcı', // Veya "Kurucu Üye"
+    description: 'Oceanlan kullanan ilk 1000 üyeden birisin.',
     xpReward: 500,
     icon: 'early_adopter', // Frontend'de bu ismi kullanacaksın
     condition: async (user) => {
@@ -48,13 +48,13 @@ const processGamification = async (userId, actionType, io, extraValue = 0) => {
     // --- XP ve İstatistik Mantığı (Level Atlamak İçin) ---
     // Rozet vermesek bile level atlamaları için XP vermeye devam edebiliriz.
     if (actionType === 'SEND_MESSAGE') {
-       user.stats.messagesSent = (user.stats.messagesSent || 0) + 1;
-       xpGained += 0.05; // Mesaj başı az XP
+      user.stats.messagesSent = (user.stats.messagesSent || 0) + 1;
+      xpGained += 0.05; // Mesaj başı az XP
     }
     if (actionType === 'VOICE_SPEAKING') {
-       const duration = extraValue || 0;
-       xpGained += duration * 0.01; // Konuşma süresine göre XP
-       user.stats.voiceTime = (user.stats.voiceTime || 0) + duration;
+      const duration = extraValue || 0;
+      xpGained += duration * 0.01; // Konuşma süresine göre XP
+      user.stats.voiceTime = (user.stats.voiceTime || 0) + duration;
     }
 
     // --- Rozet Kontrolü ---
@@ -65,21 +65,21 @@ const processGamification = async (userId, actionType, io, extraValue = 0) => {
       const hasBadge = user.badges.some(b => b.id === badge.id);
 
       if (!hasBadge) {
-          try {
-              // Şart sağlanıyor mu?
-              if (await badge.condition(user)) {
-                user.badges.push({
-                    id: badge.id,
-                    name: badge.name,
-                    icon: badge.icon,
-                    earnedAt: new Date()
-                });
+        try {
+          // Şart sağlanıyor mu?
+          if (await badge.condition(user)) {
+            user.badges.push({
+              id: badge.id,
+              name: badge.name,
+              icon: badge.icon,
+              earnedAt: new Date()
+            });
 
-                // Rozet kazanıldığı an XP ödülünü de ver
-                xpGained += badge.xpReward;
-                newBadges.push(badge);
-              }
-          } catch (e) { console.error(`Rozet kontrol hatası (${badge.id}):`, e); }
+            // Rozet kazanıldığı an XP ödülünü de ver
+            xpGained += badge.xpReward;
+            newBadges.push(badge);
+          }
+        } catch (e) { console.error(`Rozet kontrol hatası (${badge.id}):`, e); }
       }
     }
 
@@ -100,10 +100,10 @@ const processGamification = async (userId, actionType, io, extraValue = 0) => {
     // --- Yeni Rozet Bildirimi ---
     if (newBadges.length > 0 && io) {
       newBadges.forEach(b => io.to(userId.toString()).emit('badge-earned', {
-          name: b.name,
-          icon: b.icon,
-          xp: b.xpReward,
-          description: b.description
+        name: b.name,
+        icon: b.icon,
+        xp: b.xpReward,
+        description: b.description
       }));
     }
 

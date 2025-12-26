@@ -61,71 +61,71 @@ const createChannel = async (req, res) => {
 // @desc    Bir kanalı günceller
 // @route   PUT /api/v1/servers/:serverId/channels/:channelId
 const updateChannel = async (req, res) => {
-    try {
-        const { channelId } = req.params;
-        // Güncellenebilecek alanlar
-        const { name, maxUsers, allowedRoles } = req.body;
+  try {
+    const { channelId } = req.params;
+    // Güncellenebilecek alanlar
+    const { name, maxUsers, allowedRoles } = req.body;
 
-        // TODO: İzin kontrolü (MANAGE_CHANNELS veya ADMINISTRATOR)
+    // TODO: İzin kontrolü (MANAGE_CHANNELS veya ADMINISTRATOR)
 
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ success: false, message: 'Kanal bulunamadı' });
-        }
-
-        const updatedChannel = await Channel.findByIdAndUpdate(
-            channelId,
-            { name, maxUsers, allowedRoles },
-            { new: true, runValidators: true }
-        );
-
-        // TODO: Socket.io ile sunucudaki herkese 'channelUpdated' event'i yolla
-        // req.io.to(channel.server.toString()).emit('channelUpdated', updatedChannel);
-
-        res.status(200).json({
-            success: true,
-            message: 'Kanal güncellendi',
-            data: updatedChannel
-        });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Kanal güncellenemedi', error: error.message });
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Kanal bulunamadı' });
     }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { name, maxUsers, allowedRoles },
+      { new: true, runValidators: true }
+    );
+
+    // TODO: Socket.io ile sunucudaki herkese 'channelUpdated' event'i yolla
+    // req.io.to(channel.server.toString()).emit('channelUpdated', updatedChannel);
+
+    res.status(200).json({
+      success: true,
+      message: 'Kanal güncellendi',
+      data: updatedChannel
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Kanal güncellenemedi', error: error.message });
+  }
 };
 
 // --- YENİ EKLENDİ ---
 // @desc    Bir kanalı siler
 // @route   DELETE /api/v1/servers/:serverId/channels/:channelId
 const deleteChannel = async (req, res) => {
-    try {
-        const { serverId, channelId } = req.params;
+  try {
+    const { serverId, channelId } = req.params;
 
-        // TODO: İzin kontrolü (MANAGE_CHANNELS veya ADMINISTRATOR)
+    // TODO: İzin kontrolü (MANAGE_CHANNELS veya ADMINISTRATOR)
 
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ success: false, message: 'Kanal bulunamadı' });
-        }
-
-        // 1. Kanalı sil
-        await Channel.findByIdAndDelete(channelId);
-
-        // 2. Kanalı Sunucudan kaldır
-        await Server.findByIdAndUpdate(serverId, {
-            $pull: { channels: channelId }
-        });
-
-        // TODO: Bu kanaldaki tüm mesajları sil
-        // await Message.deleteMany({ channel: channelId });
-
-        // TODO: Socket.io ile sunucudaki herkese 'channelDeleted' event'i yolla
-        // req.io.to(serverId).emit('channelDeleted', { channelId });
-
-        res.status(200).json({ success: true, message: 'Kanal başarıyla silindi' });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Kanal silinemedi', error: error.message });
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Kanal bulunamadı' });
     }
+
+    // 1. Kanalı sil
+    await Channel.findByIdAndDelete(channelId);
+
+    // 2. Kanalı Sunucudan kaldır
+    await Server.findByIdAndUpdate(serverId, {
+      $pull: { channels: channelId }
+    });
+
+    // TODO: Bu kanaldaki tüm mesajları sil
+    // await Message.deleteMany({ channel: channelId });
+
+    // TODO: Socket.io ile sunucudaki herkese 'channelDeleted' event'i yolla
+    // req.io.to(serverId).emit('channelDeleted', { channelId });
+
+    res.status(200).json({ success: true, message: 'Kanal başarıyla silindi' });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Kanal silinemedi', error: error.message });
+  }
 };
 
 
@@ -139,7 +139,7 @@ const getChannelMessages = async (req, res) => {
         path: 'author',
         // 🔴 ESKİSİ: select: 'username avatarUrl onlineStatus'
         // 🟢 YENİSİ (Bunu Yapıştır):
-        select: 'username avatarUrl onlineStatus level badges'
+        select: 'username avatarUrl onlineStatus level badges activeBadge'
       })
       .sort({ createdAt: 1 });
 
@@ -152,52 +152,52 @@ const getChannelMessages = async (req, res) => {
   }
 };
 const sendFileMessage = async (req, res) => {
-    try {
-        const { channelId, serverId } = req.params;
-        const userId = req.user.id;
+  try {
+    const { channelId, serverId } = req.params;
+    const userId = req.user.id;
 
-        if (!req.file || !req.file.filename) {
-            return res.status(400).json({ success: false, message: 'Dosya işlenemedi veya kaydedilemedi.' });
-        }
-
-        let fileType = 'other';
-        if (req.file.mimetype.startsWith('image')) {
-            fileType = 'image';
-        } else if (req.file.mimetype.startsWith('video')) {
-            fileType = 'video';
-        }
-
-        const fileUrl = `/uploads/chat_attachments/${req.file.filename}`;
-
-        // --- HATA DÜZELTMESİ (ASIL ÇÖZÜM) ---
-        // req.body, hiç metin alanı gönderilmezse 'undefined' olabilir.
-        // Bu yüzden 'req.body.content' yerine, önce 'req.body'nin varlığını kontrol etmeliyiz.
-        const textContent = (req.body && req.body.content) ? req.body.content : '';
-        // ------------------------------------
-
-        const newMessage = await Message.create({
-            author: userId,
-            channel: channelId,
-            server: serverId,
-            fileUrl: fileUrl,
-            fileType: fileType,
-            content: textContent // Güvenli değişkeni kullan
-        });
-
-        const populatedMessage = await Message.findById(newMessage._id)
-                                          .populate('author', 'username');
-
-        const io = req.app.get('io');
-        if (io) {
-            io.to(channelId).emit('newMessage', populatedMessage);
-        }
-
-        res.status(201).json({ success: true, data: populatedMessage });
-
-    } catch (error) {
-        console.error("Dosya gönderme hatası:", error);
-        res.status(500).json({ success: false, message: 'Dosya gönderilemedi', error: error.message });
+    if (!req.file || !req.file.filename) {
+      return res.status(400).json({ success: false, message: 'Dosya işlenemedi veya kaydedilemedi.' });
     }
+
+    let fileType = 'other';
+    if (req.file.mimetype.startsWith('image')) {
+      fileType = 'image';
+    } else if (req.file.mimetype.startsWith('video')) {
+      fileType = 'video';
+    }
+
+    const fileUrl = `/uploads/chat_attachments/${req.file.filename}`;
+
+    // --- HATA DÜZELTMESİ (ASIL ÇÖZÜM) ---
+    // req.body, hiç metin alanı gönderilmezse 'undefined' olabilir.
+    // Bu yüzden 'req.body.content' yerine, önce 'req.body'nin varlığını kontrol etmeliyiz.
+    const textContent = (req.body && req.body.content) ? req.body.content : '';
+    // ------------------------------------
+
+    const newMessage = await Message.create({
+      author: userId,
+      channel: channelId,
+      server: serverId,
+      fileUrl: fileUrl,
+      fileType: fileType,
+      content: textContent // Güvenli değişkeni kullan
+    });
+
+    const populatedMessage = await Message.findById(newMessage._id)
+      .populate('author', 'username');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(channelId).emit('newMessage', populatedMessage);
+    }
+
+    res.status(201).json({ success: true, data: populatedMessage });
+
+  } catch (error) {
+    console.error("Dosya gönderme hatası:", error);
+    res.status(500).json({ success: false, message: 'Dosya gönderilemedi', error: error.message });
+  }
 };
 
 // @desc    Kanal mesajı sil
@@ -239,6 +239,6 @@ module.exports = {
   getChannelMessages,
   updateChannel, // YENİ
   deleteChannel, // YENİ
-    sendFileMessage,
-    deleteChannelMessage
+  sendFileMessage,
+  deleteChannelMessage
 };

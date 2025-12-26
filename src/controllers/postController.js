@@ -68,14 +68,14 @@ const createPost = async (req, res) => {
 
         // 💡 DÜZELTME: User'ı ve Yorumları popüle ederken avatarUrl ekle
         const populatedPost = await Post.findById(newPost._id)
-                                    .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
-                                    .populate({
-                                        path: 'comments',
-                                        populate: {
-                                            path: 'user',
-                                            select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
-                                        }
-                                    });
+            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
+            .populate({
+                path: 'comments',
+                populate: {
+                    path: 'user',
+                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
+                }
+            });
 
         await broadcastPostUpdate(req, populatedPost, 'newFeedPost', populatedPost);
 
@@ -97,12 +97,12 @@ const getFeed = async (req, res) => {
         const posts = await Post.find({ user: { $in: friendsList } })
             .sort({ createdAt: -1 })
             .limit(20)
-            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -137,12 +137,12 @@ const likePost = async (req, res) => {
 
         // Gönderinin son halini (like/dislike sayılarıyla) yayınla
         const updatedPost = await Post.findById(postId)
-            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl level activeBadge ' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -178,12 +178,12 @@ const dislikePost = async (req, res) => {
         await post.save();
 
         const updatedPost = await Post.findById(postId)
-            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -221,7 +221,7 @@ const addComment = async (req, res) => {
 
         // 3. Yorumu kullanıcı bilgisiyle doldur
         const populatedComment = await Comment.findById(newComment._id)
-                                        .populate('user', 'username avatarUrl'); // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl level activeBadge'); // 💡 avatarUrl EKLENDİ
 
         // Herkese sadece yeni yorumu gönder (tüm gönderiyi değil)
         await broadcastPostUpdate(req, post, 'newComment', {

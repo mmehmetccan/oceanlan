@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
+// 👇 1. IMPORT EKLE
+import UserLevelTag from '../components/gamification/UserLevelTag';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -15,7 +17,6 @@ const AllDmsPage = () => {
   useEffect(() => {
     const fetchFriends = async () => {
       try {
-        // DM geçmişi olan veya arkadaş olanları getiriyoruz (Şimdilik arkadaşlar endpointi)
         const res = await axiosInstance.get('/friends');
         setFriends(res.data.data || []);
       } catch (err) {
@@ -60,7 +61,17 @@ const AllDmsPage = () => {
                   onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
                 />
                 <div className="friend-info">
-                  <span className="friend-username" style={{ fontSize: '16px' }}>{friend.username}</span>
+                  {/* 👇 2. BURAYI DÜZENLE: İsim ve Level/Rozet yan yana gelsin diye flex ekledik */}
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="friend-username" style={{ fontSize: '16px' }}>{friend.username}</span>
+
+                    {/* 👇 3. BİLEŞENİ EKLE */}
+                    <UserLevelTag
+                      level={friend.level}
+                      activeBadge={friend.activeBadge}
+                    />
+                  </div>
+
                   <span className="friend-status-text">
                     {friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}
                   </span>

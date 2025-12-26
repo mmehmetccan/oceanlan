@@ -341,7 +341,7 @@ const FeedPage = () => {
                     </span>
                     {/* 👇 LEVEL EKLENDİ */}
                     <UserLevelTag level={friend.level}
-                      activeBadge={friend?.activeBadge}
+                      activeBadge={friend.activeBadge}
                     />
                   </div>
 
