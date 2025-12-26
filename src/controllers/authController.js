@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs'); // Şifre karşılaştırma için
 const jwt = require('jsonwebtoken'); // Token oluşturmak için
 const crypto = require('crypto'); // 1. EKLENDİ: Anahtar oluşturmak için
 const sendEmail = require('../utils/sendEmail'); // YENİ
-
+const { processGamification } = require('../utils/gamificationEngine');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -47,6 +47,8 @@ const registerUser = async (req, res) => {
         email: user.email // Frontend'e email'i geri dön ki sayfaya taşıyabilelim
       });
 
+
+
     } catch (emailError) {
       if (user) await User.findByIdAndDelete(user._id);
       return res.status(500).json({ success: false, message: 'E-posta gönderilemedi.' });
@@ -82,6 +84,14 @@ const verifyEmail = async (req, res) => {
     user.verificationToken = undefined;
     user.verificationExpire = undefined;
     await user.save();
+
+    if (req.io) {
+        // req.io varsa socket bildirimi de gider (Frontend'de konfetiler patlar 🎉)
+        await processGamification(user._id, 'EMAIL_VERIFIED', req.io);
+    } else {
+        // Socket yoksa bile sessizce veritabanına işler
+        await processGamification(user._id, 'EMAIL_VERIFIED', null);
+    }
 
     res.status(200).json({ success: true, message: 'Hesap başarıyla doğrulandı!' });
 

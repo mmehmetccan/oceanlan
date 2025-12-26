@@ -5,7 +5,8 @@ import { AuthContext } from '../../context/AuthContext';
 import { ToastContext } from '../../context/ToastContext';
 import { getImageUrl } from '../../utils/urlHelper';
 import UserLevelTag from '../gamification/UserLevelTag';
-import UserBadgeList from '../gamification/UserBadgeList';
+// 🟢 DÜZELTME 1: getBadgeImg import edildi
+import UserBadgeList, { getBadgeImg } from '../gamification/UserBadgeList';
 import '../../styles/UserProfileView.css';
 
 const handleAvatarError = (e) => {
@@ -28,6 +29,9 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Kuşanılan rozet state'i
+  const [equippedBadge, setEquippedBadge] = useState(null);
+
   const isSelf = currentUser && (currentUser.id === currentUserId || currentUser._id === currentUserId);
 
   useEffect(() => {
@@ -40,6 +44,12 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
 
         const res = await axiosInstance.get(`/users/${currentUserId}/profile`);
         setProfile(res.data);
+
+        // Eğer veritabanında kayıtlı bir aktif rozet varsa state'e yükle
+        if (res.data.user?.activeBadge) {
+          setEquippedBadge(res.data.user.activeBadge);
+        }
+
       } catch (err) {
         console.error('[UserProfileModal] fetch error', err);
         const msg = err.response?.data?.message || 'Profil bilgileri alınırken bir hata oluştu.';
@@ -88,15 +98,18 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const isRequestSent = profile?.isRequestSent ?? false;
   const userAvatarSrc = getImageUrl(user.avatarUrl || user.avatar);
 
-  // 🟢 YENİ: XP VE LEVEL HESAPLAMASI
+  const handleEquipBadge = (badge) => {
+    setEquippedBadge(badge);
+    addToast(`${badge.name} rozeti profile takıldı!`, 'success');
+    // İstersen burada backend isteği atabilirsin:
+    // axiosInstance.put('/users/equip-badge', { badgeId: badge.id });
+  };
+
+  // XP VE LEVEL HESAPLAMASI
   const currentLevel = user.level || 1;
   const currentXP = user.xp || 0;
-
-  // Formül: Level = 0.1 * sqrt(XP) + 1
   const xpForCurrentLevel = Math.pow((currentLevel - 1) / 0.1, 2);
   const xpForNextLevel = Math.pow((currentLevel) / 0.1, 2);
-
-  // İlerleme yüzdesi hesabı
   const progressRaw = ((currentXP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100;
   const progress = Math.min(Math.max(progressRaw, 0), 100);
 
@@ -119,13 +132,36 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               </div>
 
               <div className="user-profile-main">
-                <div className="user-profile-name-row">
+                {/* 🟢 DÜZELTME 2: Flex yapısı ile İsim, Level ve Rozet yan yana */}
+                <div className="user-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h2>{user.username}</h2>
-                  {/* 🟢 EKLENDİ: Level Etiketi */}
+
+                  {/* Level Etiketi */}
                   <UserLevelTag level={user.level} />
+
+                  {/* Kuşanılan Rozet (Varsa Göster) */}
+                  {equippedBadge && (
+                    <div
+                        title={`${equippedBadge.name} rozeti kuşanıldı`}
+                        className="animate-bounce-in"
+                        style={{
+                            width: '28px', height: '28px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(0,0,0,0.3)', borderRadius: '50%',
+                            border: '1px solid gold', padding: '2px',
+                            cursor: 'help'
+                        }}
+                    >
+                        <img
+                            src={getBadgeImg(equippedBadge.icon)}
+                            alt="Badge"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                    </div>
+                  )}
                 </div>
 
-                {/* 🟢 EKLENDİ: XP Barı */}
+                {/* XP Barı */}
                 <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '280px', marginTop: '6px', marginBottom: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#b9bbbe', marginBottom: '2px' }}>
                         <span>XP: {Math.floor(currentXP)}</span>
@@ -147,10 +183,11 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                   </div>
                 )}
 
-                {/* 🟢 EKLENDİ: Rozetler */}
+                {/* Rozetler Listesi */}
                 {user.badges && user.badges.length > 0 && (
                     <div className="user-profile-badges-section">
-                      <UserBadgeList badges={user.badges}/>
+                      {/* 🟢 DÜZELTME 3: onEquip prop'u eklendi */}
+                      <UserBadgeList badges={user.badges} onEquip={handleEquipBadge} />
                     </div>
                 )}
 
@@ -215,8 +252,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                             <img src={friendAvatarSrc} alt={friendName} onError={handleAvatarError} />
                           </div>
                           <span className="friend-name">{friendName}</span>
-
-                          {/* 🟢 EKLENDİ: Arkadaş Listesinde Küçük Level Göstergesi */}
                           <UserLevelTag level={friendUser.level} />
                         </li>
                       );

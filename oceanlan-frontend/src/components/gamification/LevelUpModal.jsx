@@ -1,36 +1,43 @@
-// src/components/gamification/LevelUpModal.jsx
 import React, { useEffect, useState } from 'react';
 import { useSocket } from '../../hooks/useSocket';
-import { XMarkIcon, StarIcon, FireIcon } from '@heroicons/react/24/solid';
-import '../../styles/ModalStyles.css'; // Mevcut stil dosyan
+import { XMarkIcon } from '@heroicons/react/24/solid';
+import Confetti from 'react-confetti'; // 🎉 EKLENDİ
+import '../../styles/ModalStyles.css';
+
+// 🖼️ ROZET RESİMLERİNİ BURAYA TANIMLIYORUZ
+const BADGE_IMAGES = {
+  EARLY_ADOPTER: '/assets/badges/earlymember.png', // Senin yüklediğin altın rozet
+  VETERAN_2025: '/assets/badges/2025badge.png',   // Diğer rozet
+};
 
 const LevelUpModal = () => {
   const { socket } = useSocket();
-  const [notification, setNotification] = useState(null); // { type: 'badge' | 'level', data: ... }
+  const [notification, setNotification] = useState(null);
+  // Ekran boyutunu al (Konfeti için)
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
     if (!socket) return;
 
-    // 🏆 Backend'den gelen 'badge-earned' sinyalini dinle
     const handleBadgeEarned = (badge) => {
-      console.log("Yeni Rozet Geldi!", badge);
-      // Sesi çal (Opsiyonel)
-      // const audio = new Audio('/assets/sounds/notification.mp3'); audio.play().catch(e=>{});
+      // badge objesi: { name, icon, xp, description }
       setNotification({ type: 'badge', data: badge });
+      // Ses efekti (İsteğe bağlı)
+      // new Audio('/assets/sounds/success.mp3').play().catch(()=>{});
     };
 
-    // 📈 Backend'den gelen 'level-up' sinyalini dinle
     const handleLevelUp = ({ level, xp }) => {
-      console.log("Level Atlandı!", level);
       setNotification({ type: 'level', data: { level, xp } });
     };
 
     socket.on('badge-earned', handleBadgeEarned);
     socket.on('level-up', handleLevelUp);
+    window.addEventListener('resize', () => setWindowSize({ width: window.innerWidth, height: window.innerHeight }));
 
     return () => {
       socket.off('badge-earned', handleBadgeEarned);
       socket.off('level-up', handleLevelUp);
+      window.removeEventListener('resize');
     };
   }, [socket]);
 
@@ -39,36 +46,68 @@ const LevelUpModal = () => {
   if (!notification) return null;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-      <div className="modal-content" style={{ textAlign: 'center', maxWidth: '400px', background: 'linear-gradient(135deg, #202225 0%, #2f3136 100%)', border: '2px solid #ffd700', borderRadius: '15px', padding: '30px' }}>
+    <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.9)' }}>
+      {/* 🎉 KONFETİ EFEKTİ */}
+      <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={300} />
 
-        <button onClick={handleClose} style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+      <div className="modal-content animate-bounce-in" style={{
+          textAlign: 'center',
+          maxWidth: '400px',
+          background: 'linear-gradient(135deg, #202225 0%, #0f1012 100%)',
+          border: '1px solid #ffd700',
+          borderRadius: '20px',
+          padding: '40px',
+          boxShadow: '0 0 50px rgba(255, 215, 0, 0.3)'
+      }}>
+
+        <button onClick={handleClose} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#777', cursor: 'pointer' }}>
             <XMarkIcon width={24} />
         </button>
 
         {notification.type === 'badge' && (
-          <div className="animate-bounce-in">
-            <div style={{ fontSize: '60px', marginBottom: '15px', filter: 'drop-shadow(0 0 10px gold)' }}>🏆</div>
-            <h2 style={{ color: '#ffd700', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>TEBRİKLER!</h2>
-            <p style={{ color: '#fff', fontSize: '18px', margin: 0 }}>Yeni Bir Rozet Kazandın</p>
+          <div>
+            {/* 🖼️ LOGO GÖSTERİMİ */}
+            <div style={{ marginBottom: '20px', position: 'relative', display: 'inline-block' }}>
+               <div style={{ position: 'absolute', inset: 0, background: 'gold', filter: 'blur(20px)', opacity: 0.4, borderRadius: '50%' }}></div>
+               <img
+                 src={BADGE_IMAGES[notification.data.icon] || '/assets/badges/default.png'}
+                 alt="Badge"
+                 style={{ width: '120px', height: '120px', objectFit: 'contain', position: 'relative', zIndex: 1 }}
+               />
+            </div>
 
-            <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                <h3 style={{ color: '#00b0f4', margin: '0 0 5px 0' }}>{notification.data.name}</h3>
+            <h2 style={{ color: '#ffd700', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '2px', fontSize: '24px' }}>TEBRİKLER!</h2>
+            <p style={{ color: '#fff', fontSize: '16px', margin: 0, opacity: 0.8 }}>Yeni Bir Rozet Kazandın</p>
+
+            <div style={{ marginTop: '25px', padding: '20px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <h3 style={{ color: '#fff', margin: '0 0 5px 0', fontSize: '18px' }}>{notification.data.name}</h3>
                 <p style={{ color: '#b9bbbe', fontSize: '14px', margin: 0 }}>{notification.data.description}</p>
-                {notification.data.xp > 0 && <div style={{ marginTop: '10px', color: '#43b581', fontWeight: 'bold' }}>+{notification.data.xp} XP</div>}
+                {notification.data.xp > 0 && (
+                    <div style={{ marginTop: '10px', display: 'inline-block', background: 'rgba(67, 181, 129, 0.2)', color: '#43b581', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
+                        +{notification.data.xp} XP
+                    </div>
+                )}
             </div>
           </div>
         )}
 
         {notification.type === 'level' && (
-          <div className="animate-bounce-in">
-            <div style={{ fontSize: '60px', marginBottom: '15px', filter: 'drop-shadow(0 0 10px #00b0f4)' }}>🚀</div>
+          <div>
+            <div style={{ fontSize: '80px', marginBottom: '10px' }}>🚀</div>
             <h2 style={{ color: '#00b0f4', margin: '0 0 10px 0', textTransform: 'uppercase' }}>SEVİYE ATLADIN!</h2>
-            <p style={{ color: '#fff', fontSize: '18px' }}>Artık <strong>Level {notification.data.level}</strong> oldun!</p>
+            <p style={{ color: '#fff', fontSize: '18px' }}>Tebrikler, artık <strong>Level {notification.data.level}</strong> oldun!</p>
           </div>
         )}
 
-        <button onClick={handleClose} className="copy-btn" style={{ width: '100%', marginTop: '25px', background: '#5865F2', padding: '12px', fontSize: '16px' }}>Harika!</button>
+        <button onClick={handleClose} style={{
+            width: '100%', marginTop: '30px',
+            background: 'linear-gradient(90deg, #5865F2, #4752C4)',
+            color: 'white', border: 'none', borderRadius: '10px',
+            padding: '14px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(88, 101, 242, 0.4)'
+        }}>
+            Harika!
+        </button>
       </div>
     </div>
   );
