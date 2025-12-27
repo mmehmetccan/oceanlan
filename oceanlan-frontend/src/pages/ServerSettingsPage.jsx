@@ -94,6 +94,7 @@ const ServerSettingsPage = () => {
   const [newRoleName, setNewRoleName] = useState('Yeni Rol');
   const [newRoleColor, setNewRoleColor] = useState('#99AAB5');
   const [newRolePermissions, setNewRolePermissions] = useState([]);
+  const [requests, setRequests] = useState([]); // Gelen istekler
 
   // Kanal yönetimi
   const [selectedChannel, setSelectedChannel] = useState(null);
@@ -121,6 +122,44 @@ const ServerSettingsPage = () => {
   });
 
   useServerSocket(serverId);
+
+
+
+  // 2. İSTEKLERİ ÇEKEN EFFECT
+  useEffect(() => {
+    if (activeTab === 'requests' && serverId) {
+      axiosInstance.get(`${API_URL_BASE}/api/v1/servers/${serverId}/requests`)
+        .then(res => setRequests(res.data.data))
+        .catch(err => console.error(err));
+    }
+  }, [activeTab, serverId]);
+
+  const handleRequestResponse = async (requestId, status) => { // status: 'accepted' | 'rejected'
+    try {
+      const res = await axiosInstance.post(`${API_URL_BASE}/api/v1/servers/${serverId}/requests/${requestId}`, { status });
+      addToast(res.data.message, 'success');
+      // Listeden çıkar
+      setRequests(prev => prev.filter(r => r._id !== requestId));
+      if (status === 'accepted') {
+        fetchServerDetails(serverId); // Üye sayısını güncellemek için
+      }
+    } catch (error) {
+      addToast(error.response?.data?.message || 'İşlem başarısız', 'error');
+    }
+  };
+
+  const handleVisibilityUpdate = async (isPublic, joinMode) => {
+    try {
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
+        isPublic, joinMode
+      });
+      addToast('Sunucu görünürlük ayarları güncellendi', 'success');
+      fetchServerDetails(serverId);
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Güncellenemedi', 'error');
+    }
+  };
+
 
   // =======================================================
   // 🛠️ YETKİ KONTROLÜ (DÜZELTİLDİ)
@@ -176,25 +215,25 @@ const ServerSettingsPage = () => {
 
     // Yeni değer tersi olacak
     const updatedFeatures = {
-        ...currentFeatures,
-        [featureKey]: !currentValue
+      ...currentFeatures,
+      [featureKey]: !currentValue
     };
 
     try {
-        // Backend isteği
-        await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
-            features: updatedFeatures
-        });
+      // Backend isteği
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
+        features: updatedFeatures
+      });
 
-        addToast('Sunucu özellikleri güncellendi.', 'success');
-        fetchServerDetails(serverId);
+      addToast('Sunucu özellikleri güncellendi.', 'success');
+      fetchServerDetails(serverId);
     } catch (err) {
-        console.error("Güncelleme Hatası:", err);
-        // Hata mesajını daha net gösterelim
-        const errMsg = err.response?.status === 404
-            ? "Sunucu güncelleme rotası bulunamadı (Backend Hatası)."
-            : "Özellik güncellenemedi.";
-        addToast(errMsg, 'error');
+      console.error("Güncelleme Hatası:", err);
+      // Hata mesajını daha net gösterelim
+      const errMsg = err.response?.status === 404
+        ? "Sunucu güncelleme rotası bulunamadı (Backend Hatası)."
+        : "Özellik güncellenemedi.";
+      addToast(errMsg, 'error');
     }
   };
 
@@ -361,11 +400,11 @@ const ServerSettingsPage = () => {
     // Debug bilgisi
     const ownerId = activeServer.owner?._id || activeServer.owner;
     return (
-      <div className="no-permission" style={{padding:'50px', textAlign:'center', color:'white'}}>
+      <div className="no-permission" style={{ padding: '50px', textAlign: 'center', color: 'white' }}>
         <h2>Erişim Reddedildi</h2>
         <p>Bu sayfayı görme yetkiniz yok.</p>
-        <p style={{fontSize:'12px', color:'#999'}}>
-           (Debug: Sahip={String(ownerId)}, Sen={String(user?.id)})
+        <p style={{ fontSize: '12px', color: '#999' }}>
+          (Debug: Sahip={String(ownerId)}, Sen={String(user?.id)})
         </p>
       </div>
     );
@@ -409,6 +448,9 @@ const ServerSettingsPage = () => {
         >
           Genel Bakış
         </button>
+        <button onClick={() => setActiveTab('requests')} className={activeTab === 'requests' ? 'active' : ''}>
+          İstekler {requests.length > 0 && `(${requests.length})`}
+        </button>
         {/* 🟢 YENİ EKLENEN: ÖZELLİKLER SEKMESİ */}
         <button
           onClick={() => setActiveTab('features')}
@@ -446,55 +488,84 @@ const ServerSettingsPage = () => {
       <div className="settings-content">
 
         {/* 🟢 YENİ EKLENEN: ÖZELLİKLER İÇERİĞİ */}
-       {/* 🟢 ÖZELLİKLER (FEATURES) TABI */}
+        {/* 🟢 ÖZELLİKLER (FEATURES) TABI */}
         {activeTab === 'features' && (
-            <section className="settings-grid">
-                <div className="settings-card highlight">
-                    <h2>Sunucu Özellikleri</h2>
-                    <p style={{color:'#b9bbbe', marginBottom:'20px'}}>Bu sunucuda hangi özel modüllerin aktif olacağını seçin. (Varsayılan olarak hepsi aktiftir)</p>
+          <section className="settings-grid">
+            <div className="settings-card highlight">
+              <h2>Sunucu Özellikleri</h2>
+              <p style={{ color: '#b9bbbe', marginBottom: '20px' }}>Bu sunucuda hangi özel modüllerin aktif olacağını seçin. (Varsayılan olarak hepsi aktiftir)</p>
 
-                    {/* KADRO KURUCU */}
-                    <div className="info-row" style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #2f3136'}}>
-                        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                            <GlobeAltIcon style={{width:24, color:'#00aff4'}} />
-                            <div>
-                                <strong style={{color:'white', display:'block'}}>Kadro Kurucu</strong>
-                                <span style={{fontSize:'12px', color:'#b9bbbe'}}>Spor kanalları için kadro kurma modülü.</span>
-                            </div>
-                        </div>
-                        <label className="switch">
-                            <input
-                                type="checkbox"
-                                // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
-                                checked={activeServer.features?.squadBuilder !== false}
-                                onChange={() => toggleServerFeature('squadBuilder')}
-                            />
-                            <span className="slider round"></span>
-                        </label>
-                    </div>
-
-                    {/* TATİLDEKİ ROTAM */}
-                    <div className="info-row" style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0'}}>
-                        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                            <MapIcon style={{width:24, color:'#fcd34d'}} />
-                            <div>
-                                <strong style={{color:'white', display:'block'}}>Tatildeki Rotam</strong>
-                                <span style={{fontSize:'12px', color:'#b9bbbe'}}>Seyahat planlama ve rota paylaşım modülü.</span>
-                            </div>
-                        </div>
-                        <label className="switch" >
-                            <input
-                                type="checkbox"
-                                // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
-                                checked={activeServer.features?.vacationRoute !== false}
-                                onChange={() => toggleServerFeature('vacationRoute')}
-                            />
-                            <span className="slider round"></span>
-                        </label>
-                    </div>
-
+              {/* KADRO KURUCU */}
+              <div className="info-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #2f3136' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <GlobeAltIcon style={{ width: 24, color: '#00aff4' }} />
+                  <div>
+                    <strong style={{ color: 'white', display: 'block' }}>Kadro Kurucu</strong>
+                    <span style={{ fontSize: '12px', color: '#b9bbbe' }}>Spor kanalları için kadro kurma modülü.</span>
+                  </div>
                 </div>
-            </section>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
+                    checked={activeServer.features?.squadBuilder !== false}
+                    onChange={() => toggleServerFeature('squadBuilder')}
+                  />
+                  <span className="slider round"></span>
+                </label>
+              </div>
+
+              {/* TATİLDEKİ ROTAM */}
+              <div className="info-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <MapIcon style={{ width: 24, color: '#fcd34d' }} />
+                  <div>
+                    <strong style={{ color: 'white', display: 'block' }}>Tatildeki Rotam</strong>
+                    <span style={{ fontSize: '12px', color: '#b9bbbe' }}>Seyahat planlama ve rota paylaşım modülü.</span>
+                  </div>
+                </div>
+                <label className="switch" >
+                  <input
+                    type="checkbox"
+                    // 🟢 DEĞİŞİKLİK: !== false diyerek varsayılanı TRUE yaptık
+                    checked={activeServer.features?.vacationRoute !== false}
+                    onChange={() => toggleServerFeature('vacationRoute')}
+                  />
+                  <span className="slider round"></span>
+                </label>
+              </div>
+
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'requests' && (
+          <section>
+            <h2>Katılım İstekleri</h2>
+            <div className="bans-list"> {/* Mevcut CSS classlarını kullanabiliriz */}
+              {requests.length === 0 ? (
+                <p className="bans-empty">Bekleyen katılım isteği yok.</p>
+              ) : (
+                requests.map(req => (
+                  <div key={req._id} className="ban-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="ban-user">
+                      <div className="ban-avatar">
+                        <img src={req.user.avatarUrl ? `${API_URL_BASE}/api/v1/${req.user.avatarUrl}` : '/default-avatar.png'} alt="avatar" />
+                      </div>
+                      <div className="ban-text">
+                        <div className="ban-username">{req.user.username}</div>
+                        <div className="ban-reason" style={{ fontSize: '11px' }}>Lv.{req.user.level || 0}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => handleRequestResponse(req._id, 'accepted')} className="pill-btn primary small">Onayla</button>
+                      <button onClick={() => handleRequestResponse(req._id, 'rejected')} className="pill-btn danger small">Reddet</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         )}
 
         {/* GENEL */}
@@ -509,6 +580,44 @@ const ServerSettingsPage = () => {
               <div className="info-row">
                 <span className="label">Sunucu Sahibi</span>
                 <span className="value">{ownerName}</span>
+              </div>
+
+              <div className="settings-card highlight">
+                <h2>Görünürlük ve Katılım</h2>
+
+                <div className="info-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                  <div>
+                    <strong style={{ color: 'white' }}>Herkese Açık Sunucu</strong>
+                    <p style={{ fontSize: '12px', color: '#b9bbbe' }}>Sunucuyu Keşfet sayfasında listele.</p>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={activeServer.isPublic}
+                      onChange={(e) => handleVisibilityUpdate(e.target.checked, activeServer.joinMode)}
+                    />
+                    <span className="slider round"></span>
+                  </label>
+                </div>
+
+                {activeServer.isPublic && (
+                  <div className="info-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                    <div>
+                      <strong style={{ color: 'white' }}>Onaylı Katılım</strong>
+                      <p style={{ fontSize: '12px', color: '#b9bbbe' }}>
+                        {activeServer.joinMode === 'request' ? 'Kullanıcılar katılmak için istek göndermeli.' : 'Kullanıcılar direkt katılabilir.'}
+                      </p>
+                    </div>
+                    <select
+                      value={activeServer.joinMode}
+                      onChange={(e) => handleVisibilityUpdate(activeServer.isPublic, e.target.value)}
+                      style={{ backgroundColor: '#202225', color: 'white', border: 'none', padding: '5px', borderRadius: '4px' }}
+                    >
+                      <option value="direct">Direkt</option>
+                      <option value="request">İstekli</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="icon-upload-section">
@@ -602,9 +711,8 @@ const ServerSettingsPage = () => {
                   <button
                     key={channel._id}
                     onClick={() => setSelectedChannel(channel)}
-                    className={`pill-btn ghost channel-pill ${
-                      selectedChannel?._id === channel._id ? 'active' : ''
-                    }`}
+                    className={`pill-btn ghost channel-pill ${selectedChannel?._id === channel._id ? 'active' : ''
+                      }`}
                   >
                     {channel.type === 'voice' ? '🔊' : '#'} {channel.name}
                   </button>

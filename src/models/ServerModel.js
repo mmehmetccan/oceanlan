@@ -16,6 +16,12 @@ const ServerSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  isPublic: { type: Boolean, default: false }, // Herkese Açık mı?
+  joinMode: {
+    type: String,
+    enum: ['direct', 'request'], // 'direct': Direkt Gir, 'request': İstek At
+    default: 'direct'
+  },
   // 🟢 YENİ EKLENEN KISIM: SUNUCU ÖZELLİKLERİ
   features: {
     squadBuilder: {
@@ -48,11 +54,11 @@ const ServerSchema = new mongoose.Schema({
     }
   ],
   roles: [
-      {
-          type: mongoose.Schema.ObjectId,
-          ref: 'Role'
-      }
-      ],
+    {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Role'
+    }
+  ],
   inviteCode: {
     type: String,
     unique: true,

@@ -11,7 +11,10 @@ const {
     updateServerIcon, // Bu fonksiyon controller'da olmalı
     getBannedUsers,
     unbanUser,
-    updateServer
+    updateServer,
+    getServerRequests,
+    respondToServerRequest,
+    getDiscoverServers
 } = require('../../controllers/serverController');
 
 // Koruma (Giriş yapma) middleware'ini içe aktar
@@ -34,6 +37,8 @@ router.post('/',
 
 router.get('/', protect, getUserServers);
 
+router.get('/discover/all', protect, getDiscoverServers);
+
 // POST /api/v1/servers/:serverId/invite
 router.post('/:serverId/invite', protect, generateInviteCode);
 
@@ -48,6 +53,10 @@ router.put(
 );
 
 router.put('/:serverId', protect, updateServer);
+
+// Sunucu İstek Yönetimi Rotaları
+router.get('/:serverId/requests', protect, getServerRequests);
+router.post('/:serverId/requests/:requestId', protect, respondToServerRequest);
 
 // Ban Yönetimi
 router.get('/:serverId/bans', protect, getBannedUsers);

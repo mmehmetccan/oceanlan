@@ -19,7 +19,7 @@ import UserProfileViewPage from './UserProfileViewPage';
 import TitleBar from '../components/layout/TitleBar';
 import ServerMembersPanel from '../components/views/ServerMembersPanel';
 import ScreenSharePickerModal from '../components/modals/ScreenSharePickerModal';
-
+import ServerDiscoveryPage from './ServerDiscoveryPage';
 // Entegrasyonlar
 import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
 import TatildekiRotamFrame from '../components/integrations/TatildekiRotamFrame';
@@ -37,11 +37,11 @@ import { UsersIcon, XMarkIcon } from '@heroicons/react/24/solid';
 const DashboardPage = () => {
   const { socket } = useSocket();
   const {
-      currentVoiceChannelId,
-      joinVoiceChannel,
-      isScreenPickerOpen,
-      setScreenPickerOpen,
-      screenShareCallback
+    currentVoiceChannelId,
+    joinVoiceChannel,
+    isScreenPickerOpen,
+    setScreenPickerOpen,
+    screenShareCallback
   } = useContext(VoiceContext);
 
   const { serverId } = useParams();
@@ -63,11 +63,11 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onUpdateMessage) {
-        window.electronAPI.onUpdateMessage(({ type, text }) => {
-            if (type === 'success') addToast(text, 'success');
-            else if (type === 'error') addToast(text, 'error');
-            else addToast(text, 'info');
-        });
+      window.electronAPI.onUpdateMessage(({ type, text }) => {
+        if (type === 'success') addToast(text, 'success');
+        else if (type === 'error') addToast(text, 'error');
+        else addToast(text, 'info');
+      });
     }
   }, [addToast]);
 
@@ -78,7 +78,7 @@ const DashboardPage = () => {
       addToast("Yeni bir mesajın var!", "info");
     };
     const handleForceJoin = ({ serverId, channelId }) => {
-        joinVoiceChannel(serverId, channelId);
+      joinVoiceChannel(serverId, channelId);
     };
     socket.on('unreadDm', handleUnreadDm);
     socket.on('force-join-voice-channel', handleForceJoin);
@@ -112,13 +112,13 @@ const DashboardPage = () => {
         )}
 
         {isScreenPickerOpen && (
-            <ScreenSharePickerModal
-                onClose={() => setScreenPickerOpen(false)}
-                onSelect={(sourceId) => {
-                    setScreenPickerOpen(false);
-                    if (screenShareCallback) screenShareCallback(sourceId);
-                }}
-            />
+          <ScreenSharePickerModal
+            onClose={() => setScreenPickerOpen(false)}
+            onSelect={(sourceId) => {
+              setScreenPickerOpen(false);
+              if (screenShareCallback) screenShareCallback(sourceId);
+            }}
+          />
         )}
 
         <div className="main-content-area" style={{ position: 'relative' }}>
@@ -134,6 +134,7 @@ const DashboardPage = () => {
           )}
 
           <Routes>
+            <Route path="discover" element={<ServerDiscoveryPage />} />
             <Route path="feed" element={<FeedPage />} />
             <Route path="friends" element={<FriendsView />} />
             <Route path="all-dms" element={<AllDmsPage />} />
@@ -155,33 +156,33 @@ const DashboardPage = () => {
 
         {/* 🟢 SERVER ÜYELER PANELİ (Mobilde Açılır/Kapanır Yapıldı) */}
         {onServerRoute && (
-            <div className={`server-members-wrapper ${showMobileMembers ? 'mobile-open' : ''}`}>
-               {/* Mobilde arkaya tıklayınca kapanması için backdrop */}
-               {showMobileMembers && (
-                  <div
-                    className="mobile-backdrop"
-                    onClick={() => setShowMobileMembers(false)}
-                  />
-               )}
-               <div className="members-panel-content">
-                  <ServerMembersPanel />
-               </div>
+          <div className={`server-members-wrapper ${showMobileMembers ? 'mobile-open' : ''}`}>
+            {/* Mobilde arkaya tıklayınca kapanması için backdrop */}
+            {showMobileMembers && (
+              <div
+                className="mobile-backdrop"
+                onClick={() => setShowMobileMembers(false)}
+              />
+            )}
+            <div className="members-panel-content">
+              <ServerMembersPanel />
             </div>
+          </div>
         )}
 
       </div>
 
       {currentVoiceChannelId && (
         <div style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 72,
-            width: 240,
-            zIndex: 9999,
-            backgroundColor: '#292b2f',
-            borderTop: '1px solid #3f4147'
+          position: 'absolute',
+          bottom: 0,
+          left: 72,
+          width: 240,
+          zIndex: 9999,
+          backgroundColor: '#292b2f',
+          borderTop: '1px solid #3f4147'
         }}>
-            <VoiceRoom />
+          <VoiceRoom />
         </div>
       )}
     </div>

@@ -315,171 +315,181 @@
 
 /* Post Card */
 .post-card {
-    background: linear-gradient(145deg, rgba(58, 60, 67, 0.95), rgba(38, 39, 45, 0.92));
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 14px;
-    padding: 18px 20px;
-    margin-bottom: 0;
-    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
-    color: #dbdce0;
-    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  background: linear-gradient(145deg, rgba(58, 60, 67, 0.95), rgba(38, 39, 45, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 0;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
+  color: #dbdce0;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .post-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 22px 38px rgba(0, 0, 0, 0.45);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 22px 38px rgba(0, 0, 0, 0.45);
 }
 
 .post-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
 }
 
 .post-author-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-    border: 2px solid rgba(255, 255, 255, 0.05);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.05);
 }
 
 .post-author-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .post-author-name {
-    font-weight: 600;
-    color: #ffffff;
-    font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 15px;
 }
 
 .post-author-details {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .post-date {
-    font-size: 12px;
-    color: #9d9fa8;
+  font-size: 12px;
+  color: #9d9fa8;
 }
 
 .post-content {
-    margin-top: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    color: #f5f5f7;
-    line-height: 1.5;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #f5f5f7;
+  line-height: 1.5;
 }
 
 .post-media {
-    width: 100%;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
 }
 
 .post-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .post-action-button {
-    flex: 1;
-    min-width: 150px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    background: rgba(255, 255, 255, 0.04);
-    color: #d0d2d9;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  flex: 1;
+  min-width: 150px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d0d2d9;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .post-action-button:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.08);
-    transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
 }
 
 .post-action-button.is-active {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.18);
-    color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
 }
 
 .comment-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 0;
-    border-top: 1px solid #3a3f45;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid #3a3f45;
 }
 
 .comment-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .comment-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .comment-body {
-    display: flex;
-    flex-direction: column;
-    font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
 }
 
 .comment-author {
-    font-weight: 600;
-    margin-right: 5px;
-    color: #ffffff;
+  font-weight: 600;
+  margin-right: 5px;
+  color: #ffffff;
 }
 
 .comment-content {
-    color: #b9bbbe;
+  color: #b9bbbe;
 }
+
 /* Bildirim Noktası için (Opsiyonel) */
 .unread-badge {
-    position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background-color: #ed4245;
-    border: 2px solid #2f3136;
-    z-index: 10;
-    animation: pulse 2s infinite;
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #ed4245;
+  border: 2px solid #2f3136;
+  z-index: 10;
+  animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(237, 66, 69, 0.7); }
-    70% { box-shadow: 0 0 0 4px rgba(237, 66, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(237, 66, 69, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(237, 66, 69, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 4px rgba(237, 66, 69, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(237, 66, 69, 0);
+  }
 }
+
 @media (max-width: 1100px) {
   .feed-shell {
     grid-template-columns: 1fr;

@@ -18,8 +18,6 @@ const PostCard = ({
   onDeleteClick,
   getAvatarUrl,
   handleAvatarError,
-
-  // ✅ EKLENDİ: dışarıdan profil açma
   onOpenProfile
 }) => {
   const { user } = useContext(AuthContext);
@@ -33,11 +31,8 @@ const PostCard = ({
   const postUserId = post.user?._id || post.user;
   const isOwner = String(postUserId) === String(currentUserId);
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
   const avatarRaw = post?.user?.avatarUrl || post?.user?.avatar;
   const avatarSrc = getFullImageUrl(avatarRaw);
-
   const mediaSrc = getFullImageUrl(post.mediaUrl);
 
   const handleAvatarErrorSafe = (event) => {
@@ -50,16 +45,10 @@ const PostCard = ({
     }
   };
 
-  // ✅ EKLENDİ: bu postun sahibinin profilini aç
   const openPostOwnerProfile = (e) => {
     e?.stopPropagation?.();
     if (typeof onOpenProfile !== 'function') return;
-
-    // post.user bazen populated, bazen sadece id olabilir
-    const u = post?.user && typeof post.user === 'object'
-      ? post.user
-      : { _id: postUserId };
-
+    const u = post?.user && typeof post.user === 'object' ? post.user : { _id: postUserId };
     onOpenProfile(u);
   };
 
@@ -67,18 +56,14 @@ const PostCard = ({
     try {
       const res = await axiosInstance.post(`/posts/${post._id}/like`);
       onPostUpdated(res.data.data);
-    } catch (error) {
-      console.error('Like atılamadı:', error);
-    }
+    } catch (error) { console.error('Like hatası:', error); }
   };
 
   const handleDislike = async () => {
     try {
       const res = await axiosInstance.post(`/posts/${post._id}/dislike`);
       onPostUpdated(res.data.data);
-    } catch (error) {
-      console.error('Dislike atılamadı:', error);
-    }
+    } catch (error) { console.error('Dislike hatası:', error); }
   };
 
   const onCommentAdded = (newComment) => {
@@ -89,45 +74,30 @@ const PostCard = ({
     onPostUpdated(updatedPost);
   };
 
+  // ✅ YENİ: Yorum silinince post datasını güncelle
+  const onCommentDeleted = (commentId) => {
+    const updatedPost = {
+      ...post,
+      comments: post.comments.filter(c => c._id !== commentId),
+    };
+    onPostUpdated(updatedPost);
+  };
+
   return (
     <article className="post-card">
       <header className="post-header">
-        {/* ✅ Avatar tıklanınca profil */}
-        <div
-          className="post-author-avatar"
-          onClick={openPostOwnerProfile}
-          style={{ cursor: 'pointer' }}
-          title="Profili Görüntüle"
-        >
-          {/* 👇 LEVEL EKLENDİ */}
-          <img
-            src={avatarSrc}
-            alt={`${post?.user?.username || 'Kullanıcı'} avatarı`}
-            onError={handleAvatarErrorSafe}
-          />
-
+        <div className="post-author-avatar" onClick={openPostOwnerProfile} style={{ cursor: 'pointer' }} title="Profili Görüntüle">
+          <img src={avatarSrc} alt="avatar" onError={handleAvatarErrorSafe} />
         </div>
 
         <div className="post-author-details">
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <strong
-              className="post-author-name"
-              onClick={openPostOwnerProfile}
-              style={{ cursor: 'pointer' }}
-              title="Profili Görüntüle"
-            >
+            <strong className="post-author-name" onClick={openPostOwnerProfile} style={{ cursor: 'pointer' }}>
               {post?.user?.username || 'Kullanıcı'}
             </strong>
-            {/* 👇 LEVEL EKLENDİ */}
-            <UserLevelTag
-              level={post?.user?.level}
-              activeBadge={post?.user?.activeBadge}
-            />
+            <UserLevelTag level={post?.user?.level} activeBadge={post?.user?.activeBadge} />
           </div>
-
-          <time className="post-date" dateTime={post.createdAt}>
-            {new Date(post.createdAt).toLocaleString()}
-          </time>
+          <time className="post-date">{new Date(post.createdAt).toLocaleString()}</time>
         </div>
         {isOwner && (
           <button
@@ -141,64 +111,40 @@ const PostCard = ({
               border: 'none',
               color: '#ed4245',
               cursor: 'pointer',
-              padding: '5px',
+              padding: '6px', // Padding küçültüldü
               borderRadius: '50%',
-              transition: 'background 0.2s'
+              transition: 'background 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: 'auto' // Sağa yasla
             }}
             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <TrashIcon style={{ width: '20px', height: '20px' }} />
+            <TrashIcon style={{ width: '18px', height: '18px' }} /> {/* İkon boyutu küçültüldü */}
           </button>
         )}
       </header>
 
       <div className="post-content">
         <p>{post.content}</p>
-
-        {post.mediaUrl && post.mediaType === 'image' && (
-          <img
-            src={mediaSrc}
-            alt={post.content || 'Gönderi görseli'}
-            className="post-media"
-            onError={(e) => {
-              if (e?.target) {
-                e.target.style.display = 'none';
-              }
-            }}
-          />
-        )}
-
-        {post.mediaUrl && post.mediaType === 'video' && (
-          <video controls src={mediaSrc} className="post-media" />
+        {post.mediaUrl && (
+          <div className="media-container" style={{ marginTop: '10px' }}>
+            {post.mediaType === 'image' && <img src={mediaSrc} className="post-media" loading="lazy" onError={(e) => e.target.style.display = 'none'} />}
+            {post.mediaType === 'video' && <video controls src={mediaSrc} className="post-media" />}
+          </div>
         )}
       </div>
 
       <div className="post-actions">
-        <button
-          type="button"
-          onClick={handleLike}
-          className={`post-action-button ${isLiked ? 'is-active' : ''}`}
-          aria-pressed={isLiked}
-        >
+        <button type="button" onClick={handleLike} className={`post-action-button ${isLiked ? 'is-active' : ''}`}>
           👍 <span>Like ({post.likes.length})</span>
         </button>
-
-        <button
-          type="button"
-          onClick={handleDislike}
-          className={`post-action-button ${isDisliked ? 'is-active' : ''}`}
-          aria-pressed={isDisliked}
-        >
+        <button type="button" onClick={handleDislike} className={`post-action-button ${isDisliked ? 'is-active' : ''}`}>
           👎 <span>Dislike ({post.dislikes.length})</span>
         </button>
-
-        <button
-          type="button"
-          onClick={() => setShowComments(!showComments)}
-          className={`post-action-button ${showComments ? 'is-active' : ''}`}
-          aria-expanded={showComments}
-        >
+        <button type="button" onClick={() => setShowComments(!showComments)} className={`post-action-button ${showComments ? 'is-active' : ''}`}>
           💬 <span>Yorumlar ({post.comments.length})</span>
         </button>
       </div>
@@ -208,10 +154,10 @@ const PostCard = ({
           postId={post._id}
           initialComments={post.comments}
           onCommentAdded={onCommentAdded}
+          onCommentDeleted={onCommentDeleted} // ✅ EKLENDİ
           getAvatarUrl={getAvatarUrl}
           handleAvatarError={handleAvatarError}
-
-          onOpenProfile={onOpenProfile} // ✅ EKLENDİ (yorumlar da tıklanınca açsın)
+          onOpenProfile={onOpenProfile}
         />
       )}
     </article>

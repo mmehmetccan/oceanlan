@@ -2,15 +2,24 @@
 
 /* Temel Sıfırlama ve Değişkenler */
 :root {
-  --color-dark: #202225; /* Ana Arkaplan (Koyu Gri) */
-  --color-darker: #2f3136; /* İkinci Arkaplan (Daha Koyu Gri) */
-  --color-sidebar: #2c2f33; /* Kenar Çubuğu Rengi */
-  --color-primary: #5865f2; /* Discord Mavisi/Mor */
-  --color-secondary: #7289da; /* Açık Mavi */
-  --color-text-light: #dcddde; /* Açık Renk Metin */
-  --color-text-dark: #99aab5; /* Koyu Renk Metin */
-  --color-success: #32a852; /* Başarı Rengi */
-  --color-error: #f04747; /* Hata Rengi */
+  --color-dark: #202225;
+  /* Ana Arkaplan (Koyu Gri) */
+  --color-darker: #2f3136;
+  /* İkinci Arkaplan (Daha Koyu Gri) */
+  --color-sidebar: #2c2f33;
+  /* Kenar Çubuğu Rengi */
+  --color-primary: #1ab199;
+  /* Discord Mavisi/Mor */
+  --color-secondary: #7289da;
+  /* Açık Mavi */
+  --color-text-light: #dcddde;
+  /* Açık Renk Metin */
+  --color-text-dark: #99aab5;
+  /* Koyu Renk Metin */
+  --color-success: #32a852;
+  /* Başarı Rengi */
+  --color-error: #f04747;
+  /* Hata Rengi */
 }
 
 * {
@@ -24,7 +33,8 @@ body {
   background-color: var(--color-dark);
   color: var(--color-text-light);
   min-height: 100vh;
-  overflow: hidden; /* Genel kaydırmayı engelle */
+  overflow: hidden;
+  /* Genel kaydırmayı engelle */
 }
 
 /* -------------------- */
@@ -98,7 +108,8 @@ body {
 /* Tüm sayfa: üstte bar, altta içerik */
 .dashboard-layout {
   display: flex;
-  flex-direction: column; /* Üstte Sidebar, altında tek satır */
+  flex-direction: column;
+  /* Üstte Sidebar, altında tek satır */
   height: 100vh;
 }
 
@@ -106,8 +117,10 @@ body {
 .dashboard-main-row {
   flex: 1;
   display: flex;
-  min-height: 0; /* scroll bug fix */
+  min-height: 0;
+  /* scroll bug fix */
 }
+
 .dashboard-main-row.single-column {
   flex: 1;
 }
@@ -117,11 +130,14 @@ body {
   display: flex;
   min-height: 0;
 }
+
 .dashboard-main {
   flex: 1;
   display: flex;
-  min-height: 0; /* scroll sorunlarını engeller */
+  min-height: 0;
+  /* scroll sorunlarını engeller */
 }
+
 /* 2.1. Server Sidebar (En Soldaki İkonlar) */
 
 
@@ -177,6 +193,7 @@ body {
 .sidebar-icon.active {
   background-color: var(--color-primary);
 }
+
 /* Sunucu “story” görünümü (hikâye halkası) */
 .server-story {
   padding: 0;
@@ -187,14 +204,12 @@ body {
 .server-story-ring {
   padding: 2px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 0 0,
-    #f09433,
-    #e6683c,
-    #dc2743,
-    #cc2366,
-    #bc1888
-  );
+  background: radial-gradient(circle at 0 0,
+      #f09433,
+      #e6683c,
+      #dc2743,
+      #cc2366,
+      #bc1888);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -244,7 +259,8 @@ body {
 /* 2.2. Secondary Sidebar (Kanallar/Arkadaşlar Listesi) */
 /* Sol: Kanallar */
 .secondary-sidebar {
-  width: 240px;          /* istersen 260 yap */
+  width: 240px;
+  /* istersen 260 yap */
   background-color: var(--color-darker);
   flex-shrink: 0;
   padding: 10px 0;
@@ -373,6 +389,7 @@ body {
   outline: 1px dashed var(--color-primary);
   background-color: #3a414a;
 }
+
 /* 2.3. Ana İçerik Alanı (Sohbet/Ayarlar) */
 .main-content-area {
   flex: 1;
@@ -380,8 +397,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding-bottom: 64px; /* alttaki ses barı için */
+  padding-bottom: 64px;
+  /* alttaki ses barı için */
 }
+
 /* Sağ taraftaki üye paneli */
 .members-sidebar {
   width: 230px;
@@ -408,11 +427,13 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
 .member-dot {
   margin-right: 6px;
   font-size: 10px;
   color: var(--color-text-dark);
 }
+
 /* Zaten var ama tekrar hatırlatayım: */
 .channel-item,
 .member-item {
@@ -476,7 +497,7 @@ body {
 }
 
 .message-item:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .message-author {
@@ -486,8 +507,8 @@ body {
 }
 
 .message-time {
-    font-size: 12px;
-    color: var(--color-text-dark);
+  font-size: 12px;
+  color: var(--color-text-dark);
 }
 
 .message-content {
@@ -564,46 +585,46 @@ body {
 /* -------------------- */
 
 .friends-view {
-    padding: 20px;
+  padding: 20px;
 }
 
 .friends-view h3 {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-text-dark);
-    margin: 20px 0 15px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-text-dark);
+  margin: 20px 0 15px;
 }
 
 .friends-view input {
-    width: 70%;
-    padding: 10px;
-    background-color: #40444b;
-    border: none;
-    border-radius: 4px;
-    color: var(--color-text-light);
-    margin-right: 10px;
+  width: 70%;
+  padding: 10px;
+  background-color: #40444b;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-light);
+  margin-right: 10px;
 }
 
 .friends-view button {
-    padding: 10px 15px;
-    background-color: var(--color-success);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+  padding: 10px 15px;
+  background-color: var(--color-success);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .friends-view ul {
-    list-style: none;
+  list-style: none;
 }
 
 .friends-view ul li {
-    padding: 10px;
-    background-color: #36393f;
-    border-radius: 4px;
-    margin-bottom: 5px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  padding: 10px;
+  background-color: #36393f;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* -------------------- */
@@ -611,45 +632,45 @@ body {
 /* -------------------- */
 
 .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
 .modal-content {
-    background-color: var(--color-darker);
-    padding: 30px;
-    border-radius: 8px;
-    width: 400px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-    position: relative;
+  background-color: var(--color-darker);
+  padding: 30px;
+  border-radius: 8px;
+  width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  position: relative;
 }
 
 .modal-content h3 {
-    border: none;
-    margin-bottom: 20px;
-    text-align: center;
+  border: none;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .modal-content form {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-content input {
-    padding: 10px;
-    margin-bottom: 15px;
-    border: 1px solid #4f545c;
-    border-radius: 4px;
-    background-color: #2f3136;
-    color: var(--color-text-light);
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #4f545c;
+  border-radius: 4px;
+  background-color: #2f3136;
+  color: var(--color-text-light);
 }
 
 .create-server-form {
@@ -675,22 +696,22 @@ body {
 }
 
 .modal-content button[type="submit"] {
-    padding: 10px;
-    background-color: var(--color-primary);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+  padding: 10px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .modal-content .close-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    color: var(--color-text-dark);
-    font-size: 18px;
-    cursor: pointer;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  color: var(--color-text-dark);
+  font-size: 18px;
+  cursor: pointer;
 }
 
 .member-menu-overlay {
@@ -707,7 +728,8 @@ body {
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   padding: 10px;
-  transform: translateX(8px); /* tıklanan yerden hafif sağa kay */
+  transform: translateX(8px);
+  /* tıklanan yerden hafif sağa kay */
   animation: memberMenuSlideIn 0.15s ease-out;
 }
 
@@ -716,6 +738,7 @@ body {
     opacity: 0;
     transform: translateX(16px);
   }
+
   to {
     opacity: 1;
     transform: translateX(8px);
@@ -752,6 +775,7 @@ body {
   font-size: 14px;
   font-weight: 600;
 }
+
 .member-menu-name.clickable {
   cursor: pointer;
 }
@@ -759,6 +783,7 @@ body {
 .member-menu-name.clickable:hover {
   text-decoration: underline;
 }
+
 .member-menu-sub {
   font-size: 11px;
   color: var(--color-text-dark);
@@ -801,56 +826,60 @@ body {
   font-size: 12px;
   color: #aaa;
 }
+
 /* -------------------- */
 /* 6. Stream/Settings Sayfaları */
 /* -------------------- */
 
-.stream-settings-container, .server-settings-area {
-    padding: 30px;
-    width: 100%;
-    overflow-y: auto;
+.stream-settings-container,
+.server-settings-area {
+  padding: 30px;
+  width: 100%;
+  overflow-y: auto;
 }
 
-.stream-settings-container h2, .server-settings-area h1 {
-    color: var(--color-primary);
-    margin-bottom: 20px;
-    border-bottom: 2px solid #36393f;
-    padding-bottom: 10px;
+.stream-settings-container h2,
+.server-settings-area h1 {
+  color: var(--color-primary);
+  margin-bottom: 20px;
+  border-bottom: 2px solid #36393f;
+  padding-bottom: 10px;
 }
 
 .settings-card {
-    background-color: var(--color-darker);
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
+  background-color: var(--color-darker);
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
 }
 
 .settings-card h3 {
-    color: var(--color-text-light);
-    margin-bottom: 15px;
+  color: var(--color-text-light);
+  margin-bottom: 15px;
 }
 
 .settings-card label {
-    display: block;
-    color: var(--color-text-dark);
-    font-size: 14px;
-    margin-top: 10px;
+  display: block;
+  color: var(--color-text-dark);
+  font-size: 14px;
+  margin-top: 10px;
 }
 
 .settings-card input[type="text"] {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #4f545c;
-    border-radius: 4px;
-    background-color: #2f3136;
-    color: var(--color-success); /* Anahtarı vurgulama */
-    margin-bottom: 5px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #4f545c;
+  border-radius: 4px;
+  background-color: #2f3136;
+  color: var(--color-success);
+  /* Anahtarı vurgulama */
+  margin-bottom: 5px;
 }
 
 .settings-card .hint {
-    font-size: 12px;
-    color: #4f545c;
-    margin-bottom: 15px;
+  font-size: 12px;
+  color: #4f545c;
+  margin-bottom: 15px;
 }
 
 
@@ -878,17 +907,20 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background-color: #2b2d31; /* Koyu gri yol */
+  background-color: #2b2d31;
+  /* Koyu gri yol */
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #1a1b1e; /* Daha koyu tutamaç */
+  background-color: #1a1b1e;
+  /* Daha koyu tutamaç */
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #111214; /* Hover rengi */
+  background-color: #111214;
+  /* Hover rengi */
 }
 
 /* Firefox için */
@@ -901,167 +933,181 @@ body {
 
 /* Varsayılan (Masaüstü): Buton gizli, panel normal yerinde */
 .mobile-members-toggle-btn {
-    display: none;
+  display: none;
 }
 
 .server-members-wrapper {
-    width: 240px; /* Sabit genişlik */
-    height: 100%;
-    border-left: 1px solid #2f3136;
-    background: #2f3136;
+  width: 240px;
+  /* Sabit genişlik */
+  height: 100%;
+  border-left: 1px solid #2f3136;
+  background: #2f3136;
 }
 
 .members-panel-content {
-    height: 100%;
-    overflow-y: auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .mobile-backdrop {
-    display: none;
+  display: none;
 }
 
 /* --- MOBİL GÖRÜNÜM (768px ve altı) --- */
 @media (max-width: 768px) {
 
-    /* 1. Üyeler Butonunu Göster */
-    .mobile-members-toggle-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: absolute;
-        top: 10px;
-        right: 15px; /* Sağ üst köşe */
-        z-index: 100;
-        background: rgba(0, 0, 0, 0.5);
-        border: none;
-        color: white;
-        padding: 8px;
-        border-radius: 50%;
-        cursor: pointer;
-        width: 40px;
-        height: 40px;
-    }
+  /* 1. Üyeler Butonunu Göster */
+  .mobile-members-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    /* Sağ üst köşe */
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+  }
 
-    .mobile-members-toggle-btn:hover {
-        background: rgba(0, 0, 0, 0.8);
-    }
+  .mobile-members-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+  }
 
-    /* 2. Paneli Gizle ve Kayar Menü Yap (Drawer) */
-    .server-members-wrapper {
-        position: fixed;
-        top: 0;
-        right: -260px; /* Ekranın dışında başlat */
-        width: 260px;
-        height: 100%;
-        z-index: 999; /* En üstte */
-        transition: right 0.3s ease-in-out; /* Kayma efekti */
-        border-left: 1px solid #202225;
-        box-shadow: -5px 0 15px rgba(0,0,0,0.5);
-    }
+  /* 2. Paneli Gizle ve Kayar Menü Yap (Drawer) */
+  .server-members-wrapper {
+    position: fixed;
+    top: 0;
+    right: -260px;
+    /* Ekranın dışında başlat */
+    width: 260px;
+    height: 100%;
+    z-index: 999;
+    /* En üstte */
+    transition: right 0.3s ease-in-out;
+    /* Kayma efekti */
+    border-left: 1px solid #202225;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+  }
 
-    /* 3. Açıkken Ekrana Getir */
-    .server-members-wrapper.mobile-open {
-        right: 0;
-    }
+  /* 3. Açıkken Ekrana Getir */
+  .server-members-wrapper.mobile-open {
+    right: 0;
+  }
 
-    /* 4. Arka Planı Karart (Backdrop) */
-    .mobile-backdrop {
-        display: block;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: -1; /* Panelin arkasında kalsın */
-    }
-/* --- MOBİL SOL MENÜ (SUNUCU + KANAL LİSTESİ) --- */
+  /* 4. Arka Planı Karart (Backdrop) */
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+    /* Panelin arkasında kalsın */
+  }
 
-/* Masaüstü varsayılan: Buton gizli */
-.mobile-menu-toggle-btn {
+  /* --- MOBİL SOL MENÜ (SUNUCU + KANAL LİSTESİ) --- */
+
+  /* Masaüstü varsayılan: Buton gizli */
+  .mobile-menu-toggle-btn {
     display: none;
-}
+  }
 
-/* --- MOBİL AYARLAR (Max 768px) --- */
-@media (max-width: 768px) {
+  /* --- MOBİL AYARLAR (Max 768px) --- */
+  @media (max-width: 768px) {
 
     /* 1. Sol Menü Butonunu Göster */
     .mobile-menu-toggle-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: absolute;
-        top: 10px;
-        left: 15px; /* Sol üst köşe */
-        z-index: 100;
-        background: rgba(0, 0, 0, 0.5);
-        border: none;
-        color: white;
-        padding: 8px;
-        border-radius: 50%;
-        cursor: pointer;
-        width: 40px;
-        height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 10px;
+      left: 15px;
+      /* Sol üst köşe */
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      color: white;
+      padding: 8px;
+      border-radius: 50%;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
     }
 
     .mobile-menu-toggle-btn:hover {
-        background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.8);
     }
 
     /* 2. Sol Menü Grubu (Sidebar + Secondary Sidebar) */
     /* Varsayılan olarak ekranın soluna sakla */
     .mobile-left-menu-group .sidebar,
     .mobile-left-menu-group .secondary-sidebar {
-        position: fixed;
-        top: 0;
-        height: 100%;
-        transition: transform 0.3s ease-in-out;
-        z-index: 998; /* Chat'in üstünde */
+      position: fixed;
+      top: 0;
+      height: 100%;
+      transition: transform 0.3s ease-in-out;
+      z-index: 998;
+      /* Chat'in üstünde */
     }
 
     /* Sidebar (En sol şerit): Gizli başla (-72px) */
     .mobile-left-menu-group .sidebar {
-        left: 0;
-        transform: translateX(-100%);
-        width: 72px; /* Sidebar genişliği */
+      left: 0;
+      transform: translateX(-100%);
+      width: 72px;
+      /* Sidebar genişliği */
     }
 
     /* Secondary Sidebar (Kanal Listesi): Gizli başla */
     .mobile-left-menu-group .secondary-sidebar {
-        left: 72px; /* Sidebar'ın hemen yanı */
-        transform: translateX(-320px); /* Kendi genişliği kadar sola ötele */
-        width: 240px;
-        background: #2f3136; /* Arka plan rengi */
+      left: 72px;
+      /* Sidebar'ın hemen yanı */
+      transform: translateX(-320px);
+      /* Kendi genişliği kadar sola ötele */
+      width: 240px;
+      background: #2f3136;
+      /* Arka plan rengi */
     }
 
     /* 3. MENÜ AÇIKKEN (mobile-open class'ı gelince) */
 
     /* Sidebar'ı içeri kaydır */
     .mobile-left-menu-group.mobile-open .sidebar {
-        transform: translateX(0);
+      transform: translateX(0);
     }
 
     /* Kanal listesini içeri kaydır */
     .mobile-left-menu-group.mobile-open .secondary-sidebar {
-        transform: translateX(0);
+      transform: translateX(0);
     }
 
     /* 4. Sol Menü Arka Planı (Backdrop) */
     .mobile-backdrop-left {
-        display: block;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 990; /* Menülerin arkasında, içeriğin önünde */
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 990;
+      /* Menülerin arkasında, içeriğin önünde */
     }
 
     /* 5. Chat alanını mobilde tam ekran yap */
     .main-content-area {
-        width: 100% !important;
-        margin: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
     }
-}
+  }
 }

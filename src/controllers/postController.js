@@ -45,44 +45,57 @@ const broadcastPostUpdate = async (req, post, eventName, eventData) => {
 
 // @desc    Yeni bir gönderi oluştur
 // @route   POST /api/v1/posts
+// src/controllers/postController.js
+
+// ... (Diğer importlar)
+
+// src/controllers/postController.js
+
+// ... (Diğer importlar)
+
 const createPost = async (req, res) => {
     try {
         const { content } = req.body;
-        const userId = req.user.id;
 
-        if (!content && !req.file) {
-            return res.status(400).json({ success: false, message: 'İçerik veya medya zorunludur.' });
+        // Dosya kontrolü
+        let mediaUrl = null;
+        let mediaType = null;
+
+        if (req.file) {
+            mediaUrl = `/uploads/posts/${req.file.filename}`; // Kayıt yolu
+
+            // 🟢 MIME TYPE KONTROLÜ (Resim mi Video mu?)
+            const mime = req.file.mimetype;
+            if (mime.startsWith('image/')) {
+                mediaType = 'image'; // GIF, PNG, JPG hepsi 'image' sayılır
+            } else if (mime.startsWith('video/')) {
+                mediaType = 'video';
+            }
         }
 
-        let postData = {
-            user: userId,
-            content: (req.body && req.body.content) ? req.body.content : '',
-        };
-
-        if (req.file && req.file.filename) {
-            postData.mediaUrl = `/uploads/post_media/${req.file.filename}`;
-            postData.mediaType = req.file.mediaType;
+        // Eğer ne yazı ne de dosya varsa hata ver
+        if (!content && !mediaUrl) {
+            return res.status(400).json({ success: false, message: 'İçerik boş olamaz.' });
         }
 
-        const newPost = await Post.create(postData);
+        const newPost = await Post.create({
+            user: req.user.id,
+            content,
+            mediaUrl,
+            mediaType, // 🟢 Veritabanına tipi kaydediyoruz
+            likes: [],
+            comments: []
+        });
 
-        // 💡 DÜZELTME: User'ı ve Yorumları popüle ederken avatarUrl ekle
+        // Populate ederek geri dön (Kullanıcı bilgileri görünsün)
         const populatedPost = await Post.findById(newPost._id)
-            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
-            .populate({
-                path: 'comments',
-                populate: {
-                    path: 'user',
-                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
-                }
-            });
-
-        await broadcastPostUpdate(req, populatedPost, 'newFeedPost', populatedPost);
+            .populate('user', 'username avatarUrl level activeBadge');
 
         res.status(201).json({ success: true, data: populatedPost });
+
     } catch (error) {
-        console.error("Gönderi oluşturma hatası:", error);
-        res.status(500).json({ success: false, message: 'Gönderi oluşturulamadı', error: error.message });
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Paylaşım yapılamadı.' });
     }
 };
 
