@@ -55,13 +55,11 @@ app.use(hpp());
 // =========================================================================
 // 🖼 Statik Dosyalar
 // =========================================================================
-
 const uploadsPath = path.join(__dirname, '..', 'uploads');
 const updatesPath = path.join(__dirname, '..', 'updates');
 const AVATAR_PHYSICAL_PATH = path.join(uploadsPath, 'avatars');
 
 console.log(`[DOSYA SUNUCUSU]: ${uploadsPath}`);
-
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/uploads', express.static(uploadsPath));

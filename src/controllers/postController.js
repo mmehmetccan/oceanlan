@@ -45,57 +45,44 @@ const broadcastPostUpdate = async (req, post, eventName, eventData) => {
 
 // @desc    Yeni bir gönderi oluştur
 // @route   POST /api/v1/posts
-// src/controllers/postController.js
-
-// ... (Diğer importlar)
-
-// src/controllers/postController.js
-
-// ... (Diğer importlar)
-
 const createPost = async (req, res) => {
     try {
         const { content } = req.body;
+        const userId = req.user.id;
 
-        // Dosya kontrolü
-        let mediaUrl = null;
-        let mediaType = null;
-
-        if (req.file) {
-            mediaUrl = `/uploads/post_media/${req.file.filename}`; // Kayıt yolu
-
-            // 🟢 MIME TYPE KONTROLÜ (Resim mi Video mu?)
-            const mime = req.file.mimetype;
-            if (mime.startsWith('image/')) {
-                mediaType = 'image'; // GIF, PNG, JPG hepsi 'image' sayılır
-            } else if (mime.startsWith('video/')) {
-                mediaType = 'video';
-            }
+        if (!content && !req.file) {
+            return res.status(400).json({ success: false, message: 'İçerik veya medya zorunludur.' });
         }
 
-        // Eğer ne yazı ne de dosya varsa hata ver
-        if (!content && !mediaUrl) {
-            return res.status(400).json({ success: false, message: 'İçerik boş olamaz.' });
+        let postData = {
+            user: userId,
+            content: (req.body && req.body.content) ? req.body.content : '',
+        };
+
+        if (req.file && req.file.filename) {
+            postData.mediaUrl = `/uploads/post_media/${req.file.filename}`;
+            postData.mediaType = req.file.mediaType;
         }
 
-        const newPost = await Post.create({
-            user: req.user.id,
-            content,
-            mediaUrl,
-            mediaType, // 🟢 Veritabanına tipi kaydediyoruz
-            likes: [],
-            comments: []
-        });
+        const newPost = await Post.create(postData);
 
-        // Populate ederek geri dön (Kullanıcı bilgileri görünsün)
+        // 💡 DÜZELTME: User'ı ve Yorumları popüle ederken avatarUrl ekle
         const populatedPost = await Post.findById(newPost._id)
-            .populate('user', 'username avatarUrl level activeBadge');
+            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
+            .populate({
+                path: 'comments',
+                populate: {
+                    path: 'user',
+                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
+                }
+            });
+
+        await broadcastPostUpdate(req, populatedPost, 'newFeedPost', populatedPost);
 
         res.status(201).json({ success: true, data: populatedPost });
-
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Paylaşım yapılamadı.' });
+        console.error("Gönderi oluşturma hatası:", error);
+        res.status(500).json({ success: false, message: 'Gönderi oluşturulamadı', error: error.message });
     }
 };
 
@@ -110,12 +97,12 @@ const getFeed = async (req, res) => {
         const posts = await Post.find({ user: { $in: friendsList } })
             .sort({ createdAt: -1 })
             .limit(20)
-            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -150,12 +137,12 @@ const likePost = async (req, res) => {
 
         // Gönderinin son halini (like/dislike sayılarıyla) yayınla
         const updatedPost = await Post.findById(postId)
-            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl level activeBadge ' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -191,12 +178,12 @@ const dislikePost = async (req, res) => {
         await post.save();
 
         const updatedPost = await Post.findById(postId)
-            .populate('user', 'username avatarUrl level activeBadge') // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl') // 💡 avatarUrl EKLENDİ
             .populate({
                 path: 'comments',
                 populate: {
                     path: 'user',
-                    select: 'username avatarUrl level activeBadge' // 💡 avatarUrl EKLENDİ
+                    select: 'username avatarUrl' // 💡 avatarUrl EKLENDİ
                 }
             });
 
@@ -234,7 +221,7 @@ const addComment = async (req, res) => {
 
         // 3. Yorumu kullanıcı bilgisiyle doldur
         const populatedComment = await Comment.findById(newComment._id)
-            .populate('user', 'username avatarUrl level activeBadge'); // 💡 avatarUrl EKLENDİ
+            .populate('user', 'username avatarUrl'); // 💡 avatarUrl EKLENDİ
 
         // Herkese sadece yeni yorumu gönder (tüm gönderiyi değil)
         await broadcastPostUpdate(req, post, 'newComment', {
