@@ -24,16 +24,32 @@ const PostCard = ({
   const [showComments, setShowComments] = useState(false);
 
   const currentUserId = user?._id || user?.id;
-
   const isLiked = currentUserId ? post.likes.some(id => String(id) === String(currentUserId)) : false;
   const isDisliked = currentUserId ? post.dislikes.some(id => String(id) === String(currentUserId)) : false;
-
   const postUserId = post.user?._id || post.user;
   const isOwner = String(postUserId) === String(currentUserId);
 
   const avatarRaw = post?.user?.avatarUrl || post?.user?.avatar;
   const avatarSrc = getFullImageUrl(avatarRaw);
   const mediaSrc = getFullImageUrl(post.mediaUrl);
+
+  // 🟢 YENİ: Dosya tipini algılama fonksiyonu (Backend göndermezse uzantıdan anla)
+  const getFileType = () => {
+    // 1. Backend zaten kaydetmişse onu kullan
+    if (post.mediaType === 'image' || post.mediaType === 'video') {
+      return post.mediaType;
+    }
+
+    // 2. Kayıtlı değilse uzantıya bak (Fallback)
+    if (post.mediaUrl) {
+      const extension = post.mediaUrl.split('.').pop().toLowerCase();
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) return 'image';
+      if (['mp4', 'webm', 'ogg', 'mov'].includes(extension)) return 'video';
+    }
+    return null;
+  };
+
+  const determinedType = getFileType(); // Tipi belirle
 
   const handleAvatarErrorSafe = (event) => {
     if (typeof handleAvatarError === 'function') {
@@ -67,19 +83,12 @@ const PostCard = ({
   };
 
   const onCommentAdded = (newComment) => {
-    const updatedPost = {
-      ...post,
-      comments: [...post.comments, newComment],
-    };
+    const updatedPost = { ...post, comments: [...post.comments, newComment] };
     onPostUpdated(updatedPost);
   };
 
-  // ✅ YENİ: Yorum silinince post datasını güncelle
   const onCommentDeleted = (commentId) => {
-    const updatedPost = {
-      ...post,
-      comments: post.comments.filter(c => c._id !== commentId),
-    };
+    const updatedPost = { ...post, comments: post.comments.filter(c => c._id !== commentId) };
     onPostUpdated(updatedPost);
   };
 
@@ -99,40 +108,51 @@ const PostCard = ({
           </div>
           <time className="post-date">{new Date(post.createdAt).toLocaleString()}</time>
         </div>
+
         {isOwner && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteClick?.();
-            }}
+            onClick={(e) => { e.stopPropagation(); onDeleteClick?.(); }}
             title="Gönderiyi Sil"
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ed4245',
-              cursor: 'pointer',
-              padding: '6px', // Padding küçültüldü
-              borderRadius: '50%',
-              transition: 'background 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginLeft: 'auto' // Sağa yasla
+              background: 'transparent', border: 'none', color: '#ed4245', cursor: 'pointer',
+              padding: '6px', borderRadius: '50%', marginLeft: 'auto', display: 'flex', alignItems: 'center'
             }}
             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(237, 66, 69, 0.1)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <TrashIcon style={{ width: '18px', height: '18px' }} /> {/* İkon boyutu küçültüldü */}
+            <TrashIcon style={{ width: '18px', height: '18px' }} />
           </button>
         )}
       </header>
 
       <div className="post-content">
         <p>{post.content}</p>
+
+        {/* 🟢 DÜZELTİLMİŞ MEDYA GÖSTERİMİ */}
         {post.mediaUrl && (
           <div className="media-container" style={{ marginTop: '10px' }}>
-            {post.mediaType === 'image' && <img src={mediaSrc} className="post-media" loading="lazy" onError={(e) => e.target.style.display = 'none'} />}
-            {post.mediaType === 'video' && <video controls src={mediaSrc} className="post-media" />}
+
+            {determinedType === 'image' && (
+              <img
+                src={mediaSrc}
+                className="post-media"
+                loading="lazy"
+                alt="Post content"
+                style={{ maxWidth: '100%', borderRadius: '8px', maxHeight: '500px', objectFit: 'contain' }}
+              />
+            )}
+
+            {determinedType === 'video' && (
+              <video
+                controls
+                src={mediaSrc}
+                className="post-media"
+                style={{ maxWidth: '100%', borderRadius: '8px', maxHeight: '500px' }}
+              >
+                Tarayıcınız videoyu desteklemiyor.
+              </video>
+            )}
+
           </div>
         )}
       </div>
@@ -154,7 +174,7 @@ const PostCard = ({
           postId={post._id}
           initialComments={post.comments}
           onCommentAdded={onCommentAdded}
-          onCommentDeleted={onCommentDeleted} // ✅ EKLENDİ
+          onCommentDeleted={onCommentDeleted}
           getAvatarUrl={getAvatarUrl}
           handleAvatarError={handleAvatarError}
           onOpenProfile={onOpenProfile}

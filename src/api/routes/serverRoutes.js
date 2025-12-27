@@ -14,7 +14,7 @@ const {
     updateServer,
     getServerRequests,
     respondToServerRequest,
-    getDiscoverServers
+    getDiscoverServers,
 } = require('../../controllers/serverController');
 
 // Koruma (Giriş yapma) middleware'ini içe aktar

@@ -132,54 +132,7 @@ const createServer = async (req, res) => {
   }
 };
 
-const joinPublicServer = async (req, res) => {
-  try {
-    const { serverId } = req.params;
-    const userId = req.user.id;
 
-    const server = await Server.findById(serverId);
-    if (!server) return res.status(404).json({ message: 'Sunucu yok' });
-
-    if (!server.isPublic) return res.status(403).json({ message: 'Bu sunucu dışarıya kapalı.' });
-
-    // Zaten üye mi?
-    const existingMember = await Member.findOne({ server: serverId, user: userId });
-    if (existingMember) return res.status(400).json({ message: 'Zaten üyesiniz.' });
-
-    // 🔥 MOD KONTROLÜ: REQUEST Mİ DIRECT Mİ?
-    if (server.joinMode === 'request') {
-      // Zaten bekleyen istek var mı?
-      const existingRequest = await ServerRequest.findOne({ server: serverId, user: userId, status: 'pending' });
-      if (existingRequest) {
-        return res.status(400).json({ message: 'Zaten bekleyen bir katılım isteğiniz var.' });
-      }
-
-      // İstek oluştur
-      await ServerRequest.create({ server: serverId, user: userId });
-
-      // (Opsiyonel) Sunucu sahibine socket bildirimi atılabilir
-
-      return res.status(200).json({ success: true, status: 'pending', message: 'Katılım isteği gönderildi. Yöneticilerin onayı bekleniyor.' });
-    }
-
-    // --- DIRECT MOD İSE DİREKT İÇERİ AL ---
-    const defaultRole = await Role.findOne({ server: serverId, isDefault: true });
-    const newMember = await Member.create({
-      user: userId,
-      server: serverId,
-      roles: defaultRole ? [defaultRole._id] : []
-    });
-
-    server.members.push(newMember._id);
-    await server.save();
-    await User.findByIdAndUpdate(userId, { $push: { servers: serverId } });
-
-    res.status(200).json({ success: true, status: 'joined', message: 'Sunucuya katıldınız', serverId: server._id });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 
 
 
@@ -441,7 +394,7 @@ const updateServer = async (req, res) => {
 
     // 3. Sadece izin verilen alanları güncelle (Güvenlik için)
     // Frontend'den gelen 'features' objesi burada işlenir.
-    const allowedUpdates = ['name', 'description', 'features'];
+    const allowedUpdates = ['name', 'description', 'features', 'isPublic', 'joinMode'];
     const actualUpdates = {};
 
     Object.keys(updateData).forEach((key) => {
@@ -596,6 +549,123 @@ const getDiscoverServers = async (req, res) => {
   }
 };
 
+const getTopServers = async (req, res) => {
+  try {
+    const topServers = await Server.aggregate([
+      // 1. Sadece 'isPublic' olan sunucuları al
+      { $match: { isPublic: true } },
+
+      // 2. 'members' dizisindeki ID'leri kullanarak Member tablosuna git
+      {
+        $lookup: {
+          from: 'members',
+          localField: 'members',
+          foreignField: '_id',
+          as: 'memberDetails'
+        }
+      },
+
+      // 3. Member tablosundaki 'user' ID'lerini kullanarak User tablosuna git (Level için)
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'memberDetails.user',
+          foreignField: '_id',
+          as: 'userDetails'
+        }
+      },
+
+      // 4. Bu sunucudaki kullanıcıların toplam levelini hesapla
+      {
+        $addFields: {
+          totalLevel: { $sum: "$userDetails.level" },
+          memberCount: { $size: "$members" }
+        }
+      },
+
+      // 5. Gereksiz büyük verileri at, sadece lazım olanları tut
+      {
+        $project: {
+          name: 1,
+          iconUrl: 1,
+          description: 1,
+          totalLevel: 1,
+          memberCount: 1
+        }
+      },
+
+      // 6. Toplam level'e göre çoktan aza sırala
+      { $sort: { totalLevel: -1 } },
+
+      // 7. İlk 10'u al
+      { $limit: 10 }
+    ]);
+
+    res.status(200).json({ success: true, data: topServers });
+
+  } catch (error) {
+    console.error('TOP SERVER HATA:', error);
+    res.status(500).json({ success: false, message: 'Sıralama alınamadı' });
+  }
+};
+
+// @desc    Public sunucuya direkt katıl
+const joinPublicServer = async (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const userId = req.user.id;
+
+    const server = await Server.findById(serverId);
+    if (!server) return res.status(404).json({ message: 'Sunucu yok' });
+
+    // Sunucu public değilse hata ver
+    if (!server.isPublic) {
+      return res.status(403).json({ message: 'Bu sunucu dışarıya kapalı.' });
+    }
+
+    // Zaten üye mi?
+    const existingMember = await Member.findOne({ server: serverId, user: userId });
+    if (existingMember) return res.status(400).json({ message: 'Zaten üyesiniz.' });
+
+    // --- KATILIM MODU KONTROLÜ ---
+    if (server.joinMode === 'request') {
+      // Zaten bekleyen istek var mı?
+      const existingRequest = await ServerRequest.findOne({ server: serverId, user: userId, status: 'pending' });
+      if (existingRequest) {
+        return res.status(400).json({ message: 'Zaten bekleyen bir katılım isteğiniz var.' });
+      }
+
+      // İstek oluştur
+      await ServerRequest.create({ server: serverId, user: userId });
+
+      return res.status(200).json({ success: true, status: 'pending', message: 'Katılım isteği gönderildi. Yöneticilerin onayı bekleniyor.' });
+    }
+
+    // --- DIRECT MOD (DİREKT GİRİŞ) ---
+    // 1. Varsayılan Rolü Bul
+    const defaultRole = await Role.findOne({ server: serverId, isDefault: true });
+
+    // 2. Member Oluştur
+    const newMember = await Member.create({
+      user: userId,
+      server: serverId,
+      roles: defaultRole ? [defaultRole._id] : []
+    });
+
+    // 3. Sunucuya Ekle
+    server.members.push(newMember._id);
+    await server.save();
+
+    // 4. User'a Ekle
+    await User.findByIdAndUpdate(userId, { $push: { servers: serverId } });
+
+    res.status(200).json({ success: true, message: 'Sunucuya katıldınız', serverId: server._id });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createServer,
   generateInviteCode,
@@ -609,5 +679,7 @@ module.exports = {
   updateServer,
   getServerRequests,
   respondToServerRequest,
-  getDiscoverServers
+  getDiscoverServers,
+  getTopServers,
+  joinPublicServer
 }

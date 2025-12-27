@@ -79,7 +79,7 @@ const ServerDiscoveryPage = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
                 {loading ? <p>Yükleniyor...</p> : servers.map(srv => (
                     <div key={srv._id} style={{ backgroundColor: '#2f3136', borderRadius: '12px', overflow: 'hidden', transition: 'transform 0.2s' }} className="server-card">
-                        <div style={{ height: '100px', backgroundColor: srv.iconUrl ? 'transparent' : '#5865F2', backgroundImage: srv.iconUrl ? `url(${getImageUrl(srv.iconUrl)})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                        <div style={{ height: '100px', backgroundColor: srv.iconUrl ? 'transparent' : '#1ab199', backgroundImage: srv.iconUrl ? `url(${getImageUrl(srv.iconUrl)})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
                             {!srv.iconUrl && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', fontWeight: 'bold', opacity: 0.3 }}>{srv.name.charAt(0)}</div>}
                         </div>
 
@@ -97,7 +97,7 @@ const ServerDiscoveryPage = () => {
 
                             <button
                                 onClick={() => handleJoin(srv._id)}
-                                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: 'none', backgroundColor: '#5865F2', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
+                                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: 'none', backgroundColor: '#1ab199', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
                             >
                                 Katıl
                             </button>

@@ -62,7 +62,7 @@ const createPost = async (req, res) => {
         let mediaType = null;
 
         if (req.file) {
-            mediaUrl = `/uploads/posts/${req.file.filename}`; // Kayıt yolu
+            mediaUrl = `/uploads/post_media/${req.file.filename}`; // Kayıt yolu
 
             // 🟢 MIME TYPE KONTROLÜ (Resim mi Video mu?)
             const mime = req.file.mimetype;
