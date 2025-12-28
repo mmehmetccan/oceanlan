@@ -14,9 +14,19 @@ const checkPermission = (requiredPermission) => {
         return res.status(400).json({ success: false, message: 'Sunucu ID (serverId) gereklidir' });
       }
 
+
+      const server = await Server.findById(serverId);
+      if (!server) {
+        return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
+      }
+
+      if (server.owner.toString() === userId.toString()) {
+        return next();
+      }
+
       // 1. Kullanıcının o sunucudaki üyelik kaydını bul
       const membership = await Member.findOne({ user: userId, server: serverId })
-                                     .populate('roles'); // Roller bilgisiyle doldur
+        .populate('roles'); // Roller bilgisiyle doldur
 
       if (!membership) {
         return res.status(403).json({ success: false, message: 'Bu sunucuda üye değilsiniz' });
