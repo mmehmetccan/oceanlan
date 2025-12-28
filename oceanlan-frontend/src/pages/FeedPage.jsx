@@ -14,7 +14,7 @@ import { getImageUrl } from '../utils/urlHelper';
 import UserLevelTag from '../components/gamification/UserLevelTag';
 import LevelUpModal from '../components/gamification/LevelUpModal';
 // 🟢 İKONLAR
-import { FireIcon, GlobeAltIcon } from '@heroicons/react/24/solid';
+import { FireIcon, GlobeAltIcon, EyeIcon } from '@heroicons/react/24/solid';
 import '../styles/FeedPage.css';
 
 const getAvatarUrlWrapper = (entity) => getImageUrl(entity?.avatarUrl || entity?.avatar);
@@ -106,6 +106,12 @@ const FeedPage = () => {
       socket.off('postDeleted', handlePostDeleted);
     };
   }, [socket, currentUserId]);
+
+
+  const handleVisitServer = (serverId) => {
+    navigate(`/dashboard/server/${serverId}`);
+  };
+
 
   const handleJoinServer = async (serverId) => {
     try {
@@ -241,20 +247,15 @@ const FeedPage = () => {
   };
 
   return (
-    // 🟢 KRİTİK NOKTA: CSS'i değiştirmeden 3 sütunlu yapı için inline style override yapıyoruz.
-    // Orijinal CSS: grid-template-columns: minmax(0, 1fr) 340px;
-    // Yeni Yapı: Sol(280px) - Orta(Esnek) - Sağ(340px)
     <div className="feed-shell" onClick={() => setContextMenu(null)} style={{ gridTemplateColumns: '280px 1fr 340px' }}>
 
-      {/* 🟢 1. SOL PANEL (YENİ) - EN GÜÇLÜ SUNUCULAR */}
-      {/* 'feed-rail' sınıfını kullanarak mevcut CSS tasarımlarını (background, border vb) almasını sağladık */}
+      {/* 🟢 1. SOL PANEL - EN GÜÇLÜ SUNUCULAR */}
       <aside className="feed-rail" style={{ overflowY: 'auto' }}>
         <div className="rail-card">
           <div className="rail-card-header" style={{ justifyContent: 'space-between' }}>
             <h4 style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#1ab199', margin: 0 }}>
               <FireIcon width={18} color="#1ab199" /> En Güçlü 10
             </h4>
-            {/* Küçük Link */}
             <button
               onClick={() => navigate('/dashboard/discover')}
               style={{ background: 'none', border: 'none', color: '#b9bbbe', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}
@@ -269,10 +270,11 @@ const FeedPage = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
                   <span style={{ fontWeight: 'bold', color: index < 3 ? '#FFD700' : '#72767d', width: '15px' }}>{index + 1}</span>
 
+                  {/* İKON TIKLANINCA GİT */}
                   <div
-                    onClick={() => handleJoinServer(srv._id)}
+                    onClick={() => handleVisitServer(srv._id)}
                     style={{ width: '32px', height: '32px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#202225', flexShrink: 0, cursor: 'pointer' }}
-                    title="Katıl"
+                    title="İncele"
                   >
                     {srv.iconUrl ?
                       <img src={getImageUrl(srv.iconUrl)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> :
@@ -280,9 +282,10 @@ const FeedPage = () => {
                     }
                   </div>
 
+                  {/* İSİM TIKLANINCA GİT */}
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <div
-                      onClick={() => handleJoinServer(srv._id)}
+                      onClick={() => handleVisitServer(srv._id)}
                       style={{ fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', cursor: 'pointer', color: '#fff' }}
                     >
                       {srv.name}
@@ -290,11 +293,13 @@ const FeedPage = () => {
                     <div style={{ fontSize: '10px', color: '#b9bbbe' }}>⚡ {srv.totalLevel} Lvl</div>
                   </div>
 
+                  {/* 🟢 DEĞİŞİKLİK: BUTON ARTIK "GİT/İNCELE" İŞLEVİ GÖRÜYOR */}
                   <button
-                    onClick={() => handleJoinServer(srv._id)}
-                    style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: '#5865F2', color: 'white', fontSize: '10px', cursor: 'pointer' }}
+                    onClick={() => handleVisitServer(srv._id)}
+                    style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: 'rgba(255,255,255,0.1)', color: '#b9bbbe', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    title="Sunucuyu İncele"
                   >
-                    Katıl
+                    <EyeIcon width={12} />
                   </button>
                 </div>
               </div>
@@ -302,7 +307,6 @@ const FeedPage = () => {
             {topServers.length === 0 && <div style={{ color: '#72767d', fontSize: '12px', textAlign: 'center', padding: '20px' }}>Henüz sıralama yok.</div>}
           </div>
 
-          {/* Büyük Buton */}
           <button
             onClick={() => navigate('/dashboard/discover')}
             style={{ width: '100%', marginTop: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px dashed #4f545c', color: '#b9bbbe', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}

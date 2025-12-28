@@ -121,6 +121,13 @@ const ServerSettingsPage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
+  const [generalSettings, setGeneralSettings] = useState({
+    name: '',
+    isPublic: false,
+    joinMode: 'direct'
+  });
+
+
   // Rol Yönetimi State
   const [selectedRole, setSelectedRole] = useState(null);
   const [newRoleName, setNewRoleName] = useState('');
@@ -138,6 +145,30 @@ const ServerSettingsPage = () => {
       axiosInstance.get(`${API_URL_BASE}/api/v1/servers/${serverId}/bans`).then(res => setBannedUsers(res.data.data)).catch(console.error);
     }
   }, [activeTab, serverId]);
+
+  useEffect(() => {
+    if (activeServer) {
+      setGeneralSettings({
+        name: activeServer.name,
+        isPublic: activeServer.isPublic,
+        joinMode: activeServer.joinMode
+      });
+    }
+  }, [activeServer]);
+
+  const handleSaveGeneralSettings = async () => {
+    try {
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
+        name: generalSettings.name,
+        isPublic: generalSettings.isPublic,
+        joinMode: generalSettings.joinMode
+      });
+      addToast('Sunucu ayarları başarıyla kaydedildi.', 'success');
+      fetchServerDetails(serverId);
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Güncelleme başarısız.', 'error');
+    }
+  };
 
   // Kanal Seçildiğinde Formu Doldur
   useEffect(() => {
@@ -296,6 +327,8 @@ const ServerSettingsPage = () => {
             <div className="settings-card">
               <h3 style={{ marginBottom: '20px', color: 'white' }}>Sunucu Görünümü</h3>
               <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+
+                {/* SOL: RESİM YÜKLEME (Değişmedi) */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '100px', height: '100px', borderRadius: '50%',
@@ -314,32 +347,66 @@ const ServerSettingsPage = () => {
                   {serverIconFile && <button className="modern-btn btn-primary" onClick={handleIconUpload}>Kaydet</button>}
                 </div>
 
+                {/* SAĞ: FORM (GÜNCELLENDİ) */}
                 <div style={{ flex: 1 }}>
+
+                  {/* İSİM DEĞİŞTİRME */}
                   <div className="form-section">
                     <label className="form-label">Sunucu Adı</label>
-                    <input type="text" className="modern-input" defaultValue={activeServer.name} disabled />
+                    <input
+                      type="text"
+                      className="modern-input"
+                      value={generalSettings.name} // State'ten geliyor
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} // State güncelliyor
+                    />
                   </div>
 
+                  {/* GÖRÜNÜRLÜK */}
                   <Switch
                     label="Herkese Açık Sunucu"
                     description="Bu sunucuyu Keşfet sayfasında listele."
-                    checked={activeServer.isPublic}
-                    onChange={(e) => handleVisibilityUpdate(e.target.checked, activeServer.joinMode)}
+                    checked={generalSettings.isPublic}
+                    onChange={(e) => setGeneralSettings({ ...generalSettings, isPublic: e.target.checked })}
                   />
 
-                  {activeServer.isPublic && (
+                  {/* KATILIM MODU (Sadece Public ise göster) */}
+                  {generalSettings.isPublic && (
                     <div className="form-section" style={{ marginTop: '15px' }}>
                       <label className="form-label">Katılım Modu</label>
                       <select
                         className="modern-select"
-                        value={activeServer.joinMode}
-                        onChange={(e) => handleVisibilityUpdate(activeServer.isPublic, e.target.value)}
+                        value={generalSettings.joinMode}
+                        onChange={(e) => setGeneralSettings({ ...generalSettings, joinMode: e.target.value })}
                       >
                         <option value="direct">Direkt (Herkes Girebilir)</option>
                         <option value="request">Başvuru (Yönetici Onayı Gerekir)</option>
                       </select>
                     </div>
                   )}
+
+                  {/* 🟢 KAYDET BUTONU */}
+                  <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      className="modern-btn btn-primary"
+                      onClick={handleSaveGeneralSettings}
+                      // Eğer hiçbir değişiklik yoksa butonu pasif yapabilirsin (Opsiyonel)
+                      disabled={
+                        generalSettings.name === activeServer.name &&
+                        generalSettings.isPublic === activeServer.isPublic &&
+                        generalSettings.joinMode === activeServer.joinMode
+                      }
+                      style={{
+                        opacity: (
+                          generalSettings.name === activeServer.name &&
+                          generalSettings.isPublic === activeServer.isPublic &&
+                          generalSettings.joinMode === activeServer.joinMode
+                        ) ? 0.5 : 1
+                      }}
+                    >
+                      Değişiklikleri Kaydet
+                    </button>
+                  </div>
+
                 </div>
               </div>
             </div>

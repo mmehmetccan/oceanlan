@@ -11,16 +11,33 @@ const { processGamification } = require('../utils/gamificationEngine');
 const fs = require('fs'); // Eski resmi silmek için fs modülü
 const ServerRequest = require('../models/ServerRequestModel');
 
-
-// @desc    Yeni bir sunucu oluşturur
 const createServer = async (req, res) => {
   try {
-    const { name, isPublic, joinMode } = req.body;
+    console.log("--- CREATE SERVER İSTEĞİ GELDİ ---");
+    console.log("Gelen Body:", req.body);
+    // Konsolda { name: 'aaaa', isPublic: 'true', ... } görmelisin.
+    // Eğer isPublic yoksa, Frontend (Context) göndermiyor demektir.
+
+    let { name, isPublic, joinMode } = req.body;
     const ownerId = req.user.id;
 
+    // 1. İsim temizliği
+    if (name) name = name.trim();
+
+    // 🟢 2. KESİN TÜR DÖNÜŞÜMÜ (ROBUST CONVERSION)
+    // Gelen değer String "true" da olsa, Boolean true da olsa kabul eder.
+    // Geri kalan her şey (undefined, null, "false", "") false olur.
+    const isPublicBool = String(isPublic).toLowerCase() === 'true';
+
+    // Değişkeni güncelliyoruz
+    isPublic = isPublicBool;
+
+    console.log("İşlenen isPublic Değeri:", isPublic); // True mu False mu?
+
+    // 🟢 3. İSİM KONTROLÜ (Sadece Public ise)
     if (isPublic === true) {
       const existingPublicServer = await Server.findOne({
-        name: { $regex: new RegExp(`^${name}$`, 'i') },
+        name: { $regex: new RegExp(`^${name}$`, 'i') }, // Büyük/küçük harf duyarsız
         isPublic: true
       });
 
@@ -32,17 +49,18 @@ const createServer = async (req, res) => {
       }
     }
 
+    // Resim yükleme
     let iconUrl = null;
     if (req.file && req.file.filename) {
       iconUrl = `/uploads/server_icons/${req.file.filename}`;
     }
 
-    // 1. Sunucuyu oluştur
+    // 4. Sunucuyu oluştur
     const newServer = await Server.create({
       name: name,
       owner: ownerId,
       iconUrl: iconUrl,
-      isPublic: isPublic || false,
+      isPublic: isPublic, // Artık kesinlikle true/false
       joinMode: joinMode || 'direct'
     });
 
@@ -192,11 +210,7 @@ const getServerDetails = async (req, res) => {
     const { serverId } = req.params;
     const userId = req.user.id;
 
-    const membership = await Member.findOne({ user: userId, server: serverId });
-    if (!membership) {
-      return res.status(403).json({ success: false, message: 'Bu sunucunun üyesi değilsiniz' });
-    }
-
+    // 1. Sunucuyu bul
     const server = await Server.findById(serverId)
       .populate('owner', 'username email')
       .populate('defaultRole')
@@ -217,9 +231,30 @@ const getServerDetails = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
     }
 
+    // 2. Kullanıcı üye mi?
+    const membership = await Member.findOne({ user: userId, server: serverId });
+    const isMember = !!membership; // true/false
+
+    // 3. Erişim Kontrolü
+    // Eğer sunucu ÖZEL ise ve kullanıcı üye değilse -> 403
+    if (!server.isPublic && !isMember) {
+      return res.status(403).json({ success: false, message: 'Bu sunucunun üyesi değilsiniz' });
+    }
+
+    // 4. Yanıtı hazırla
+    // Mongoose dokümanını JS objesine çeviriyoruz ki içine 'isMember' ekleyebilelim
+    const responseData = server.toObject();
+    responseData.isMember = isMember;
+
+    // Eğer üye değilse (Preview Modu), hassas verileri gizleyebilirsin (Opsiyonel)
+    if (!isMember) {
+      delete responseData.inviteCode;
+      // Mesajlar zaten ayrı bir endpointten çekiliyor, o yüzden burada chat geçmişi gitmez.
+    }
+
     res.status(200).json({
       success: true,
-      data: server,
+      data: responseData,
     });
 
   } catch (error) {
@@ -371,7 +406,6 @@ const leaveServer = async (req, res) => {
   }
 };
 
-// 📢 YENİ: Sunucu Güncelleme (SOCKET EKLENDİ)
 const updateServer = async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -380,9 +414,7 @@ const updateServer = async (req, res) => {
 
     // 1. Sunucuyu bul
     const server = await Server.findById(serverId);
-    if (!server) {
-      return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
-    }
+    if (!server) return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
 
     // 2. Yetki Kontrolü
     let hasPermission = false;
@@ -398,19 +430,37 @@ const updateServer = async (req, res) => {
       }
     }
 
-    if (!hasPermission) {
-      return res.status(403).json({ success: false, message: 'Bu sunucuyu güncelleme yetkiniz yok.' });
-    }
+    if (!hasPermission) return res.status(403).json({ success: false, message: 'Yetkiniz yok.' });
 
-    // 3. Sadece izin verilen alanları güncelle
+    // 3. Veri Hazırlığı
     const allowedUpdates = ['name', 'description', 'features', 'isPublic', 'joinMode'];
     const actualUpdates = {};
 
     Object.keys(updateData).forEach((key) => {
-      if (allowedUpdates.includes(key)) {
-        actualUpdates[key] = updateData[key];
-      }
+      if (allowedUpdates.includes(key)) actualUpdates[key] = updateData[key];
     });
+
+    // 🟢 KRİTİK KONTROL: Eğer isim değişiyorsa veya sunucu Public yapılıyorsa İSİM ÇAKIŞMASINI KONTROL ET
+    const newName = actualUpdates.name ? actualUpdates.name.trim() : server.name;
+    // Eğer isPublic gönderilmediyse eskisi geçerli, gönderildiyse yenisi
+    const newIsPublic = (actualUpdates.isPublic !== undefined) ? actualUpdates.isPublic : server.isPublic;
+
+    // Eğer sunucu (zaten public ise VEYA yeni public oluyorsa) VE (isim değişiyorsa VEYA public durumu değişiyorsa)
+    if (newIsPublic === true) {
+      // Kendisi hariç, bu isimde başka public sunucu var mı?
+      const conflict = await Server.findOne({
+        name: { $regex: new RegExp(`^${newName}$`, 'i') },
+        isPublic: true,
+        _id: { $ne: serverId } // Kendini hariç tut
+      });
+
+      if (conflict) {
+        return res.status(400).json({
+          success: false,
+          message: `"${newName}" ismi zaten başka bir herkese açık sunucu tarafından kullanılıyor.`
+        });
+      }
+    }
 
     // 4. Veritabanını güncelle
     const updatedServer = await Server.findByIdAndUpdate(
@@ -422,24 +472,17 @@ const updateServer = async (req, res) => {
       .populate('channels')
       .populate('roles');
 
-    // 🟢 SOCKET: Sunucunun güncellendiğini herkese bildir (Başlık vs. değişsin)
+    // 🟢 SOCKET
     const io = req.app.get('io');
-    if (io) {
-      io.to(serverId).emit('serverUpdated', updatedServer);
-    }
+    if (io) io.to(serverId).emit('serverUpdated', updatedServer);
 
-    res.status(200).json({
-      success: true,
-      message: 'Sunucu ayarları güncellendi',
-      data: updatedServer,
-    });
+    res.status(200).json({ success: true, message: 'Sunucu güncellendi', data: updatedServer });
 
   } catch (error) {
     console.error('SERVER UPDATE HATA:', error);
-    res.status(500).json({ success: false, message: 'Sunucu güncellenemedi', error: error.message });
+    res.status(500).json({ success: false, message: 'Güncelleme hatası', error: error.message });
   }
 };
-
 
 // @desc    Sunucuya gelen bekleyen istekleri listele
 const getServerRequests = async (req, res) => {
@@ -507,19 +550,30 @@ const respondToServerRequest = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
-
-const getDiscoverServers = async (req, res) => {
+}; const getDiscoverServers = async (req, res) => {
   try {
-    const { search } = req.query;
-    const matchStage = { isPublic: true };
+    const { search, page = 1, limit = 20 } = req.query;
 
+    // 1. Temel Filtre
+    const baseMatch = { isPublic: true };
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Pagination için toplam sayı
+    let countMatch = { ...baseMatch };
     if (search) {
-      matchStage.name = { $regex: search, $options: 'i' };
+      countMatch.name = { $regex: search, $options: 'i' };
     }
+    const totalCountData = await Server.countDocuments(countMatch);
 
-    const servers = await Server.aggregate([
-      { $match: matchStage },
+    // AGGREGATION PIPELINE
+    const pipeline = [
+      // A. Public Sunucuları Al
+      { $match: baseMatch },
+
+      // B. Level ve Üye Verilerini Çek
       {
         $lookup: {
           from: 'members',
@@ -542,6 +596,48 @@ const getDiscoverServers = async (req, res) => {
           memberCount: { $size: "$members" }
         }
       },
+
+      // C. 🟢 HATA ÇÖZÜMÜ: TEK BİR SIRALAMA ANAHTARI OLUŞTURMA
+      // MongoDB sadece 1 alana izin verdiği için Level ve Tarihi birleştiriyoruz.
+      // Mantık: Level ne kadar yüksekse ve Tarih ne kadar küçükse (eskiyse), bu sayı o kadar büyük olacak.
+      {
+        $addFields: {
+          // Level'ı 8 haneli bir sayıya tamamlıyoruz (Örn: 10000050)
+          paddedLevel: { $add: [10000000, "$totalLevel"] },
+          // Tarihi ters çeviriyoruz (Böylece eski tarih daha büyük bir sayı oluyor)
+          // 9999999999999 sabitinden çıkararak eski tarihleri büyütüyoruz.
+          invertedDate: { $subtract: [9999999999999, { $toLong: "$createdAt" }] }
+        }
+      },
+      {
+        $addFields: {
+          // İkisini string olarak birleştiriyoruz: "10000050-8237461287364"
+          // Bu tek string'e göre sıraladığımızda hem Level hem Tarih doğru sıralanmış oluyor.
+          rankingKey: {
+            $concat: [
+              { $toString: "$paddedLevel" },
+              "-",
+              { $toString: "$invertedDate" }
+            ]
+          }
+        }
+      },
+
+      // D. 🟢 RANK HESABI (ARTIK HATA VERMEZ)
+      // Sadece 'rankingKey' alanını kullanıyoruz.
+      {
+        $setWindowFields: {
+          partitionBy: null,
+          sortBy: { rankingKey: -1 }, // Büyükten küçüğe sırala
+          output: {
+            rank: {
+              $documentNumber: {} // 1, 2, 3, 4, 5... (Sıralı numara verir, tekrar etmez)
+            }
+          }
+        }
+      },
+
+      // E. Gereksiz Verileri Temizle
       {
         $project: {
           name: 1,
@@ -549,13 +645,35 @@ const getDiscoverServers = async (req, res) => {
           description: 1,
           totalLevel: 1,
           memberCount: 1,
-          createdAt: 1
+          createdAt: 1,
+          rank: 1
         }
       },
-      { $sort: { totalLevel: -1 } }
-    ]);
 
-    res.status(200).json({ success: true, data: servers });
+      // F. Arama Filtresi (Sıra numarası bozulmasın diye en son yapıyoruz)
+      ...(search ? [{ $match: { name: { $regex: search, $options: 'i' } } }] : []),
+
+      // G. Listeleme Sırası (Rank'a göre diz)
+      {
+        $sort: { rank: 1 }
+      },
+
+      // H. Sayfalama
+      { $skip: skip },
+      { $limit: limitNum }
+    ];
+
+    const servers = await Server.aggregate(pipeline);
+
+    res.status(200).json({
+      success: true,
+      data: servers,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCountData / limitNum),
+        totalServers: totalCountData
+      }
+    });
 
   } catch (error) {
     console.error('DISCOVER ERROR:', error);
@@ -667,10 +785,12 @@ const joinPublicServer = async (req, res) => {
   }
 };
 
+
 module.exports = {
   createServer,
   generateInviteCode,
   getServerDetails,
+  updateServerIcon,
   getUserServers,
   deleteServer,
   updateServerIcon,

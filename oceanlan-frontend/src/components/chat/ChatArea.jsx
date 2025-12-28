@@ -9,8 +9,8 @@ import axiosInstance from '../../utils/axiosInstance';
 import ScreenShareDisplay from './ScreenShareDisplay';
 import { getFullImageUrl } from '../../utils/urlHelper';
 import UserProfileModal from '../profile/UserProfileModal';
-import { TrashIcon, PaperAirplaneIcon, PlusCircleIcon } from '@heroicons/react/24/outline'; // İkonları import et
-import ConfirmationModal from '../modals/ConfirmationModal'; // 🟢 Modal Import Edildi
+import { TrashIcon, PaperAirplaneIcon, PlusCircleIcon, UserPlusIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import ConfirmationModal from '../modals/ConfirmationModal';
 import UserLevelTag from '../gamification/UserLevelTag';
 import '../../styles/ChatArea.css';
 
@@ -18,7 +18,8 @@ const DEFAULT_AVATAR = '/default-avatar.png';
 
 const ChatArea = () => {
   const { serverId, channelId } = useParams();
-  const { activeServer, loading } = useContext(ServerContext);
+  // 🟢 joinPublicServer fonksiyonunu Context'ten çekiyoruz
+  const { activeServer, loading, joinPublicServer } = useContext(ServerContext);
   const { user } = useContext(AuthContext);
   const { socket } = useSocket();
   const { addToast } = useContext(ToastContext);
@@ -41,6 +42,10 @@ const ChatArea = () => {
   const currentChannel = activeServer?.channels.find(c => c._id === channelId);
   const currentUserId = user?._id || user?.id;
 
+  // 🟢 ÜYELİK KONTROLÜ (Preview Modu)
+  // Backend'den gelen isMember bayrağına bakıyoruz. Eğer undefined ise (eski versiyon vb.) true varsayılabilir ama false daha güvenli.
+  const isMember = activeServer?.isMember !== false;
+
   const formatMessageDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -55,8 +60,10 @@ const ChatArea = () => {
     addToast(message, 'error');
   };
 
+  // 🟢 Mesajları Çekme (Sadece Üyeyse)
   useEffect(() => {
-    if (!socket || !channelId || !serverId) return;
+    if (!socket || !channelId || !serverId || !isMember) return;
+
     const joinRoom = () => socket.emit('joinChannel', channelId);
     joinRoom();
     socket.on('connect', joinRoom);
@@ -66,7 +73,10 @@ const ChatArea = () => {
       try {
         const res = await axiosInstance.get(`/servers/${serverId}/channels/${channelId}/messages`);
         setMessages(res.data.data);
-      } catch (error) { console.error('Mesajlar alınamadı', error); }
+      } catch (error) {
+        // 403 alırsak (üye değilse) sessizce geçebiliriz
+        if (error.response?.status !== 403) console.error('Mesajlar alınamadı', error);
+      }
     };
     fetchMessages();
 
@@ -75,10 +85,11 @@ const ChatArea = () => {
       socket.off('connect', joinRoom);
       socket.off('reconnect', joinRoom);
     };
-  }, [socket, channelId, serverId]);
+  }, [socket, channelId, serverId, isMember]);
 
+  // Socket Dinleyicileri (Sadece Üyeyse)
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isMember) return;
     const handleNewMessage = (message) => {
       const msgChannelId = typeof message.channel === 'object' ? message.channel._id : message.channel;
       if (String(msgChannelId) === String(channelId)) setMessages(prev => [...prev, message]);
@@ -88,7 +99,7 @@ const ChatArea = () => {
     socket.on('newMessage', handleNewMessage);
     socket.on('messageDeleted', handleMessageDeleted);
     return () => { socket.off('newMessage', handleNewMessage); socket.off('messageDeleted', handleMessageDeleted); };
-  }, [socket, channelId]);
+  }, [socket, channelId, isMember]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -113,13 +124,9 @@ const ChatArea = () => {
   };
 
   const handleDeleteClick = (msgId) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      messageId: msgId
-    });
+    setDeleteConfirmation({ isOpen: true, messageId: msgId });
   };
 
-  // 🟢 2. Modalda "Evet" denilince Silme İşlemini Yap
   const confirmDeleteMessage = async () => {
     const msgId = deleteConfirmation.messageId;
     if (!msgId) return;
@@ -127,26 +134,26 @@ const ChatArea = () => {
     try {
       await axiosInstance.delete(`/servers/${serverId}/channels/${channelId}/messages/${msgId}`);
       setMessages(prev => prev.filter(m => m._id !== msgId));
-      addToast('Mesaj başarıyla silindi.', 'success'); // İşlem sonrası bildirim
+      addToast('Mesaj başarıyla silindi.', 'success');
     } catch (error) {
       handleError(error);
     } finally {
-      // Modalı Kapat
       setDeleteConfirmation({ isOpen: false, messageId: null });
     }
   };
 
-  const handleDeleteMessage = async (msgId) => {
-    if (!window.confirm("Mesajı silmek istiyor musunuz?")) return;
-    try {
-      await axiosInstance.delete(`/servers/${serverId}/channels/${channelId}/messages/${msgId}`);
-      setMessages(prev => prev.filter(m => m._id !== msgId));
-      addToast('Mesaj silindi', 'success');
-    } catch (error) { handleError(error); }
-  };
-
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   const handleFileChange = (e) => { if (e.target.files && e.target.files[0]) setFile(e.target.files[0]); };
+
+  // 🟢 İstekli katılım için fonksiyon
+  const handleJoinRequest = async () => {
+    try {
+      await axiosInstance.post(`/servers/${serverId}/join-public`);
+      addToast('Katılım isteği gönderildi.', 'success');
+    } catch (error) {
+      handleError(error);
+    }
+  };
 
   if (loading || !activeServer || !currentChannel) return <div className="chat-area">Yükleniyor...</div>;
 
@@ -168,74 +175,84 @@ const ChatArea = () => {
 
   return (
     <div className="chat-area">
-      <header className="chat-header"># {currentChannel.name}</header>
-      <div className="chat-screen-share-section"><ScreenShareDisplay /></div>
+      <header className="chat-header">
+        # {currentChannel.name}
+        {!isMember && <span style={{ fontSize: '12px', marginLeft: '10px', color: '#b9bbbe' }}>(Önizleme Modu)</span>}
+      </header>
+
+      {/* Sadece Üyeyse Ekran Paylaşımını Göster */}
+      {isMember && <div className="chat-screen-share-section"><ScreenShareDisplay /></div>}
 
       <div className="messages-container">
-        {messages.map((msg, index) => {
-          const avatarSrc = getFullImageUrl(msg.author?.avatarUrl || msg.author?.avatar);
-          const authorId = msg.author._id || msg.author.id;
-          const isMyMessage = String(authorId) === String(currentUserId);
+        {/* 🟢 ÜYE DEĞİLSE: ÖNİZLEME EKRANI */}
+        {!isMember ? (
+          <div className="preview-mode-overlay" style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', color: '#dcddde', textAlign: 'center', padding: '20px'
+          }}>
+            <LockClosedIcon style={{ width: 64, height: 64, color: '#00aff4', marginBottom: '20px' }} />
+            <h2>Bu sunucuya henüz üye değilsiniz</h2>
+            <p style={{ maxWidth: '400px', marginBottom: '30px', color: '#b9bbbe' }}>
+              Kanalları ve üyeleri görebilirsiniz ancak sohbet geçmişini görmek ve mesaj göndermek için sunucuya katılmanız gerekmektedir.
+            </p>
 
-          return (
-            <div key={index} className="message-item">
-              {/* SOL: Avatar */}
-              <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
-                <img
-                  src={avatarSrc}
-                  alt={msg.author.username}
-                  className="message-avatar"
-                  onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
-                />
-              </div>
+            {activeServer.joinMode === 'request' ? (
+              <button className="join-btn-large" onClick={handleJoinRequest} style={{
+                padding: '12px 24px', fontSize: '16px', fontWeight: 'bold',
+                backgroundColor: '#5865F2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
+              }}>
+                <LockClosedIcon width={20} /> Katılım İsteği Gönder
+              </button>
+            ) : (
+              <button className="join-btn-large" onClick={() => joinPublicServer(activeServer._id)} style={{
+                padding: '12px 24px', fontSize: '16px', fontWeight: 'bold',
+                backgroundColor: '#3ba55c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
+              }}>
+                <UserPlusIcon width={20} /> Sunucuya Katıl
+              </button>
+            )}
+          </div>
+        ) : (
+          /* 🟢 ÜYEYSE: NORMAL MESAJLAR */
+          <>
+            {messages.map((msg, index) => {
+              const avatarSrc = getFullImageUrl(msg.author?.avatarUrl || msg.author?.avatar);
+              const authorId = msg.author._id || msg.author.id;
+              const isMyMessage = String(authorId) === String(currentUserId);
 
-              {/* SAĞ: İçerik */}
-              <div className="message-body">
-                <div className="message-header">
-                  <span className="message-author" onClick={() => setShowProfileId(authorId)}>
-                    {msg.author.username}
-                  </span>
-                  <UserLevelTag
-                    level={msg.author?.level}
-                    activeBadge={msg.author?.activeBadge}
-                  />
-                  <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
+              return (
+                <div key={index} className="message-item">
+                  <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
+                    <img src={avatarSrc} alt={msg.author.username} className="message-avatar" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
+                  </div>
+                  <div className="message-body">
+                    <div className="message-header">
+                      <span className="message-author" onClick={() => setShowProfileId(authorId)}>{msg.author.username}</span>
+                      <UserLevelTag level={msg.author?.level} activeBadge={msg.author?.activeBadge} />
+                      <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
+                    </div>
+                    <div className="message-content-wrapper">{renderMessageContent(msg)}</div>
+                  </div>
+                  {isMyMessage && (
+                    <div className="message-actions-group">
+                      <button className="message-delete-btn" title="Sil" onClick={() => handleDeleteClick(msg._id)}><TrashIcon /></button>
+                    </div>
+                  )}
                 </div>
-
-                <div className="message-content-wrapper">
-                  {renderMessageContent(msg)}
-                </div>
-              </div>
-
-              {/* 🟢 SİLME BUTONU (Floating Action Bar) */}
-              {isMyMessage && (
-                <div className="message-actions-group">
-                  <button
-                    className="message-delete-btn"
-                    title="Sil"
-                    onClick={() => handleDeleteClick(msg._id)}
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </>
+        )}
       </div>
 
       {/* Profil Modalı */}
       {showProfileId && (
-        <UserProfileModal
-          userId={showProfileId}
-          onClose={() => setShowProfileId(null)}
-        />
+        <UserProfileModal userId={showProfileId} onClose={() => setShowProfileId(null)} />
       )}
 
       {previewImage && <div className="image-modal-overlay" onClick={() => setPreviewImage(null)}><div className="image-modal"><img src={previewImage} alt="Önizleme" /></div></div>}
 
-      {/* 🟢 ONAY MODALI */}
       <ConfirmationModal
         isOpen={deleteConfirmation.isOpen}
         title="Mesajı Sil"
@@ -246,28 +263,29 @@ const ChatArea = () => {
         confirmText="Sil"
       />
 
-      {/* INPUT ALANI */}
-      <footer className="message-input-area">
-        <form onSubmit={handleSendMessage}>
-          <button type="button" className="attach-file-btn" onClick={() => fileInputRef.current.click()}>
-            <PlusCircleIcon style={{ width: 24, height: 24 }} />
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*" />
+      {/* 🟢 INPUT ALANI: SADECE ÜYEYSE GÖSTER */}
+      {isMember && (
+        <footer className="message-input-area">
+          <form onSubmit={handleSendMessage}>
+            <button type="button" className="attach-file-btn" onClick={() => fileInputRef.current.click()}>
+              <PlusCircleIcon style={{ width: 24, height: 24 }} />
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*" />
 
-          <input
-            type="text"
-            placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
-            value={inputContent}
-            onChange={(e) => setInputContent(e.target.value)}
-            disabled={isUploading}
-          />
+            <input
+              type="text"
+              placeholder={file ? `Dosya: ${file.name}` : `#${currentChannel.name} kanalına mesaj gönder...`}
+              value={inputContent}
+              onChange={(e) => setInputContent(e.target.value)}
+              disabled={isUploading}
+            />
 
-          {/* 🟢 GÖNDER BUTONU */}
-          <button type="submit" className="send-message-btn" disabled={(!inputContent.trim() && !file) || isUploading}>
-            <PaperAirplaneIcon />
-          </button>
-        </form>
-      </footer>
+            <button type="submit" className="send-message-btn" disabled={(!inputContent.trim() && !file) || isUploading}>
+              <PaperAirplaneIcon />
+            </button>
+          </form>
+        </footer>
+      )}
     </div>
   );
 };

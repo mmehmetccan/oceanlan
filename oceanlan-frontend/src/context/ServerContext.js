@@ -26,29 +26,29 @@ const ServerReducer = (state, action) => {
 
     // 🛠️ DÜZELTME: İSİM EŞİTLENDİ (UPDATE_MEMBER_PRESENCE)
     case 'UPDATE_MEMBER_PRESENCE':
-        if (!state.activeServer || !state.activeServer.members) return state;
+      if (!state.activeServer || !state.activeServer.members) return state;
 
-        const updatedMembers = state.activeServer.members.map(member => {
-            const mUserId = member.user?._id || member.user;
-            if (String(mUserId) === String(action.payload.userId)) {
-                // Mevcut veriyi koru, sadece status güncelle
-                const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
-                return {
-                    ...member,
-                    user: {
-                        ...oldUserObj,
-                        onlineStatus: action.payload.status,
-                        lastSeenAt: action.payload.lastSeenAt
-                    }
-                };
+      const updatedMembers = state.activeServer.members.map(member => {
+        const mUserId = member.user?._id || member.user;
+        if (String(mUserId) === String(action.payload.userId)) {
+          // Mevcut veriyi koru, sadece status güncelle
+          const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
+          return {
+            ...member,
+            user: {
+              ...oldUserObj,
+              onlineStatus: action.payload.status,
+              lastSeenAt: action.payload.lastSeenAt
             }
-            return member;
-        });
+          };
+        }
+        return member;
+      });
 
-        return {
-            ...state,
-            activeServer: { ...state.activeServer, members: updatedMembers }
-        };
+      return {
+        ...state,
+        activeServer: { ...state.activeServer, members: updatedMembers }
+      };
 
     case 'RESET_SERVER_STATE':
       return initialState;
@@ -66,13 +66,13 @@ export const ServerProvider = ({ children }) => {
 
   // Socket Dinleyicisi
   useEffect(() => {
-      if (!socket) return;
-      const handleStatusChange = (data) => {
-          // Socket'ten gelen veriyi Reducer'a gönder
-          dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
-      };
-      socket.on('userStatusChanged', handleStatusChange);
-      return () => socket.off('userStatusChanged', handleStatusChange);
+    if (!socket) return;
+    const handleStatusChange = (data) => {
+      // Socket'ten gelen veriyi Reducer'a gönder
+      dispatch({ type: 'UPDATE_MEMBER_PRESENCE', payload: data });
+    };
+    socket.on('userStatusChanged', handleStatusChange);
+    return () => socket.off('userStatusChanged', handleStatusChange);
   }, [socket]);
 
   const fetchServerDetails = useCallback(async (serverId) => {
@@ -92,7 +92,7 @@ export const ServerProvider = ({ children }) => {
     try {
       const res = await axiosInstance.get('/servers/');
       dispatch({ type: 'SET_SERVERS', payload: res.data.data });
-    } catch (e) {}
+    } catch (e) { }
   }, [token]);
 
   useEffect(() => {
@@ -100,26 +100,59 @@ export const ServerProvider = ({ children }) => {
     else dispatch({ type: 'RESET_SERVER_STATE' });
   }, [isAuthenticated, token, fetchUserServers]);
 
-  const createNewServer = useCallback(async (serverName, file = null) => {
+  const createNewServer = useCallback(async (serverName, iconFile, isPublic, joinMode) => {
     if (!token) throw new Error('Oturum yok');
     try {
-      const res = await axiosInstance.post('/servers', { name: serverName });
-      let newServer = res.data.data;
-      if (file) {
-          const fd = new FormData(); fd.append('icon', file);
-          const iconRes = await axiosInstance.put(`/servers/${newServer._id}/icon`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-          if (iconRes.data.data) newServer = iconRes.data.data;
+      const formData = new FormData();
+      formData.append('name', serverName);
+
+      // Frontend'den gelen boolean değerleri FormData'ya ekliyoruz
+      formData.append('isPublic', isPublic);
+      formData.append('joinMode', joinMode);
+
+      if (iconFile) {
+        formData.append('icon', iconFile);
       }
+
+      // Tek bir POST isteği ile resmi ve verileri gönderiyoruz
+      const res = await axiosInstance.post('/servers', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const newServer = res.data.data;
       dispatch({ type: 'ADD_SERVER', payload: newServer });
+
+      // Oluşan sunucunun detaylarını çekip aktif yap
       await fetchServerDetails(newServer._id);
+
       return newServer;
-    } catch (e) { throw new Error(e.response?.data?.message || 'Hata'); }
+    } catch (e) {
+      console.error("Sunucu oluşturma hatası:", e);
+      throw new Error(e.response?.data?.message || 'Hata');
+    }
   }, [token, dispatch, fetchServerDetails]);
+
+  // 🟢 YENİ EKLENEN: joinPublicServer (ChatArea.jsx içindeki Katıl butonu için)
+  const joinPublicServer = useCallback(async (serverId) => {
+    if (!token) return;
+    try {
+      const res = await axiosInstance.post(`/servers/${serverId}/join-public`);
+
+      // Eğer başarılıysa ve direkt katılım ise detayları güncelle
+      if (res.data.success && res.data.status !== 'pending') {
+        await fetchServerDetails(serverId);
+        await fetchUserServers(); // Sol menüdeki listeyi güncelle
+      }
+      return res.data;
+    } catch (error) {
+      throw error;
+    }
+  }, [token, fetchServerDetails, fetchUserServers]);
 
   const setActiveChannel = useCallback((c) => dispatch({ type: 'SELECT_CHANNEL', payload: c }), []);
 
   return (
-    <ServerContext.Provider value={{ ...state, dispatch, fetchServerDetails, createNewServer, fetchUserServers, setActiveChannel }}>
+    <ServerContext.Provider value={{ ...state, dispatch, fetchServerDetails, createNewServer, fetchUserServers, setActiveChannel, joinPublicServer }}>
       {children}
     </ServerContext.Provider>
   );
