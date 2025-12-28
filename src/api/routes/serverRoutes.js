@@ -15,6 +15,9 @@ const {
     getServerRequests,
     respondToServerRequest,
     getDiscoverServers,
+    leaveServer,
+    getTopServers,
+    joinPublicServer
 } = require('../../controllers/serverController');
 
 // Koruma (Giriş yapma) middleware'ini içe aktar
@@ -39,8 +42,15 @@ router.get('/', protect, getUserServers);
 
 router.get('/discover/all', protect, getDiscoverServers);
 
+router.get('/leaderboard/top', protect, getTopServers);
+
+// 🟢 KATIL: Public Sunucuya Katıl (EKSİK OLAN KISIM BURASIYDI)
+router.post('/:serverId/join-public', protect, joinPublicServer);
+
 // POST /api/v1/servers/:serverId/invite
 router.post('/:serverId/invite', protect, generateInviteCode);
+
+router.post('/:serverId/leave', protect, leaveServer);
 
 // PUT /api/v1/servers/:serverId/icon (Mevcut ikonu güncelleme)
 router.put(

@@ -46,6 +46,7 @@ const LevelUpModal = () => {
       window.removeEventListener('resize', handleResize);
     };
   }, [socket]);
+  
   const handleClose = () => setNotification(null);
 
   if (!notification) return null;

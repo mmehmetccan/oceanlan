@@ -9,17 +9,16 @@ const Message = require('../models/MessageModel');
 const Ban = require('../models/BanModel');
 const { processGamification } = require('../utils/gamificationEngine');
 const fs = require('fs'); // Eski resmi silmek için fs modülü
-const ServerRequest = require('../models/ServerRequestModel'); // 👈 Bunu en üste ekle
+const ServerRequest = require('../models/ServerRequestModel');
 
 
 // @desc    Yeni bir sunucu oluşturur
 const createServer = async (req, res) => {
   try {
-    const { name, isPublic, joinMode } = req.body; // Frontend'den bunlar gelecek
+    const { name, isPublic, joinMode } = req.body;
     const ownerId = req.user.id;
 
     if (isPublic === true) {
-      // Büyük/küçük harf duyarsız arama yapalım (Case-insensitive)
       const existingPublicServer = await Server.findOne({
         name: { $regex: new RegExp(`^${name}$`, 'i') },
         isPublic: true
@@ -33,18 +32,17 @@ const createServer = async (req, res) => {
       }
     }
 
-    // --- EKLENEN KISIM: Resim Yolu ---
     let iconUrl = null;
     if (req.file && req.file.filename) {
-      // serverIconMiddleware dosya adını req.file.filename'e ekliyor
       iconUrl = `/uploads/server_icons/${req.file.filename}`;
     }
+
     // 1. Sunucuyu oluştur
     const newServer = await Server.create({
       name: name,
       owner: ownerId,
       iconUrl: iconUrl,
-      isPublic: isPublic || false,      // Varsayılan false
+      isPublic: isPublic || false,
       joinMode: joinMode || 'direct'
     });
 
@@ -54,10 +52,10 @@ const createServer = async (req, res) => {
       server: newServer._id,
       isDefault: true,
       permissions: [
-        'SEND_MESSAGES',   // Mesaj gönderme
-        'READ_MESSAGES',   // Mesaj okuma
-        'VOICE_SPEAK',     // Konuşma
-        'VOICE_CONNECT'    // Sesliye bağlanma
+        'SEND_MESSAGES',
+        'READ_MESSAGES',
+        'VOICE_SPEAK',
+        'VOICE_CONNECT'
       ]
     });
 
@@ -69,15 +67,13 @@ const createServer = async (req, res) => {
       color: '#F1C40F'
     });
 
-    // --- HATA DÜZELTMESİ BURADA ---
-    // 4. Varsayılan Kanal (created By eklendi)
+    // 4. Varsayılan Kanal
     const defaultChannel = await Channel.create({
       name: 'genel',
       server: newServer._id,
       type: 'text',
       createdBy: ownerId
     });
-    // -----------------------------
 
     // 5. Sunucu Sahibi Üyeliği
     const ownerMember = await Member.create({
@@ -106,7 +102,6 @@ const createServer = async (req, res) => {
       .populate({
         path: 'members',
         populate: [
-          // 👇 'badges' ve 'level' EKLENDİ
           { path: 'user', select: 'username email avatarUrl badges level' },
           { path: 'roles', select: 'name color permissions' }
         ]
@@ -117,6 +112,7 @@ const createServer = async (req, res) => {
       message: 'Sunucu, roller ve kanal başarıyla oluşturuldu',
       data: populatedServer,
     });
+
     try {
       const io = req.app.get('io');
       if (io) {
@@ -127,17 +123,13 @@ const createServer = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('SERVER CREATE HATA DETAYI:', error); // Terminale detaylı hata basar
+    console.error('SERVER CREATE HATA DETAYI:', error);
     res.status(500).json({ success: false, message: 'Sunucu oluşturulamadı', error: error.message });
   }
 };
 
 
-
-
-
-
-// 📢 YENİ: Sunucu Resmini Güncelle
+// 📢 YENİ: Sunucu Resmini Güncelle (SOCKET EKLENDİ)
 const updateServerIcon = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Resim dosyası yok' });
@@ -151,6 +143,12 @@ const updateServerIcon = async (req, res) => {
       { new: true }
     );
 
+    // 🟢 SOCKET: Sunucu resminin değiştiğini herkese bildir
+    const io = req.app.get('io');
+    if (io) {
+      io.to(serverId).emit('serverUpdated', server);
+    }
+
     res.status(200).json({ success: true, message: 'Sunucu resmi güncellendi', data: server });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Resim yüklenemedi', error: error.message });
@@ -161,10 +159,9 @@ const updateServerIcon = async (req, res) => {
 const getBannedUsers = async (req, res) => {
   try {
     const { serverId } = req.params;
-    // Ban tablosundan bu sunucuya ait olanları bul, kullanıcı bilgilerini doldur
     const bans = await Ban.find({ server: serverId })
-      .populate('user', 'username avatarUrl') // Yasaklı kişi
-      .populate('bannedBy', 'username');      // Yasaklayan yetkili
+      .populate('user', 'username avatarUrl')
+      .populate('bannedBy', 'username');
 
     res.status(200).json({ success: true, data: bans });
   } catch (error) {
@@ -175,9 +172,8 @@ const getBannedUsers = async (req, res) => {
 // 📢 YENİ: Ban Kaldır (Unban)
 const unbanUser = async (req, res) => {
   try {
-    const { serverId, userId } = req.params; // URL'den banned user ID'sini al
+    const { serverId, userId } = req.params;
 
-    // Ban kaydını sil
     const deletedBan = await Ban.findOneAndDelete({ server: serverId, user: userId });
 
     if (!deletedBan) {
@@ -189,6 +185,7 @@ const unbanUser = async (req, res) => {
     res.status(500).json({ success: false, message: 'İşlem başarısız', error: error.message });
   }
 };
+
 // @desc    Sunucu detaylarını getirir
 const getServerDetails = async (req, res) => {
   try {
@@ -200,7 +197,6 @@ const getServerDetails = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bu sunucunun üyesi değilsiniz' });
     }
 
-    // 2. Sunucuyu bul ve populate et (Rolleri de ekle)
     const server = await Server.findById(serverId)
       .populate('owner', 'username email')
       .populate('defaultRole')
@@ -212,8 +208,6 @@ const getServerDetails = async (req, res) => {
       .populate({
         path: 'members',
         populate: [
-          // 🔴 ESKİSİ: { path: 'user', select: 'username email avatarUrl' },
-          // 🟢 YENİSİ (Bunu Yapıştır):
           { path: 'user', select: 'username email avatarUrl level badges activeBadge' },
           { path: 'roles', select: 'name color permissions' }
         ]
@@ -239,7 +233,6 @@ const getUserServers = async (req, res) => {
     const memberships = await Member.find({ user: userId });
     const serverIds = memberships.map(m => m.server);
 
-    // 👇 DÜZELTME: 'iconUrl' alanını da seçiyoruz!
     const servers = await Server.find({ _id: { $in: serverIds } })
       .select('name owner channels iconUrl');
 
@@ -253,7 +246,6 @@ const getUserServers = async (req, res) => {
   }
 };
 
-// ... (generateInviteCode ve deleteServer kodları aynı)
 const generateInviteCode = async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -285,6 +277,7 @@ const generateInviteCode = async (req, res) => {
   }
 };
 
+// 📢 YENİ: Sunucu Silme (SOCKET EKLENDİ)
 const deleteServer = async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -310,12 +303,16 @@ const deleteServer = async (req, res) => {
     // Son olarak sunucuyu sil
     await Server.findByIdAndDelete(serverId);
 
-    // TODO: Socket ile 'serverDeleted' emit et
+    // 🟢 SOCKET: Sunucunun silindiğini herkese bildir (Dashboard'a atsınlar)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(serverId).emit('serverDeleted', { serverId });
+    }
 
     res.status(200).json({ success: true, message: 'Sunucu ve tüm içeriği başarıyla silindi.' });
 
   } catch (error) {
-    console.error("SUNUCU SİLME HATASI:", error); // Hatanın ne olduğunu logla
+    console.error("SUNUCU SİLME HATASI:", error);
     res.status(500).json({ success: false, message: 'Sunucu silinemedi', error: error.message });
   }
 };
@@ -352,6 +349,21 @@ const leaveServer = async (req, res) => {
       $pull: { members: member._id }
     });
 
+    // Kullanıcının sunucu listesinden de kaldır
+    await User.findByIdAndUpdate(userId, {
+      $pull: { servers: serverId }
+    });
+
+    // 🟢 SOCKET İLE BİLDİR
+    const io = req.app.get('io');
+    if (io) {
+      // 1. Sunucudaki diğer herkese haber ver (Listeden düşmesi için)
+      io.to(serverId).emit('member-left', { serverId, userId });
+
+      // 2. Ayrılan kişiye özel haber ver
+      io.to(userId).emit('removed-from-server', { serverId });
+    }
+
     res.status(200).json({ success: true, message: 'Sunucudan ayrıldınız' });
 
   } catch (error) {
@@ -359,6 +371,7 @@ const leaveServer = async (req, res) => {
   }
 };
 
+// 📢 YENİ: Sunucu Güncelleme (SOCKET EKLENDİ)
 const updateServer = async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -371,16 +384,13 @@ const updateServer = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
     }
 
-    // 2. Yetki Kontrolü (Sahip mi veya Yönetici mi?)
-    // Not: Middleware kullanıyorsan orası halleder ama burada manuel kontrol ekledim güvenlik için.
+    // 2. Yetki Kontrolü
     let hasPermission = false;
     if (server.owner.toString() === userId) {
       hasPermission = true;
     } else {
-      // Sahip değilse, üyenin yetkilerine bak (Member tablosundan)
       const member = await Member.findOne({ server: serverId, user: userId }).populate('roles');
       if (member) {
-        // Admin veya Sunucu Yönetme yetkisi var mı?
         hasPermission = member.roles.some(role =>
           role.permissions.includes('ADMINISTRATOR') ||
           role.permissions.includes('MANAGE_SERVER')
@@ -392,8 +402,7 @@ const updateServer = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bu sunucuyu güncelleme yetkiniz yok.' });
     }
 
-    // 3. Sadece izin verilen alanları güncelle (Güvenlik için)
-    // Frontend'den gelen 'features' objesi burada işlenir.
+    // 3. Sadece izin verilen alanları güncelle
     const allowedUpdates = ['name', 'description', 'features', 'isPublic', 'joinMode'];
     const actualUpdates = {};
 
@@ -413,6 +422,12 @@ const updateServer = async (req, res) => {
       .populate('channels')
       .populate('roles');
 
+    // 🟢 SOCKET: Sunucunun güncellendiğini herkese bildir (Başlık vs. değişsin)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(serverId).emit('serverUpdated', updatedServer);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Sunucu ayarları güncellendi',
@@ -430,8 +445,6 @@ const updateServer = async (req, res) => {
 const getServerRequests = async (req, res) => {
   try {
     const { serverId } = req.params;
-    // Yetki kontrolü (Middleware veya burada yapılabilir)
-    // Şimdilik sadece sunucu sahibi diyelim
     const server = await Server.findById(serverId);
     if (String(server.owner) !== req.user.id) return res.status(403).json({ message: 'Yetkisiz' });
 
@@ -444,11 +457,11 @@ const getServerRequests = async (req, res) => {
   }
 };
 
-// @desc    İsteği Onayla veya Reddet
+// @desc    İsteği Onayla veya Reddet (SOCKET EKLENDİ)
 const respondToServerRequest = async (req, res) => {
   try {
     const { serverId, requestId } = req.params;
-    const { status } = req.body; // 'accepted' veya 'rejected'
+    const { status } = req.body;
 
     const request = await ServerRequest.findById(requestId);
     if (!request) return res.status(404).json({ message: 'İstek bulunamadı' });
@@ -459,13 +472,13 @@ const respondToServerRequest = async (req, res) => {
     }
 
     if (status === 'accepted') {
-      // Üye yapma işlemi (Join mantığının aynısı)
       const defaultRole = await Role.findOne({ server: serverId, isDefault: true });
 
-      // Çift kayıt kontrolü
+      let newMember = null;
+
       const existingMember = await Member.findOne({ server: serverId, user: request.user });
       if (!existingMember) {
-        const newMember = await Member.create({
+        newMember = await Member.create({
           user: request.user,
           server: serverId,
           roles: defaultRole ? [defaultRole._id] : []
@@ -475,8 +488,18 @@ const respondToServerRequest = async (req, res) => {
         await User.findByIdAndUpdate(request.user, { $push: { servers: serverId } });
       }
 
-      // İsteği sil (artık üye oldu)
       await ServerRequest.findByIdAndDelete(requestId);
+
+      // 🟢 SOCKET: Yeni üyeyi bildir (Listeyi güncellemek için)
+      if (newMember) {
+        const io = req.app.get('io');
+        if (io) {
+          const populatedMember = await Member.findById(newMember._id)
+            .populate('user', 'username avatarUrl level badges activeBadge')
+            .populate('roles', 'name color permissions');
+          io.to(serverId).emit('newMember', populatedMember);
+        }
+      }
 
       return res.status(200).json({ success: true, message: 'Kullanıcı onaylandı ve sunucuya eklendi.' });
     }
@@ -489,19 +512,14 @@ const respondToServerRequest = async (req, res) => {
 const getDiscoverServers = async (req, res) => {
   try {
     const { search } = req.query;
-
-    // 1. Sadece Public olanları filtrele
     const matchStage = { isPublic: true };
 
-    // 2. Arama varsa isme göre filtrele (Büyük/küçük harf duyarsız)
     if (search) {
       matchStage.name = { $regex: search, $options: 'i' };
     }
 
     const servers = await Server.aggregate([
       { $match: matchStage },
-
-      // Üye detaylarını çek
       {
         $lookup: {
           from: 'members',
@@ -510,7 +528,6 @@ const getDiscoverServers = async (req, res) => {
           as: 'memberDetails'
         }
       },
-      // Üyelerin kullanıcı detaylarını çek (Level için)
       {
         $lookup: {
           from: 'users',
@@ -519,14 +536,12 @@ const getDiscoverServers = async (req, res) => {
           as: 'userDetails'
         }
       },
-      // Toplam Level Hesapla
       {
         $addFields: {
           totalLevel: { $sum: "$userDetails.level" },
           memberCount: { $size: "$members" }
         }
       },
-      // Gereksiz veriyi at
       {
         $project: {
           name: 1,
@@ -537,7 +552,6 @@ const getDiscoverServers = async (req, res) => {
           createdAt: 1
         }
       },
-      // EN GÜÇLÜDEN EN GÜÇSÜZE SIRALA
       { $sort: { totalLevel: -1 } }
     ]);
 
@@ -552,10 +566,7 @@ const getDiscoverServers = async (req, res) => {
 const getTopServers = async (req, res) => {
   try {
     const topServers = await Server.aggregate([
-      // 1. Sadece 'isPublic' olan sunucuları al
       { $match: { isPublic: true } },
-
-      // 2. 'members' dizisindeki ID'leri kullanarak Member tablosuna git
       {
         $lookup: {
           from: 'members',
@@ -564,8 +575,6 @@ const getTopServers = async (req, res) => {
           as: 'memberDetails'
         }
       },
-
-      // 3. Member tablosundaki 'user' ID'lerini kullanarak User tablosuna git (Level için)
       {
         $lookup: {
           from: 'users',
@@ -574,16 +583,12 @@ const getTopServers = async (req, res) => {
           as: 'userDetails'
         }
       },
-
-      // 4. Bu sunucudaki kullanıcıların toplam levelini hesapla
       {
         $addFields: {
           totalLevel: { $sum: "$userDetails.level" },
           memberCount: { $size: "$members" }
         }
       },
-
-      // 5. Gereksiz büyük verileri at, sadece lazım olanları tut
       {
         $project: {
           name: 1,
@@ -593,11 +598,7 @@ const getTopServers = async (req, res) => {
           memberCount: 1
         }
       },
-
-      // 6. Toplam level'e göre çoktan aza sırala
       { $sort: { totalLevel: -1 } },
-
-      // 7. İlk 10'u al
       { $limit: 10 }
     ]);
 
@@ -609,7 +610,7 @@ const getTopServers = async (req, res) => {
   }
 };
 
-// @desc    Public sunucuya direkt katıl
+// @desc    Public sunucuya direkt katıl (SOCKET EKLENDİ)
 const joinPublicServer = async (req, res) => {
   try {
     const { serverId } = req.params;
@@ -618,46 +619,46 @@ const joinPublicServer = async (req, res) => {
     const server = await Server.findById(serverId);
     if (!server) return res.status(404).json({ message: 'Sunucu yok' });
 
-    // Sunucu public değilse hata ver
     if (!server.isPublic) {
       return res.status(403).json({ message: 'Bu sunucu dışarıya kapalı.' });
     }
 
-    // Zaten üye mi?
     const existingMember = await Member.findOne({ server: serverId, user: userId });
     if (existingMember) return res.status(400).json({ message: 'Zaten üyesiniz.' });
 
-    // --- KATILIM MODU KONTROLÜ ---
     if (server.joinMode === 'request') {
-      // Zaten bekleyen istek var mı?
       const existingRequest = await ServerRequest.findOne({ server: serverId, user: userId, status: 'pending' });
       if (existingRequest) {
         return res.status(400).json({ message: 'Zaten bekleyen bir katılım isteğiniz var.' });
       }
-
-      // İstek oluştur
       await ServerRequest.create({ server: serverId, user: userId });
-
       return res.status(200).json({ success: true, status: 'pending', message: 'Katılım isteği gönderildi. Yöneticilerin onayı bekleniyor.' });
     }
 
-    // --- DIRECT MOD (DİREKT GİRİŞ) ---
-    // 1. Varsayılan Rolü Bul
+    // --- DIRECT MOD ---
     const defaultRole = await Role.findOne({ server: serverId, isDefault: true });
 
-    // 2. Member Oluştur
     const newMember = await Member.create({
       user: userId,
       server: serverId,
       roles: defaultRole ? [defaultRole._id] : []
     });
 
-    // 3. Sunucuya Ekle
     server.members.push(newMember._id);
     await server.save();
 
-    // 4. User'a Ekle
     await User.findByIdAndUpdate(userId, { $push: { servers: serverId } });
+
+    // 🟢 SOCKET: Yeni üyeyi bildir
+    const io = req.app.get('io');
+    if (io) {
+      // Üyenin detaylarını doldurarak gönder (Frontend'de resim/isim görünsün diye)
+      const populatedMember = await Member.findById(newMember._id)
+        .populate('user', 'username avatarUrl level badges activeBadge')
+        .populate('roles', 'name color permissions');
+
+      io.to(serverId).emit('newMember', populatedMember);
+    }
 
     res.status(200).json({ success: true, message: 'Sunucuya katıldınız', serverId: server._id });
 

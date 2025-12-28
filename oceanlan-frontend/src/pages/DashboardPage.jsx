@@ -23,7 +23,6 @@ import ServerDiscoveryPage from './ServerDiscoveryPage';
 // Entegrasyonlar
 import IlkonbirKurFrame from '../components/integrations/IlkonbirKurFrame';
 import TatildekiRotamFrame from '../components/integrations/TatildekiRotamFrame';
-//import YouTubeWatchParty from '../components/integrations/YouTubeWatchParty';
 
 import { useSocket } from '../hooks/useSocket';
 import { VoiceContext } from '../context/VoiceContext';
@@ -32,7 +31,28 @@ import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
 
 // İkonlar
-import { UsersIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { UsersIcon, XMarkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
+
+// 🟢 YENİ: Sunucuya girince kanal seçilmediyse çıkacak boş ekran
+const ServerWelcome = () => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    color: '#b9bbbe',
+    textAlign: 'center',
+    padding: '20px'
+  }}>
+    <div style={{ fontSize: '4rem', marginBottom: '20px', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }}>👋</div>
+    <h2 style={{ color: 'white', marginBottom: '10px' }}>Sunucuya Hoş Geldin!</h2>
+    <p style={{ maxWidth: '400px' }}>
+      <ChatBubbleLeftRightIcon width={20} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '5px' }} />
+      Sohbete başlamak veya sesli odalara katılmak için soldaki menüden bir <strong>kanal seçebilirsin.</strong>
+    </p>
+  </div>
+);
 
 const DashboardPage = () => {
   const { socket } = useSocket();
@@ -53,7 +73,7 @@ const DashboardPage = () => {
 
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
-  // 🟢 YENİ: Mobilde üyeler panelini açıp kapatmak için state
+  // Mobilde üyeler panelini açıp kapatmak için state
   const [showMobileMembers, setShowMobileMembers] = useState(false);
 
   // Kanal değişirse mobil menüyü otomatik kapat
@@ -87,6 +107,22 @@ const DashboardPage = () => {
       socket.off('force-join-voice-channel', handleForceJoin);
     };
   }, [socket, dispatch, joinVoiceChannel, addToast]);
+
+  // Sunucudan atılma kontrolü
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRemoved = (data) => {
+      if (serverId && data.serverId === serverId) {
+        console.log("Sunucudan ayrıldınız/atıldınız.");
+        navigate('/dashboard/feed');
+        addToast('Sunucudan ayrıldınız veya atıldınız.', 'info');
+      }
+    };
+
+    socket.on('removed-from-server', handleRemoved);
+    return () => socket.off('removed-from-server', handleRemoved);
+  }, [socket, serverId, navigate, addToast]);
 
   return (
     <div
@@ -123,7 +159,7 @@ const DashboardPage = () => {
 
         <div className="main-content-area" style={{ position: 'relative' }}>
 
-          {/* 🟢 MOBİL İÇİN ÜYELER BUTONU (Sadece Sunucu içindeyken görünür) */}
+          {/* Mobilde Üyeler Butonu */}
           {onServerRoute && (
             <button
               className="mobile-members-toggle-btn"
@@ -144,20 +180,25 @@ const DashboardPage = () => {
             <Route path="server/:serverId/channels/tatildeki-rotam" element={<TatildekiRotamFrame />} />
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
 
+            {/* 🟢 DÜZELTME: Bu iki satır FeedPage'in yanlışlıkla açılmasını engeller */}
+            <Route path="server/:serverId" element={<ServerWelcome />} />
+            <Route path="server/:serverId/*" element={<ServerWelcome />} />
+
             <Route path="dm/:friendId/:conversationId" element={<DMView />} />
             <Route path="settings/stream" element={<StreamSettingsPage />} />
             <Route path="settings/profile" element={<UserProfilePage />} />
             <Route path="server/:serverId/settings" element={<ServerSettingsPage />} />
             <Route path="profile/:userId" element={<UserProfileViewPage />} />
             <Route path="settings/audio" element={<AudioSettingsPage />} />
+
+            {/* Catch-all route */}
             <Route path="*" element={<FeedPage />} />
           </Routes>
         </div>
 
-        {/* 🟢 SERVER ÜYELER PANELİ (Mobilde Açılır/Kapanır Yapıldı) */}
+        {/* Server Üyeler Paneli */}
         {onServerRoute && (
           <div className={`server-members-wrapper ${showMobileMembers ? 'mobile-open' : ''}`}>
-            {/* Mobilde arkaya tıklayınca kapanması için backdrop */}
             {showMobileMembers && (
               <div
                 className="mobile-backdrop"

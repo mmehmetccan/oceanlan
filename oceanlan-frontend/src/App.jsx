@@ -34,51 +34,51 @@ const PublicRoute = ({ children }) => {
 
 // 🟢 ANA İÇERİK BİLEŞENİ (Loading kontrolü burada yapılır)
 const AppContent = () => {
-  const { loading } = useContext(AuthContext);
+    const { loading } = useContext(AuthContext);
 
-  // 1. EĞER YÜKLENİYORSA: Sadece logoyu göster (Login sayfası görünmez)
-  if (loading) {
+    // 1. EĞER YÜKLENİYORSA: Sadece logoyu göster (Login sayfası görünmez)
+    if (loading) {
+        return (
+            <div style={{
+                height: '100vh',
+                width: '100vw',
+                backgroundColor: '#2f3136',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                color: 'white'
+            }}>
+                {/* Buraya kendi logonun resmini koyabilirsin */}
+                <div style={{textAlign: 'center'}}>
+                    <h2>OceanLan</h2>
+                    <p style={{fontSize: '12px', color: '#888'}}>Başlatılıyor...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // 2. YÜKLEME BİTTİ: Rotaları Göster
     return (
-      <div style={{
-        height: '100vh',
-        width: '100vw',
-        backgroundColor: '#2f3136',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        color: 'white'
-      }}>
-        {/* Buraya kendi logonun resmini koyabilirsin */}
-        <div style={{ textAlign: 'center' }}>
-          <h2>OceanLan</h2>
-          <p style={{ fontSize: '12px', color: '#888' }}>Başlatılıyor...</p>
-        </div>
-      </div>
+        <Routes>
+            <Route path="/login" element={
+                <PublicRoute><LoginPage /></PublicRoute>
+            } />
+            <Route path="/register" element={
+                <PublicRoute><RegisterPage /></PublicRoute>
+            } />
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
+            <Route path="/resetpassword/:resetToken" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
+            <Route path="/legal/:type" element={<LegalPage />} />
+            <Route path="/dashboard/*" element={
+                <ProtectedRoute><DashboardPage /></ProtectedRoute>
+            } />
+
+            {/* Varsayılan yönlendirme: Girişliyse Dash, değilse Login */}
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+        </Routes>
     );
-  }
-
-  // 2. YÜKLEME BİTTİ: Rotaları Göster
-  return (
-    <Routes>
-      <Route path="/login" element={
-        <PublicRoute><LoginPage /></PublicRoute>
-      } />
-      <Route path="/register" element={
-        <PublicRoute><RegisterPage /></PublicRoute>
-      } />
-      <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
-      <Route path="/resetpassword/:resetToken" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
-      <Route path="/legal/:type" element={<LegalPage />} />
-      <Route path="/dashboard/*" element={
-        <ProtectedRoute><DashboardPage /></ProtectedRoute>
-      } />
-
-      {/* Varsayılan yönlendirme: Girişliyse Dash, değilse Login */}
-      <Route path="*" element={<Navigate to="/dashboard" />} />
-    </Routes>
-  );
 };
 
 function App() {
