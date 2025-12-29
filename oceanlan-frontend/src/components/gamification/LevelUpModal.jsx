@@ -8,6 +8,7 @@ import '../../styles/ModalStyles.css';
 const BADGE_IMAGES = {
   EARLY_ADOPTER: '/assets/badges/earlymember.png', // Senin yüklediğin altın rozet
   VETERAN_2025: '/assets/badges/2025badge.png',   // Diğer rozet
+  founder: '/assets/badges/founder.png',
 };
 
 const LevelUpModal = () => {
@@ -46,7 +47,7 @@ const LevelUpModal = () => {
       window.removeEventListener('resize', handleResize);
     };
   }, [socket]);
-  
+
   const handleClose = () => setNotification(null);
 
   if (!notification) return null;
