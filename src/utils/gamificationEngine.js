@@ -28,7 +28,22 @@ const BADGE_DEFINITIONS = {
       const limitDate = new Date('2026-01-01');
       return user.createdAt < limitDate;
     }
-  }
+  },
+  FOUNDER: {
+    id: 'FOUNDER',
+    name: 'Kurucu',
+    description: 'Oceanlan kurucusu.',
+    xpReward: 10000,
+    icon: 'founder',
+    condition: async (user) => {
+      try {
+        const founderId = '69248946b4a910dc4ad53dad';
+        return String(user._id) === String(founderId);
+      } catch (e) {
+        return false;
+      }
+    }
+  },
 };
 
 const calculateLevel = (totalXp) => Math.floor(0.1 * Math.sqrt(totalXp)) + 1;

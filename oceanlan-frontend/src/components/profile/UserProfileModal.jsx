@@ -1,11 +1,12 @@
 // src/components/profile/UserProfileModal.jsx
 import React, { useEffect, useState, useContext } from 'react';
+// 🟢 EKLENDİ: Yönlendirme için gerekli
+import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import { AuthContext } from '../../context/AuthContext';
 import { ToastContext } from '../../context/ToastContext';
 import { getImageUrl } from '../../utils/urlHelper';
 import UserLevelTag from '../gamification/UserLevelTag';
-// 🟢 DÜZELTME 1: getBadgeImg import edildi
 import UserBadgeList, { getBadgeImg } from '../gamification/UserBadgeList';
 import '../../styles/UserProfileView.css';
 
@@ -18,6 +19,9 @@ const handleAvatarError = (e) => {
 };
 
 const UserProfileModal = ({ userId, initialName, onClose }) => {
+  // 🟢 EKLENDİ: Navigate hook'u
+  const navigate = useNavigate();
+
   // Modal içinde gezinmek için state
   const [currentUserId, setCurrentUserId] = useState(userId);
 
@@ -98,20 +102,11 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const isRequestSent = profile?.isRequestSent ?? false;
   const userAvatarSrc = getImageUrl(user.avatarUrl || user.avatar);
 
-  const handleEquipBadge = async (badge) => { // async yap
+  const handleEquipBadge = async (badge) => {
     try {
-      // 1. Önce görsel olarak hemen güncelle (Hızlı tepki için)
       setEquippedBadge(badge);
-
-      // 2. Backend'e kaydet
       await axiosInstance.put('/users/equip-badge', { badgeId: badge.id });
-
-      // 3. Bildirim ver
       addToast(`${badge.name} rozeti profile takıldı!`, 'success');
-
-      // 4. (Opsiyonel) Eğer context kullanıyorsan global user'ı güncellemen gerekebilir
-      // dispatch({ type: 'UPDATE_USER_BADGE', payload: badge }); 
-
     } catch (error) {
       console.error(error);
       addToast('Rozet takılırken hata oluştu.', 'error');
@@ -145,14 +140,13 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               </div>
 
               <div className="user-profile-main">
-                {/* 🟢 DÜZELTME 2: Flex yapısı ile İsim, Level ve Rozet yan yana */}
                 <div className="user-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h2>{user.username}</h2>
 
                   {/* Level Etiketi */}
                   <UserLevelTag level={user.level} />
 
-                  {/* Kuşanılan Rozet (Varsa Göster) */}
+                  {/* Kuşanılan Rozet */}
                   {equippedBadge && (
                     <div
                       title={`${equippedBadge.name} rozeti kuşanıldı`}
@@ -199,7 +193,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                 {/* Rozetler Listesi */}
                 {user.badges && user.badges.length > 0 && (
                   <div className="user-profile-badges-section">
-                    {/* 🟢 DÜZELTME 3: onEquip prop'u eklendi */}
                     <UserBadgeList badges={user.badges} onEquip={handleEquipBadge} />
                   </div>
                 )}
@@ -235,7 +228,48 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                 ) : (
                   <ul className="pill-list">
                     {servers.map((server, index) => (
-                      <li key={server._id || index} className="pill-item">{server.name}</li>
+                      <li
+                        key={server._id || index}
+                        className="pill-item"
+                        // 🟢 GÜNCELLEME: Tıklanınca git
+                        onClick={() => {
+                          onClose(); // Modalı kapat
+                          navigate(`/dashboard/server/${server._id}`); // Sunucuya git
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          paddingLeft: '6px', // Resim olduğu için sol boşluğu azalttık
+                          paddingRight: '12px',
+                          paddingTop: '4px',
+                          paddingBottom: '4px'
+                        }}
+                        title={`${server.name} sunucusuna git`}
+                      >
+                        {/* 🟢 GÜNCELLEME: Sunucu İkonu */}
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          backgroundColor: '#2f3136',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '10px',
+                          color: '#fff',
+                          flexShrink: 0
+                        }}>
+                          {server.iconUrl ? (
+                            <img src={getImageUrl(server.iconUrl)} alt={server.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span>{server.name?.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <span>{server.name}</span>
+                      </li>
                     ))}
                   </ul>
                 )}

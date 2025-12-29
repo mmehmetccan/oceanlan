@@ -4,12 +4,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ServerContext } from '../context/ServerContext';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
-import { checkUserPermission } from '../utils/permissionChecker';
 import { useServerSocket } from '../hooks/useServerSocket';
 import DeleteServerModal from '../components/modals/DeleteServerModal';
-import ConfirmationModal from '../components/modals/ConfirmationModal';
-import axios from 'axios'; // Gerekli değil ama kalsın
 import axiosInstance from '../utils/axiosInstance';
+import { getImageUrl } from '../utils/urlHelper';
 import '../styles/ServerSettings.css';
 
 // 🟢 İKONLAR
@@ -22,17 +20,29 @@ import {
   PlusIcon,
   TrashIcon,
   ShieldCheckIcon,
-  UserGroupIcon,
-  PencilSquareIcon // Üye düzenleme için eklendi
+  PencilSquareIcon,
+  CheckIcon // Kaydet ikonu eklendi
 } from '@heroicons/react/24/solid';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-const PERMISSIONS_LIST = [
-  'ADMINISTRATOR', 'MANAGE_SERVER', 'MANAGE_ROLES', 'MANAGE_CHANNELS',
-  'KICK_MEMBERS', 'BAN_MEMBERS', 'CREATE_INVITE', 'SEND_MESSAGES',
-  'MANAGE_MESSAGES', 'VOICE_SPEAK', 'MUTE_MEMBERS', 'DEAFEN_MEMBERS'
-];
+// 🟢 TÜRKÇE İZİN LİSTESİ VE AÇIKLAMALARI
+const PERMISSION_DESCRIPTIONS = {
+  'ADMINISTRATOR': { label: 'Yönetici', desc: 'Sunucudaki her yetkiye sahip olur (Tehlikeli!).' },
+  'MANAGE_SERVER': { label: 'Sunucuyu Yönet', desc: 'Sunucu adını ve ayarlarını değiştirebilir.' },
+  'MANAGE_ROLES': { label: 'Rolleri Yönet', desc: 'Rol oluşturabilir, düzenleyebilir ve silebilir.' },
+  'MANAGE_CHANNELS': { label: 'Kanalları Yönet', desc: 'Kanal oluşturabilir, düzenleyebilir ve silebilir.' },
+  'KICK_MEMBERS': { label: 'Üyeleri At', desc: 'Kullanıcıları sunucudan atabilir.' },
+  'BAN_MEMBERS': { label: 'Üyeleri Yasakla', desc: 'Kullanıcıları sunucudan banlayabilir.' },
+  'CREATE_INVITE': { label: 'Davet Oluştur', desc: 'Sunucuya davet linki oluşturabilir.' },
+  'SEND_MESSAGES': { label: 'Mesaj Gönder', desc: 'Metin kanallarına mesaj yazabilir.' },
+  'MANAGE_MESSAGES': { label: 'Mesajları Yönet', desc: 'Başkalarının mesajlarını silebilir.' },
+  'VOICE_SPEAK': { label: 'Konuşma', desc: 'Sesli kanallarda konuşabilir.' },
+  'MUTE_MEMBERS': { label: 'Üyeleri Sustur', desc: 'Sesli kanalda başkalarını susturabilir.' },
+  'DEAFEN_MEMBERS': { label: 'Üyeleri Sağırlaştır', desc: 'Sesli kanalda başkalarını sağırlaştırabilir.' }
+};
+
+const PERMISSIONS_LIST = Object.keys(PERMISSION_DESCRIPTIONS);
 
 // --- YARDIMCI BİLEŞEN: SWITCH ---
 const Switch = ({ checked, onChange, label, description }) => (
@@ -48,33 +58,42 @@ const Switch = ({ checked, onChange, label, description }) => (
   </div>
 );
 
-// --- ÜYE ROL YÖNETİCİSİ (DÜZELTİLDİ: axiosInstance kullanıyor) ---
+// --- ÜYE ROL YÖNETİCİSİ (GÜNCELLENDİ: BUTONLU KAYDETME) ---
 const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose }) => {
-  const [memberRoles, setMemberRoles] = useState(new Set(member.roles.map(r => r._id)));
+  const [memberRoles, setMemberRoles] = useState(new Set((member.roles || []).filter(r => r).map(r => r._id)));
+  const [hasChanges, setHasChanges] = useState(false); // Değişiklik var mı?
   const { addToast } = useContext(ToastContext);
 
-  const handleRoleToggle = async (roleId) => {
+  const handleRoleToggle = (roleId) => {
     const newRolesSet = new Set(memberRoles);
     if (newRolesSet.has(roleId)) newRolesSet.delete(roleId);
     else newRolesSet.add(roleId);
 
-    setMemberRoles(newRolesSet); // UI'ı anında güncelle
+    setMemberRoles(newRolesSet);
+    setHasChanges(true); // Değişiklik yapıldı olarak işaretle
+  };
+
+  const handleSave = async () => {
     try {
-      // 🟢 DÜZELTME: axios yerine axiosInstance kullanıldı
-      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/roles`, { roles: Array.from(newRolesSet) });
-      onUpdate(); // Ana sayfayı yenilemeye gerek yok, socket halleder ama yine de çağırabiliriz
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/roles`, { roles: Array.from(memberRoles) });
+      addToast('Roller güncellendi.', 'success');
+      onUpdate();
+      onClose(); // Başarılı olunca kapat
     } catch (error) {
       addToast(`Hata: ${error.response?.data?.message}`, 'error');
       // Hata olursa eski haline döndür
-      setMemberRoles(new Set(member.roles.map(r => r._id)));
+      setMemberRoles(new Set((member.roles || []).filter(r => r).map(r => r._id)));
+      setHasChanges(false);
     }
   };
 
+  const validRoles = (serverRoles || []).filter(r => r && r.name !== '@everyone');
+
   return (
-    <div className="settings-card" style={{ marginTop: '20px', border: '1px solid var(--accent-color)' }}>
+    <div className="settings-card" style={{ marginTop: '20px', border: '1px solid var(--accent-color)', paddingBottom: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
         <h4 style={{ color: 'white', margin: 0 }}>
-          <span style={{ color: 'var(--accent-color)' }}>{member.user.username}</span> Rollerini Düzenle
+          <span style={{ color: 'var(--accent-color)' }}>{member.user?.username}</span> Rollerini Düzenle
         </h4>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#b9bbbe', cursor: 'pointer' }}>
           <XMarkIcon width={20} />
@@ -82,15 +101,32 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose })
       </div>
 
       <div className="permission-grid">
-        {serverRoles.filter(role => role.name !== '@everyone').map(role => (
+        {validRoles.map(role => (
           <label key={role._id} className={`permission-card ${memberRoles.has(role._id) ? 'active' : ''}`} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: role.color || '#999' }}></span>
               <span style={{ color: memberRoles.has(role._id) ? '#fff' : '#b9bbbe' }}>{role.name}</span>
             </div>
-            <input type="checkbox" checked={memberRoles.has(role._id)} onChange={() => handleRoleToggle(role._id)} style={{ width: 16, height: 16 }} />
+            <input
+              type="checkbox"
+              checked={memberRoles.has(role._id)}
+              onChange={() => handleRoleToggle(role._id)}
+              style={{ width: 16, height: 16 }}
+            />
           </label>
         ))}
+      </div>
+
+      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <button className="modern-btn btn-secondary" onClick={onClose}>İptal</button>
+        <button
+          className="modern-btn btn-primary"
+          onClick={handleSave}
+          disabled={!hasChanges}
+          style={{ opacity: !hasChanges ? 0.5 : 1 }}
+        >
+          <CheckIcon width={16} /> Değişiklikleri Kaydet
+        </button>
       </div>
     </div>
   );
@@ -104,14 +140,13 @@ const ServerSettingsPage = () => {
   const { addToast } = useContext(ToastContext);
   const navigate = useNavigate();
 
-  // Aktif Sekme (Varsayılan: Overview)
   const [activeTab, setActiveTab] = useState('overview');
 
   // Kanal Yönetimi State
-  const [selectedChannel, setSelectedChannel] = useState(null); // null = Create Mode
+  const [selectedChannel, setSelectedChannel] = useState(null);
   const [channelForm, setChannelForm] = useState({ name: '', type: 'text', maxUsers: 0, allowedRoles: [] });
 
-  // Üye Yönetimi State (EKSİK OLAN KISIMDI)
+  // Üye Yönetimi State
   const [managingMember, setManagingMember] = useState(null);
 
   // Diğer Stateler
@@ -119,7 +154,6 @@ const ServerSettingsPage = () => {
   const [bannedUsers, setBannedUsers] = useState([]);
   const [serverIconFile, setServerIconFile] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
   const [generalSettings, setGeneralSettings] = useState({
     name: '',
@@ -127,16 +161,15 @@ const ServerSettingsPage = () => {
     joinMode: 'direct'
   });
 
-
   // Rol Yönetimi State
   const [selectedRole, setSelectedRole] = useState(null);
+  const [roleHasChanges, setRoleHasChanges] = useState(false); // Rol değişiklik kontrolü
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleColor, setNewRoleColor] = useState('#99AAB5');
   const [newRolePermissions, setNewRolePermissions] = useState([]);
 
   useServerSocket(serverId);
 
-  // Veri Çekme (Tab değişiminde)
   useEffect(() => {
     if (activeTab === 'requests' && serverId) {
       axiosInstance.get(`${API_URL_BASE}/api/v1/servers/${serverId}/requests`).then(res => setRequests(res.data.data)).catch(console.error);
@@ -156,6 +189,33 @@ const ServerSettingsPage = () => {
     }
   }, [activeServer]);
 
+  // Kanal Seçildiğinde Formu Doldur
+  useEffect(() => {
+    if (selectedChannel) {
+      let safeRoles = [];
+      if (selectedChannel.allowedRoles && Array.isArray(selectedChannel.allowedRoles)) {
+        safeRoles = selectedChannel.allowedRoles
+          .filter(r => r)
+          .map(r => (typeof r === 'object' ? r._id : r));
+      }
+
+      setChannelForm({
+        name: selectedChannel.name,
+        type: selectedChannel.type,
+        maxUsers: selectedChannel.maxUsers || 0,
+        allowedRoles: safeRoles
+      });
+    } else {
+      setChannelForm({ name: '', type: 'text', maxUsers: 0, allowedRoles: [] });
+    }
+  }, [selectedChannel]);
+
+  // Rol değiştiğinde değişiklik sayacını sıfırla
+  useEffect(() => {
+    setRoleHasChanges(false);
+  }, [selectedRole?._id]); // Sadece farklı bir role geçildiğinde sıfırla
+
+  // --- FONKSİYONLAR ---
   const handleSaveGeneralSettings = async () => {
     try {
       await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, {
@@ -170,29 +230,16 @@ const ServerSettingsPage = () => {
     }
   };
 
-  // Kanal Seçildiğinde Formu Doldur
-  useEffect(() => {
-    if (selectedChannel) {
-      setChannelForm({
-        name: selectedChannel.name,
-        type: selectedChannel.type,
-        maxUsers: selectedChannel.maxUsers || 0,
-        allowedRoles: selectedChannel.allowedRoles?.map(r => r._id) || []
-      });
-    } else {
-      setChannelForm({ name: '', type: 'text', maxUsers: 0, allowedRoles: [] });
-    }
-  }, [selectedChannel]);
-
-  // --- FONKSİYONLAR ---
-
-  // Genel
-  const handleVisibilityUpdate = async (isPublic, joinMode) => {
+  const handleDeleteServer = async () => {
     try {
-      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}`, { isPublic, joinMode });
-      addToast('Sunucu güncellendi', 'success');
-      fetchServerDetails(serverId);
-    } catch (e) { addToast('Hata', 'error'); }
+      await axiosInstance.delete(`${API_URL_BASE}/api/v1/servers/${serverId}`);
+      addToast('Sunucu başarıyla silindi.', 'success');
+      setShowDeleteModal(false);
+      navigate('/dashboard/discover');
+      fetchUserServers();
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Sunucu silinemedi.', 'error');
+    }
   };
 
   const toggleServerFeature = async (featureKey) => {
@@ -214,11 +261,10 @@ const ServerSettingsPage = () => {
       addToast('Resim güncellendi', 'success');
       setServerIconFile(null);
       fetchServerDetails(serverId);
-      fetchUserServers(); // Sidebar ikonunu güncelle
+      fetchUserServers();
     } catch (e) { addToast('Yükleme hatası', 'error'); }
   };
 
-  // Kanal İşlemleri
   const handleSaveChannel = async (e) => {
     e.preventDefault();
     try {
@@ -256,7 +302,6 @@ const ServerSettingsPage = () => {
     });
   };
 
-  // Rol İşlemleri
   const handleCreateRole = async () => {
     if (!newRoleName) return;
     try {
@@ -267,9 +312,13 @@ const ServerSettingsPage = () => {
     } catch (e) { addToast('Hata', 'error'); }
   };
 
-  const handleUpdateRole = async (roleId, permissions) => {
+  // 🟢 YENİ: Rol Kaydetme Fonksiyonu (Butonla çalışır)
+  const handleSaveRoleChanges = async () => {
+    if (!selectedRole) return;
     try {
-      await axiosInstance.put(`${API_URL_BASE}/api/v1/roles/${roleId}`, { permissions });
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/roles/${selectedRole._id}`, { permissions: selectedRole.permissions });
+      addToast('Rol izinleri kaydedildi.', 'success');
+      setRoleHasChanges(false);
       fetchServerDetails(serverId);
     } catch (e) { addToast('Hata', 'error'); }
   };
@@ -284,15 +333,15 @@ const ServerSettingsPage = () => {
     }
   };
 
-  // Yetki
-  const isOwner = useMemo(() => activeServer && user && String(activeServer.owner?._id || activeServer.owner) === String(user._id || user.id), [activeServer, user]);
+  const safeChannels = (activeServer?.channels || []).filter(c => c);
+  const safeRoles = (activeServer?.roles || []).filter(r => r);
+  const safeMembers = (activeServer?.members || []).filter(m => m && m.user);
 
   if (loading || !activeServer) return <div style={{ padding: 40, color: 'white' }}>Yükleniyor...</div>;
 
   return (
     <div className="server-settings-container">
 
-      {/* 🟢 ÜST KISIM (HEADER & YATAY MENÜ) */}
       <div className="settings-top-bar">
         <div className="settings-title-row">
           <div className="settings-server-name">
@@ -303,7 +352,6 @@ const ServerSettingsPage = () => {
           </div>
         </div>
 
-        {/* YATAY SEKMELER */}
         <div className="settings-tabs-wrapper">
           <div className={`settings-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Genel Bakış</div>
           <div className={`settings-tab ${activeTab === 'features' ? 'active' : ''}`} onClick={() => setActiveTab('features')}>Özellikler</div>
@@ -314,11 +362,16 @@ const ServerSettingsPage = () => {
             İstekler {requests.length > 0 && `(${requests.length})`}
           </div>
           <div className={`settings-tab ${activeTab === 'bans' ? 'active' : ''}`} onClick={() => setActiveTab('bans')}>Yasaklılar</div>
-          {isOwner && <div className="settings-tab danger" onClick={() => setShowDeleteModal(true)}>Sunucuyu Sil</div>}
+          {showDeleteModal && (
+            <DeleteServerModal
+              serverName={activeServer.name}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={handleDeleteServer}
+            />
+          )}
         </div>
       </div>
 
-      {/* 🟢 İÇERİK ALANI */}
       <div className="settings-content-area">
         <div className="settings-inner">
 
@@ -327,18 +380,20 @@ const ServerSettingsPage = () => {
             <div className="settings-card">
               <h3 style={{ marginBottom: '20px', color: 'white' }}>Sunucu Görünümü</h3>
               <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-
-                {/* SOL: RESİM YÜKLEME (Değişmedi) */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '100px', height: '100px', borderRadius: '50%',
                     background: '#202225', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     overflow: 'hidden', border: '2px solid var(--accent-color)'
                   }}>
-                    {serverIconFile ? <img src={URL.createObjectURL(serverIconFile)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
-                      activeServer.iconUrl ? <img src={`${API_URL_BASE}/api/v1/${activeServer.iconUrl}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
+                    {serverIconFile ? (
+                      <img src={URL.createObjectURL(serverIconFile)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      // 🟢 DÜZELTME: getImageUrl kullanımı
+                      activeServer.iconUrl ?
+                        <img src={getImageUrl(activeServer.iconUrl)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
                         <span style={{ fontSize: '30px', color: 'white' }}>{activeServer.name.charAt(0)}</span>
-                    }
+                    )}
                   </div>
                   <label className="modern-btn btn-secondary" style={{ fontSize: '12px', padding: '5px 10px' }}>
                     Resim Seç
@@ -347,21 +402,17 @@ const ServerSettingsPage = () => {
                   {serverIconFile && <button className="modern-btn btn-primary" onClick={handleIconUpload}>Kaydet</button>}
                 </div>
 
-                {/* SAĞ: FORM (GÜNCELLENDİ) */}
                 <div style={{ flex: 1 }}>
-
-                  {/* İSİM DEĞİŞTİRME */}
                   <div className="form-section">
                     <label className="form-label">Sunucu Adı</label>
                     <input
                       type="text"
                       className="modern-input"
-                      value={generalSettings.name} // State'ten geliyor
-                      onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} // State güncelliyor
+                      value={generalSettings.name}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })}
                     />
                   </div>
 
-                  {/* GÖRÜNÜRLÜK */}
                   <Switch
                     label="Herkese Açık Sunucu"
                     description="Bu sunucuyu Keşfet sayfasında listele."
@@ -369,7 +420,6 @@ const ServerSettingsPage = () => {
                     onChange={(e) => setGeneralSettings({ ...generalSettings, isPublic: e.target.checked })}
                   />
 
-                  {/* KATILIM MODU (Sadece Public ise göster) */}
                   {generalSettings.isPublic && (
                     <div className="form-section" style={{ marginTop: '15px' }}>
                       <label className="form-label">Katılım Modu</label>
@@ -384,12 +434,10 @@ const ServerSettingsPage = () => {
                     </div>
                   )}
 
-                  {/* 🟢 KAYDET BUTONU */}
                   <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       className="modern-btn btn-primary"
                       onClick={handleSaveGeneralSettings}
-                      // Eğer hiçbir değişiklik yoksa butonu pasif yapabilirsin (Opsiyonel)
                       disabled={
                         generalSettings.name === activeServer.name &&
                         generalSettings.isPublic === activeServer.isPublic &&
@@ -406,7 +454,6 @@ const ServerSettingsPage = () => {
                       Değişiklikleri Kaydet
                     </button>
                   </div>
-
                 </div>
               </div>
             </div>
@@ -459,7 +506,6 @@ const ServerSettingsPage = () => {
           {/* --- TAB: KANALLAR --- */}
           {activeTab === 'channels' && (
             <div className="channel-manager-layout">
-              {/* SOL: KANAL LİSTESİ */}
               <div className="channel-list-sidebar">
                 <button
                   className="modern-btn btn-primary"
@@ -470,7 +516,7 @@ const ServerSettingsPage = () => {
                 </button>
 
                 <div className="channel-category-label">METİN KANALLARI</div>
-                {activeServer.channels.filter(c => c.type === 'text').map(channel => (
+                {safeChannels.filter(c => c.type === 'text').map(channel => (
                   <div
                     key={channel._id}
                     className={`channel-item-row ${selectedChannel?._id === channel._id ? 'active' : ''}`}
@@ -483,7 +529,7 @@ const ServerSettingsPage = () => {
                 ))}
 
                 <div className="channel-category-label" style={{ marginTop: '20px' }}>SES KANALLARI</div>
-                {activeServer.channels.filter(c => c.type === 'voice').map(channel => (
+                {safeChannels.filter(c => c.type === 'voice').map(channel => (
                   <div
                     key={channel._id}
                     className={`channel-item-row ${selectedChannel?._id === channel._id ? 'active' : ''}`}
@@ -496,7 +542,6 @@ const ServerSettingsPage = () => {
                 ))}
               </div>
 
-              {/* SAĞ: DÜZENLEME FORMU */}
               <div className="channel-edit-panel">
                 <h3 style={{ color: 'white', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
                   {selectedChannel ? `#${selectedChannel.name} Düzenleniyor` : 'Yeni Kanal Oluştur'}
@@ -564,7 +609,7 @@ const ServerSettingsPage = () => {
                       Hiçbir rol seçmezseniz kanal herkese açık olur.
                     </p>
                     <div className="permission-grid">
-                      {activeServer.roles.filter(r => r.name !== '@everyone').map(role => (
+                      {safeRoles.filter(r => r.name !== '@everyone').map(role => (
                         <div
                           key={role._id}
                           className={`permission-card ${channelForm.allowedRoles.includes(role._id) ? 'active' : ''}`}
@@ -596,15 +641,14 @@ const ServerSettingsPage = () => {
             </div>
           )}
 
-          {/* --- TAB: ROLLER --- */}
+          {/* --- TAB: ROLLER (DÜZENLENDİ: TÜRKÇE & KAYDET BUTONU) --- */}
           {activeTab === 'roles' && (
             <div className="channel-manager-layout">
-              {/* Rol Listesi */}
               <div className="channel-list-sidebar">
                 <button className="modern-btn btn-primary" style={{ width: '100%', marginBottom: '10px' }} onClick={() => setSelectedRole(null)}>
                   <PlusIcon width={16} /> Yeni Rol
                 </button>
-                {activeServer.roles.map(role => (
+                {safeRoles.map(role => (
                   <div key={role._id} className={`channel-item-row ${selectedRole?._id === role._id ? 'active' : ''}`} onClick={() => setSelectedRole(role)}>
                     <div className="channel-icon-name">
                       <span style={{ width: 12, height: 12, borderRadius: '50%', background: role.color }}></span>
@@ -614,29 +658,60 @@ const ServerSettingsPage = () => {
                 ))}
               </div>
 
-              {/* Rol Düzenleme */}
               <div className="channel-edit-panel">
                 {selectedRole ? (
                   <>
-                    <h3 style={{ color: 'white', marginBottom: '20px' }}>{selectedRole.name} İzinleri</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ color: 'white', margin: 0 }}>{selectedRole.name} İzinleri</h3>
+                      {/* 🟢 KAYDET BUTONU */}
+                      <button
+                        className="modern-btn btn-primary"
+                        onClick={handleSaveRoleChanges}
+                        disabled={!roleHasChanges}
+                        style={{ opacity: !roleHasChanges ? 0.5 : 1, padding: '5px 15px', fontSize: '13px' }}
+                      >
+                        <CheckIcon width={16} /> Kaydet
+                      </button>
+                    </div>
+
                     <div className="permission-grid">
-                      {PERMISSIONS_LIST.map(perm => (
-                        <div key={perm}
-                          className={`permission-card ${selectedRole.permissions.includes(perm) ? 'active' : ''}`}
-                          onClick={() => {
-                            if (selectedRole.name === '@everyone') return;
-                            const newPerms = selectedRole.permissions.includes(perm)
-                              ? selectedRole.permissions.filter(p => p !== perm)
-                              : [...selectedRole.permissions, perm];
-                            setSelectedRole({ ...selectedRole, permissions: newPerms });
-                            handleUpdateRole(selectedRole._id, newPerms);
-                          }}
-                          style={{ cursor: selectedRole.name === '@everyone' ? 'not-allowed' : 'pointer', opacity: selectedRole.name === '@everyone' ? 0.5 : 1 }}
-                        >
-                          <span style={{ color: 'white', fontSize: '12px' }}>{perm}</span>
-                          {selectedRole.permissions.includes(perm) && <ShieldCheckIcon width={16} color="#3ba55c" />}
-                        </div>
-                      ))}
+                      {PERMISSIONS_LIST.map(perm => {
+                        const info = PERMISSION_DESCRIPTIONS[perm] || { label: perm, desc: '' };
+                        const isActive = selectedRole.permissions.includes(perm);
+
+                        return (
+                          <div key={perm}
+                            className={`permission-card ${isActive ? 'active' : ''}`}
+                            onClick={() => {
+                              if (selectedRole.name === '@everyone') return;
+                              const newPerms = isActive
+                                ? selectedRole.permissions.filter(p => p !== perm)
+                                : [...selectedRole.permissions, perm];
+
+                              setSelectedRole({ ...selectedRole, permissions: newPerms });
+                              setRoleHasChanges(true); // Değişiklik oldu
+                            }}
+                            style={{
+                              cursor: selectedRole.name === '@everyone' ? 'not-allowed' : 'pointer',
+                              opacity: selectedRole.name === '@everyone' ? 0.5 : 1,
+                              height: 'auto', // Yükseklik içeriğe göre
+                              padding: '10px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <strong style={{ color: isActive ? 'white' : '#b9bbbe', display: 'block', fontSize: '13px' }}>
+                                  {info.label}
+                                </strong>
+                                <span style={{ fontSize: '11px', color: '#72767d', display: 'block', marginTop: '3px' }}>
+                                  {info.desc}
+                                </span>
+                              </div>
+                              {isActive && <ShieldCheckIcon width={20} color="#3ba55c" style={{ flexShrink: 0 }} />}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (
@@ -673,21 +748,25 @@ const ServerSettingsPage = () => {
             </div>
           )}
 
-          {/* --- TAB: ÜYELER (DÜZELTİLDİ: YÖNET BUTONU VE MODAL EKLENDİ) --- */}
+          {/* --- TAB: ÜYELER --- */}
           {activeTab === 'members' && (
             <>
               <div className="settings-card">
-                {activeServer.members.map(m => (
+                {safeMembers.map(m => (
                   <div key={m._id} className="info-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img src={m.user.avatarUrl ? `${API_URL_BASE}/api/v1/${m.user.avatarUrl}` : '/default-avatar.png'} style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                      {/* 🟢 DÜZELTME: getImageUrl kullanımı */}
+                      <img
+                        src={getImageUrl(m.user.avatarUrl)}
+                        onError={(e) => e.target.src = '/default-avatar.png'}
+                        style={{ width: 32, height: 32, borderRadius: '50%' }}
+                      />
                       <div>
                         <strong style={{ color: 'white', display: 'block' }}>{m.user.username}</strong>
-                        <span style={{ fontSize: '12px', color: '#b9bbbe' }}>{m.roles.map(r => r.name).join(', ')}</span>
+                        <span style={{ fontSize: '12px', color: '#b9bbbe' }}>{(m.roles || []).filter(r => r).map(r => r.name).join(', ')}</span>
                       </div>
                     </div>
 
-                    {/* 🟢 YENİ: DÜZENLE BUTONU */}
                     <button
                       className="modern-btn btn-secondary"
                       style={{ padding: '6px 12px' }}
@@ -699,11 +778,10 @@ const ServerSettingsPage = () => {
                 ))}
               </div>
 
-              {/* 🟢 YENİ: ROL DÜZENLEME PANELİ */}
               {managingMember && (
                 <MemberRoleManager
                   member={managingMember}
-                  serverRoles={activeServer.roles}
+                  serverRoles={safeRoles}
                   serverId={serverId}
                   onUpdate={() => fetchServerDetails(serverId)}
                   onClose={() => setManagingMember(null)}
@@ -720,13 +798,18 @@ const ServerSettingsPage = () => {
                 bannedUsers.map(ban => (
                   <div key={ban._id} className="info-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img src={ban.user.avatarUrl ? `${API_URL_BASE}/api/v1/${ban.user.avatarUrl}` : '/default-avatar.png'} style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                      {/* 🟢 DÜZELTME: getImageUrl kullanımı */}
+                      <img
+                        src={getImageUrl(ban.user?.avatarUrl)}
+                        onError={(e) => e.target.src = '/default-avatar.png'}
+                        style={{ width: 32, height: 32, borderRadius: '50%' }}
+                      />
                       <div>
-                        <strong style={{ color: 'white', display: 'block' }}>{ban.user.username}</strong>
+                        <strong style={{ color: 'white', display: 'block' }}>{ban.user?.username || 'Bilinmeyen'}</strong>
                         <span style={{ fontSize: '12px', color: '#b9bbbe' }}>Sebep: {ban.reason || 'Belirtilmedi'}</span>
                       </div>
                     </div>
-                    <button className="modern-btn btn-secondary" onClick={() => handleUnban(ban.user._id)}>Yasağı Kaldır</button>
+                    <button className="modern-btn btn-secondary" onClick={() => handleUnban(ban.user?._id)}>Yasağı Kaldır</button>
                   </div>
                 ))
               }
@@ -735,8 +818,6 @@ const ServerSettingsPage = () => {
 
         </div>
       </div>
-
-      {showDeleteModal && <DeleteServerModal serverName={activeServer.name} onClose={() => setShowDeleteModal(false)} onConfirm={() => { setShowDeleteModal(false); /* Silme fonksiyonu */ }} />}
     </div>
   );
 };

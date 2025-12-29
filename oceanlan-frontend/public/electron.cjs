@@ -305,8 +305,29 @@ app.whenReady().then(async () => {
     }
   });
 
+
+  if (app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: true, // Açılışta başlat
+      path: app.getPath('exe'), // Uygulamanın çalıştırılabilir dosya yolu
+      openAsHidden: false // Arka planda gizli başlamasın, direkt açılsın (Steam gibi)
+    });
+  }
+
+  globalShortcut.register('F9', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('global-hotkey-pressed', 'F9');
+    }
+  });
+
+
+
   // 2. AÇILIŞ MANTIĞI
+
+
   createSplashWindow();
+
+
 
   // Dev modunda güncelleme kontrolünü atla
   if (!app.isPackaged) {
@@ -326,7 +347,7 @@ app.whenReady().then(async () => {
 // Uygulama kapanırken kısayolları temizle + hook'u durdur
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  try { uIOhook.stop(); } catch (e) {}
+  try { uIOhook.stop(); } catch (e) { }
 });
 
 app.on('window-all-closed', () => {
@@ -334,7 +355,7 @@ app.on('window-all-closed', () => {
 });
 
 // --- AUTO UPDATER OLAYLARI ---
-autoUpdater.on('checking-for-update', () => {});
+autoUpdater.on('checking-for-update', () => { });
 autoUpdater.on('update-available', (info) => {
   if (splashWindow) splashWindow.webContents.send('message', 'Güncelleme bulundu, indiriliyor...');
 });

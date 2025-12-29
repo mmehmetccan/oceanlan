@@ -205,18 +205,21 @@ const unbanUser = async (req, res) => {
 };
 
 // @desc    Sunucu detaylarını getirir
+// src/controllers/serverController.js
+
 const getServerDetails = async (req, res) => {
   try {
     const { serverId } = req.params;
     const userId = req.user.id;
 
-    // 1. Sunucuyu bul
+    // 1. Sunucuyu ve tüm detaylarını çek
     const server = await Server.findById(serverId)
       .populate('owner', 'username email')
       .populate('defaultRole')
+      // allowedRoles bilgisini de çekiyoruz
       .populate({
         path: 'channels',
-        select: 'name type'
+        select: 'name type allowedRoles maxUsers'
       })
       .populate('roles')
       .populate({
@@ -231,26 +234,53 @@ const getServerDetails = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sunucu bulunamadı' });
     }
 
-    // 2. Kullanıcı üye mi?
-    const membership = await Member.findOne({ user: userId, server: serverId });
-    const isMember = !!membership; // true/false
+    // 🟢 2. KULLANICI ÜYELİĞİNİ ÇEK (Populate 'roles' EKLENDİ)
+    // Bu satırda .populate('roles') olmazsa, aşağıdaki kodlar çalışmaz ve hata verir.
+    const membership = await Member.findOne({ user: userId, server: serverId }).populate('roles');
 
-    // 3. Erişim Kontrolü
-    // Eğer sunucu ÖZEL ise ve kullanıcı üye değilse -> 403
+    const isMember = !!membership;
+
+    // Erişim Kontrolü (Private Sunucu)
     if (!server.isPublic && !isMember) {
       return res.status(403).json({ success: false, message: 'Bu sunucunun üyesi değilsiniz' });
     }
 
-    // 4. Yanıtı hazırla
-    // Mongoose dokümanını JS objesine çeviriyoruz ki içine 'isMember' ekleyebilelim
+    // 3. Yanıtı hazırla
     const responseData = server.toObject();
     responseData.isMember = isMember;
 
-    // Eğer üye değilse (Preview Modu), hassas verileri gizleyebilirsin (Opsiyonel)
-    if (!isMember) {
-      delete responseData.inviteCode;
-      // Mesajlar zaten ayrı bir endpointten çekiliyor, o yüzden burada chat geçmişi gitmez.
+    // 🟢 4. KANAL FİLTRELEME (GÜVENLİ HALE GETİRİLDİ)
+    const isOwner = String(server.owner._id || server.owner) === String(userId);
+
+    if (!isOwner && isMember) {
+      // Null (silinmiş) rolleri temizle
+      const validRoles = (membership.roles || []).filter(r => r && r._id);
+
+      // Kullanıcının rol ID'leri
+      const userRoleIds = validRoles.map(r => String(r._id));
+
+      // Yönetici mi? (permissions var mı diye kontrol et)
+      const isAdmin = validRoles.some(r =>
+        r.permissions && r.permissions.includes('ADMINISTRATOR')
+      );
+
+      if (!isAdmin) {
+        // Sadece izinli olduğu veya herkese açık kanalları filtrele
+        responseData.channels = responseData.channels.filter(channel => {
+          // Kanalın 'allowedRoles' dizisi boşsa -> Herkese Açıktır
+          if (!channel.allowedRoles || channel.allowedRoles.length === 0) return true;
+
+          // Kanal kilitliyse -> Kullanıcının rolleri ile kanalın izinli rolleri çakışıyor mu?
+          const hasAccess = channel.allowedRoles.some(roleId => userRoleIds.includes(String(roleId)));
+          return hasAccess;
+        });
+      }
+    } else if (!isMember) {
+      // Üye değilse (Preview Modu) sadece herkese açık kanalları görsün
+      responseData.channels = responseData.channels.filter(c => !c.allowedRoles || c.allowedRoles.length === 0);
     }
+
+    if (!isMember) delete responseData.inviteCode;
 
     res.status(200).json({
       success: true,
@@ -258,6 +288,7 @@ const getServerDetails = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("SERVER DETAILS HATASI:", error);
     res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };

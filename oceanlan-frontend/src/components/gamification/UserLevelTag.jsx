@@ -1,13 +1,14 @@
 // src/components/gamification/UserLevelTag.jsx
 import React from 'react';
-// 🟢 Rozet resimlerini çekmek için yardımcı fonksiyonu çağırıyoruz
-// (UserBadgeList ile aynı klasörde olduğunu varsayıyorum)
 import { getBadgeImg } from './UserBadgeList';
+// 🟢 YENİ: URL Helper'ı import et (utils klasörünün yerini kontrol et)
+import { getImageUrl } from '../../utils/urlHelper';
 
 const UserLevelTag = ({ level, activeBadge }) => {
-  // Gösterilecek bir şey yoksa hiç render etme
   const hasLevel = level && level > 0;
-  const hasBadge = activeBadge && activeBadge.icon;
+  // Rozet ikonunu belirle (icon veya iconUrl olabilir)
+  const badgeIcon = activeBadge ? (activeBadge.icon || activeBadge.iconUrl) : null;
+  const hasBadge = !!badgeIcon;
 
   if (!hasLevel && !hasBadge) return null;
 
@@ -17,7 +18,7 @@ const UserLevelTag = ({ level, activeBadge }) => {
       {/* 1. LEVEL KISMI */}
       {hasLevel && (
         <span style={{
-          fontSize: '10px',
+          fontSize: '13px',
           fontWeight: 'bold',
           background: 'linear-gradient(45deg, #5865F2, #4752C4)', // Discord mavisi
           color: '#fff',
@@ -31,21 +32,25 @@ const UserLevelTag = ({ level, activeBadge }) => {
         </span>
       )}
 
-      {/* 2. ROZET KISMI (Level'in hemen sağına eklenir) */}
+      {/* 2. ROZET KISMI */}
       {hasBadge && (
         <div
           title={activeBadge.name}
-          className="animate-bounce-in" // Varsa animasyon class'ın
+          className="animate-bounce-in"
           style={{
-            width: '18px',
-            height: '18px',
-            marginLeft: '4px', // Level ile rozet arası boşluk
+            width: '28px',
+            height: '28px',
+            marginLeft: '4px',
             display: 'flex',
             alignItems: 'center'
           }}
         >
           <img
-            src={getBadgeImg(activeBadge.icon)}
+            // 🟢 DÜZELTME BURADA:
+            // 1. getBadgeImg ile ikon yolunu alıyoruz.
+            // 2. getImageUrl ile başına sunucu adresini (http://localhost:3000) ekliyoruz.
+            // Böylece Electron 'file://' yerine doğru adrese gidiyor.
+            src={getImageUrl(getBadgeImg(badgeIcon) || badgeIcon)}
             alt="Badge"
             style={{
               width: '100%',
@@ -53,6 +58,8 @@ const UserLevelTag = ({ level, activeBadge }) => {
               objectFit: 'contain',
               filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
             }}
+            // Resim yüklenemezse (404 vs) gizle ki çirkin durmasın
+            onError={(e) => { e.target.style.display = 'none'; }}
           />
         </div>
       )}

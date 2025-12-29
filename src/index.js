@@ -67,6 +67,7 @@ app.use('/updates', express.static(updatesPath));
 app.use('/uploads/server_icons', express.static(path.join(uploadsPath, 'server_icons')));
 app.use('/uploads/chat_attachments', express.static(path.join(uploadsPath, 'chat_attachments')));
 app.use('/uploads/avatars', express.static(AVATAR_PHYSICAL_PATH));
+app.use('/uploads/posts', express.static(path.join(uploadsPath, 'post_media')));
 app.use('/uploads/post_media', express.static(path.join(uploadsPath, 'post_media')));
 
 // Ping
