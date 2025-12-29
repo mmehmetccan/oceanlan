@@ -233,53 +233,76 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                   </p>
                 ) : (
                   <ul className="pill-list">
-                    {visibleServers.map((server, index) => (
-                      <li
-                        key={server._id || index}
-                        className="pill-item"
-                        onClick={() => {
-                          // Ekstra güvenlik: Üye olmadığın yere gitme
-                          if (!isSelf && !myServerIds.includes(server._id)) {
-                            addToast("Bu sunucuya erişiminiz yok.", "error");
-                            return;
-                          }
-                          onClose();
-                          navigate(`/dashboard/server/${server._id}`);
-                        }}
-                        style={{
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          paddingLeft: '6px',
-                          paddingRight: '12px',
-                          paddingTop: '4px',
-                          paddingBottom: '4px'
-                        }}
-                        title={`${server.name} sunucusuna git`}
-                      >
-                        <div style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          overflow: 'hidden',
-                          backgroundColor: '#2f3136',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '10px',
-                          color: '#fff',
-                          flexShrink: 0
-                        }}>
-                          {server.iconUrl ? (
-                            <img src={getImageUrl(server.iconUrl)} alt={server.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <span>{server.name?.charAt(0).toUpperCase()}</span>
-                          )}
-                        </div>
-                        <span>{server.name}</span>
-                      </li>
-                    ))}
+                    {visibleServers.map((server, index) => {
+                      // Sunucu resmini güvenli hale getiriyoruz
+                      const serverImgSrc = server.iconUrl ? getImageUrl(server.iconUrl) : null;
+
+                      return (
+                        <li
+                          key={server._id || index}
+                          className="pill-item"
+                          onClick={() => {
+                            // Güvenlik kontrolü (Kendi sunucusu değilse ve ortak değilse gitmesin)
+                            if (!isSelf && !myServerIds.includes(String(server._id))) {
+                              addToast("Bu sunucuya erişiminiz yok.", "error");
+                              return;
+                            }
+                            onClose();
+                            navigate(`/dashboard/server/${server._id}`);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '10px', // Resim ile isim arası boşluk
+                            padding: '6px 12px 6px 8px', // İç boşluklar
+                            backgroundColor: 'rgba(0,0,0,0.2)',
+                            borderRadius: '20px',
+                            marginBottom: '5px',
+                            marginRight: '5px'
+                          }}
+                          title={`${server.name} sunucusuna git`}
+                        >
+                          {/* --- SUNUCU RESMİ ALANI --- */}
+                          <div style={{
+                            width: '32px',  // Resim genişliği
+                            height: '32px', // Resim yüksekliği
+                            borderRadius: '50%', // Yuvarlak yap
+                            overflow: 'hidden',
+                            backgroundColor: '#36393f', // Resim yoksa arka plan rengi
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: '#dcddde',
+                            flexShrink: 0, // İsim uzun olsa bile resim küçülmesin
+                            border: '1px solid rgba(255,255,255,0.1)'
+                          }}>
+                            {serverImgSrc ? (
+                              <img
+                                src={serverImgSrc}
+                                alt={server.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                // Eğer resim linki kırıksa (404), gizle ve baş harfi göster
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerText = server.name.charAt(0).toUpperCase();
+                                }}
+                              />
+                            ) : (
+                              // Resim yoksa baş harfi göster
+                              <span>{server.name?.charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+
+                          {/* --- SUNUCU İSMİ --- */}
+                          <span style={{ fontWeight: '500', color: '#fff' }}>
+                            {server.name}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
