@@ -95,14 +95,19 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const rawServers = profile?.servers || [];
 
   // Sizin (Current User) üye olduğunuz sunucuların ID listesini çıkarıyoruz
-  const myServerIds = currentUser?.servers?.map(s => s._id || s) || [];
+  const myServerIds = currentUser?.servers?.map(s => String(s._id || s || '')) || [];
 
-  // Eğer kendi profiliniz değilse (isSelf false), sadece sizin de üye olduğunuz (ortak) sunucuları göster.
-  // Eğer kendi profilinizse hepsini göster.
+  // 2. Filtreleme: Hedef sunucunun ID'sini de String'e çevirip listede var mı diye bak.
   const visibleServers = isSelf
     ? rawServers
-    : rawServers.filter(server => myServerIds.includes(server._id));
+    : rawServers.filter(server => {
+      const targetServerId = String(server._id || server.id);
+      return myServerIds.includes(targetServerId);
+    });
   // 🟢 DÜZELTME BİTİŞİ
+  console.log("Benim Sunucularım:", currentUser?.servers);
+  console.log("Profildeki Sunucular:", rawServers);
+  console.log("Benim ID Listem (String):", myServerIds);
 
   const friends = profile?.friends || [];
   const isFriend = profile?.isFriend ?? false;

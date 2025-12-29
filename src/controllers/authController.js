@@ -1,4 +1,5 @@
 const User = require('../models/UserModel'); // Kullanıcı modelimizi içe aktardık
+const Member = require('../models/MemberModel'); // 🟢 EKLENDİ
 const bcrypt = require('bcryptjs'); // Şifre karşılaştırma için
 const jwt = require('jsonwebtoken'); // Token oluşturmak için
 const crypto = require('crypto'); // 1. EKLENDİ: Anahtar oluşturmak için
@@ -63,8 +64,8 @@ const verifyEmail = async (req, res) => {
   try {
     const { email, code } = req.body;
 
-    if(!email || !code) {
-        return res.status(400).json({ success: false, message: 'E-posta ve kod gereklidir.' });
+    if (!email || !code) {
+      return res.status(400).json({ success: false, message: 'E-posta ve kod gereklidir.' });
     }
 
     // Gelen kodu hashle ve veritabanındakiyle karşılaştır
@@ -86,11 +87,11 @@ const verifyEmail = async (req, res) => {
     await user.save();
 
     if (req.io) {
-        // req.io varsa socket bildirimi de gider (Frontend'de konfetiler patlar 🎉)
-        await processGamification(user._id, 'EMAIL_VERIFIED', req.io);
+      // req.io varsa socket bildirimi de gider (Frontend'de konfetiler patlar 🎉)
+      await processGamification(user._id, 'EMAIL_VERIFIED', req.io);
     } else {
-        // Socket yoksa bile sessizce veritabanına işler
-        await processGamification(user._id, 'EMAIL_VERIFIED', null);
+      // Socket yoksa bile sessizce veritabanına işler
+      await processGamification(user._id, 'EMAIL_VERIFIED', null);
     }
 
     res.status(200).json({ success: true, message: 'Hesap başarıyla doğrulandı!' });
@@ -101,27 +102,27 @@ const verifyEmail = async (req, res) => {
 };
 
 const resendCode = async (req, res) => {
-    try {
-        const { email } = req.body;
-        const user = await User.findOne({ email });
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
 
-        if (!user) return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
-        if (user.isVerified) return res.status(400).json({ success: false, message: 'Hesap zaten doğrulanmış.' });
+    if (!user) return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
+    if (user.isVerified) return res.status(400).json({ success: false, message: 'Hesap zaten doğrulanmış.' });
 
-        const verificationCode = user.createVerificationCode();
-        await user.save({ validateBeforeSave: false });
+    const verificationCode = user.createVerificationCode();
+    await user.save({ validateBeforeSave: false });
 
-        const message = `
+    const message = `
           <h1>Yeni Doğrulama Kodunuz</h1>
           <h2 style="color: #5865f2; letter-spacing: 5px;">${verificationCode}</h2>
         `;
 
-        await sendEmail({ email: user.email, subject: 'Yeni Doğrulama Kodu', message });
+    await sendEmail({ email: user.email, subject: 'Yeni Doğrulama Kodu', message });
 
-        res.status(200).json({ success: true, message: 'Yeni kod gönderildi.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
+    res.status(200).json({ success: true, message: 'Yeni kod gönderildi.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // @desc    Giriş Yapma
@@ -144,6 +145,15 @@ const loginUser = async (req, res) => {
         message: 'Giriş yapmadan önce lütfen e-posta adresinizi doğrulayın.'
       });
     }
+    const memberships = await Member.find({ user: user._id }).populate('server', '_id name iconUrl');
+
+    const servers = memberships
+      .filter(m => m.server)
+      .map(m => ({
+        _id: m.server._id,
+        name: m.server.name,
+        iconUrl: m.server.iconUrl
+      }));
 
     // Başarılı ise token ver
     res.status(200).json({
@@ -155,7 +165,9 @@ const loginUser = async (req, res) => {
         email: user.email,
         avatarUrl: user.avatarUrl,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        level: user.level || 1,
+        servers: servers
       }
     });
   } catch (error) {
@@ -286,18 +298,18 @@ const getStreamKey = async (req, res) => {
         streamKey: newKey,
       });
     }
-const baseUrl = 'http://localhost';
+    const baseUrl = 'http://localhost';
 
-// 3. Anahtar zaten varsa, onu döndür
-res.status(200).json({
-  success: true,
-  message: 'Mevcut yayın anahtarı getirildi',
-  streamKey: user.streamKey,
+    // 3. Anahtar zaten varsa, onu döndür
+    res.status(200).json({
+      success: true,
+      message: 'Mevcut yayın anahtarı getirildi',
+      streamKey: user.streamKey,
 
-  // YENİ EKLENEN SATIR: İzleme URL'sini oluştur
-  streamUrl: `${baseUrl}:8000/live/${user.streamKey}/index.m3u8`,
+      // YENİ EKLENEN SATIR: İzleme URL'sini oluştur
+      streamUrl: `${baseUrl}:8000/live/${user.streamKey}/index.m3u8`,
 
-});
+    });
 
   } catch (error) {
     res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });

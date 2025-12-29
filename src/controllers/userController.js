@@ -38,21 +38,38 @@ const ensureGamificationData = async (user) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    // 🟢 DÜZELTME: Kullanıcıyı veritabanından taze çek ve onar
+    // 1. Kullanıcıyı bul
     let user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
     }
 
-    // Eksik verileri kontrol et ve tamamla
+    // 2. Eksik gamification verilerini onar
     user = await ensureGamificationData(user);
 
+    // 3. 🟢 EKLENDİ: Kullanıcının üye olduğu sunucuları Member tablosundan çek
+    const memberships = await Member.find({ user: user._id }).populate('server', '_id name iconUrl');
+    // Sunucu listesini oluştur
+    const servers = memberships
+      .filter(m => m.server) // Silinmiş sunucuları filtrele
+      .map(m => ({
+        _id: m.server._id,
+        name: m.server.name,
+        iconUrl: m.server.iconUrl
+      }));
+
+    // 4. Cevabı döndür (user objesini JSON'a çevirip içine servers ekliyoruz)
     res.status(200).json({
       success: true,
-      data: user,
+      user: {
+        ...user.toObject(), // Mongoose dökümanını normal objeye çevir
+        servers: servers    // Sunucu listesini ekle
+      },
     });
+
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };
