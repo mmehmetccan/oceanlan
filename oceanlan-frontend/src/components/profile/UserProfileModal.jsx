@@ -1,6 +1,5 @@
 // src/components/profile/UserProfileModal.jsx
 import React, { useEffect, useState, useContext } from 'react';
-// 🟢 EKLENDİ: Yönlendirme için gerekli
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import { AuthContext } from '../../context/AuthContext';
@@ -19,12 +18,11 @@ const handleAvatarError = (e) => {
 };
 
 const UserProfileModal = ({ userId, initialName, onClose }) => {
-  // 🟢 EKLENDİ: Navigate hook'u
   const navigate = useNavigate();
-
-  // Modal içinde gezinmek için state
   const [currentUserId, setCurrentUserId] = useState(userId);
 
+  // 🟢 AuthContext'ten user'ı alıyoruz. 
+  // DİKKAT: currentUser.servers dizisinin dolu olduğundan emin olun.
   const { user: currentUser } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
 
@@ -32,8 +30,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // Kuşanılan rozet state'i
   const [equippedBadge, setEquippedBadge] = useState(null);
 
   const isSelf = currentUser && (currentUser.id === currentUserId || currentUser._id === currentUserId);
@@ -44,12 +40,11 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
       try {
         setLoading(true);
         setError(null);
-        setProfile(null); // Geçişte temizle
+        setProfile(null);
 
         const res = await axiosInstance.get(`/users/${currentUserId}/profile`);
         setProfile(res.data);
 
-        // Eğer veritabanında kayıtlı bir aktif rozet varsa state'e yükle
         if (res.data.user?.activeBadge) {
           setEquippedBadge(res.data.user.activeBadge);
         }
@@ -94,9 +89,21 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
     }
   };
 
-  // Verileri hazırla
   const user = profile?.user || { _id: currentUserId, username: initialName || 'Bilinmeyen Kullanıcı' };
-  const servers = profile?.servers || [];
+
+  // 🟢 DÜZELTME BAŞLANGICI: Sunucu Listesini Filtreleme
+  const rawServers = profile?.servers || [];
+
+  // Sizin (Current User) üye olduğunuz sunucuların ID listesini çıkarıyoruz
+  const myServerIds = currentUser?.servers?.map(s => s._id || s) || [];
+
+  // Eğer kendi profiliniz değilse (isSelf false), sadece sizin de üye olduğunuz (ortak) sunucuları göster.
+  // Eğer kendi profilinizse hepsini göster.
+  const visibleServers = isSelf
+    ? rawServers
+    : rawServers.filter(server => myServerIds.includes(server._id));
+  // 🟢 DÜZELTME BİTİŞİ
+
   const friends = profile?.friends || [];
   const isFriend = profile?.isFriend ?? false;
   const isRequestSent = profile?.isRequestSent ?? false;
@@ -142,11 +149,7 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               <div className="user-profile-main">
                 <div className="user-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h2>{user.username}</h2>
-
-                  {/* Level Etiketi */}
                   <UserLevelTag level={user.level} />
-
-                  {/* Kuşanılan Rozet */}
                   {equippedBadge && (
                     <div
                       title={`${equippedBadge.name} rozeti kuşanıldı`}
@@ -168,7 +171,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                   )}
                 </div>
 
-                {/* XP Barı */}
                 <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '280px', marginTop: '6px', marginBottom: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#b9bbbe', marginBottom: '2px' }}>
                     <span>XP: {Math.floor(currentXP)}</span>
@@ -190,17 +192,14 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                   </div>
                 )}
 
-                {/* Rozetler Listesi */}
                 {user.badges && user.badges.length > 0 && (
                   <div className="user-profile-badges-section">
                     <UserBadgeList badges={user.badges} onEquip={handleEquipBadge} />
                   </div>
                 )}
-
                 {error && <div className="user-profile-error">{error}</div>}
               </div>
 
-              {/* BUTONLAR */}
               {!isSelf && (
                 <div className="user-profile-actions">
                   {isFriend ? (
@@ -218,37 +217,42 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               )}
             </div>
 
-            {/* BODY */}
             <div className="user-profile-body">
               {/* Sunucular */}
               <div className="user-profile-section">
-                <h3>Ortak Sunucular</h3>
-                {servers.length === 0 ? (
-                  <p className="empty-text">Sunucu bulunamadı.</p>
+                <h3>{isSelf ? 'Sunucularım' : 'Ortak Sunucular'}</h3>
+                {/* 🟢 DÜZELTME: 'servers' yerine 'visibleServers' kullanıyoruz */}
+                {visibleServers.length === 0 ? (
+                  <p className="empty-text">
+                    {isSelf ? 'Henüz bir sunucuya katılmadınız.' : 'Ortak sunucu bulunamadı.'}
+                  </p>
                 ) : (
                   <ul className="pill-list">
-                    {servers.map((server, index) => (
+                    {visibleServers.map((server, index) => (
                       <li
                         key={server._id || index}
                         className="pill-item"
-                        // 🟢 GÜNCELLEME: Tıklanınca git
                         onClick={() => {
-                          onClose(); // Modalı kapat
-                          navigate(`/dashboard/server/${server._id}`); // Sunucuya git
+                          // Ekstra güvenlik: Üye olmadığın yere gitme
+                          if (!isSelf && !myServerIds.includes(server._id)) {
+                            addToast("Bu sunucuya erişiminiz yok.", "error");
+                            return;
+                          }
+                          onClose();
+                          navigate(`/dashboard/server/${server._id}`);
                         }}
                         style={{
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '8px',
-                          paddingLeft: '6px', // Resim olduğu için sol boşluğu azalttık
+                          paddingLeft: '6px',
                           paddingRight: '12px',
                           paddingTop: '4px',
                           paddingBottom: '4px'
                         }}
                         title={`${server.name} sunucusuna git`}
                       >
-                        {/* 🟢 GÜNCELLEME: Sunucu İkonu */}
                         <div style={{
                           width: '24px',
                           height: '24px',
@@ -275,7 +279,7 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                 )}
               </div>
 
-              {/* Arkadaşlar */}
+              {/* Arkadaşlar Kısmı Aynen Kalıyor... */}
               <div className="user-profile-section">
                 <h3>Arkadaşları</h3>
                 {friends.length === 0 ? (

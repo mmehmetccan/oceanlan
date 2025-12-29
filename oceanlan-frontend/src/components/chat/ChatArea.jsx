@@ -216,8 +216,16 @@ const ChatArea = () => {
           /* 🟢 ÜYEYSE: NORMAL MESAJLAR */
           <>
             {messages.map((msg, index) => {
+              // --- DÜZELTME BAŞLANGICI ---
+              // Eğer mesaj boşsa veya mesajın yazarı (author) yoksa, ekrana hiçbir şey basma.
+              if (!msg || !msg.author) return null;
+              // --- DÜZELTME BİTİŞİ ---
+
               const avatarSrc = getFullImageUrl(msg.author?.avatarUrl || msg.author?.avatar);
-              const authorId = msg.author._id || msg.author.id;
+
+              // Artık author'un var olduğundan eminiz, ama yine de güvenli olması için soru işareti (?) ekleyelim
+              const authorId = msg.author?._id || msg.author?.id;
+
               const isMyMessage = String(authorId) === String(currentUserId);
 
               return (

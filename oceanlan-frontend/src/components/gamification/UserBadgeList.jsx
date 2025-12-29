@@ -1,7 +1,7 @@
 // src/components/gamification/UserBadgeList.jsx
 import React, { useState } from 'react';
 import { XMarkIcon, CheckBadgeIcon } from '@heroicons/react/24/solid';
-
+import { getImageUrl } from '../../utils/urlHelper';
 // 🟢 KLASÖR YOLU
 const BADGE_PATH = '/assets/badges';
 
@@ -50,7 +50,7 @@ const UserBadgeList = ({ badges, onEquip }) => {
           >
             {/* Dışarıdaki getBadgeImg fonksiyonunu kullanıyoruz */}
             <img
-              src={getBadgeImg(badge.icon)}
+              src={getImageUrl(getBadgeImg(badge.icon))}
               alt={badge.name}
               style={{
                 width: '34px',
@@ -106,7 +106,7 @@ const UserBadgeList = ({ badges, onEquip }) => {
               }}></div>
 
               <img
-                src={getBadgeImg(selectedBadge.icon)}
+                src={getImageUrl(getBadgeImg(selectedBadge.icon))}
                 alt={selectedBadge.name}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', position: 'relative', zIndex: 1 }}
               />
