@@ -2,10 +2,10 @@
 const rateLimit = require('express-rate-limit');
 
 // 1. GENEL KORUMA (Tüm API için - DDoS engelleme)
-// 15 dakikada maksimum 100 istek
+// 15 dakikada maksimum 1000 istek
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 10 * 60 * 1000,
+  max: 1000,
   message: {
     status: 'fail',
     message: 'Çok fazla istek gönderdiniz, lütfen 15 dakika sonra tekrar deneyin.'
@@ -27,7 +27,6 @@ const authLimiter = rateLimit({
 
 // 3. E-POSTA DOĞRULAMA KORUMASI (Brute Force Engelleme - EN ÖNEMLİSİ)
 // 6 haneli kodu denemek için 10 dakikada en fazla 5 hak veriyoruz.
-// Murat'ın bahsettiği "kodu deneme" açığını bu kapatır.
 const verifyEmailLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 5,
