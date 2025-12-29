@@ -18,7 +18,13 @@ const registerUser = async (req, res) => {
   try {
     const { username, email, password, firstName, lastName, phoneNumber } = req.body;
 
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
+    const userExists = await User.findOne({
+      $or: [
+        { email },
+        { username: { $regex: new RegExp(`^${username}$`, 'i') } } // 🟢 BURASI DEĞİŞTİ
+      ]
+    });
+
     if (userExists) {
       return res.status(400).json({ success: false, message: 'Bu e-posta veya kullanıcı adı zaten kullanımda.' });
     }

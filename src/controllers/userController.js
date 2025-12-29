@@ -118,6 +118,7 @@ const getUserProfile = async (req, res) => {
           servers.push({
             _id: membership.server._id,
             name: membership.server.name,
+            iconUrl: membership.server.iconUrl,
           });
           seenServerIds.add(serverId);
         }
@@ -189,8 +190,21 @@ const updateMe = async (req, res) => {
     }
 
     // 2. Kullanıcı Adı (Direkt değişir)
-    if (username) user.username = username;
+    if (username && username !== user.username) {
+      // 🟢 Regex Açıklaması:
+      // ^...$ : Tam eşleşme (mehmet yazınca mehmetcan'ı bulmasın diye)
+      // 'i'   : Case Insensitive (Büyük küçük harf görmezden gel)
+      const existingUser = await User.findOne({
+        username: { $regex: new RegExp(`^${username}$`, 'i') }
+      });
 
+      // Eğer bir kullanıcı bulunduysa VE bulunan kişi kendisi değilse hata ver
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ success: false, message: 'Bu kullanıcı adı zaten kullanımda.' });
+      }
+
+      user.username = username;
+    }
     // 3. E-POSTA DEĞİŞİKLİĞİ İSTEĞİ (YENİ MANTIK)
     let emailMessage = '';
     if (email && email !== user.email) {
