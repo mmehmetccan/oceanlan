@@ -15,26 +15,26 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
 
   const [error, setError] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+const [downloadUrl, setDownloadUrl] = useState('');
 
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const isApp = isElectron();
 
-  useEffect(() => {
-    if (!isApp) {
-      fetch('https://oceanlan.com/version.json')
-        .then(response => response.json())
-        .then(data => {
-          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
-          setDownloadUrl(newLink);
-          console.log("Güncel sürüm linki ayarlandı:", newLink);
-        })
-        .catch(err => {
-          console.error("Versiyon bilgisi alınamadı.", err);
-        });
-    }
-  }, [isApp]);
+ useEffect(() => {
+  if (!isApp) {
+    fetch('https://oceanlan.com/version.json')
+      .then(res => res.json())
+      .then(data => {
+        const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+        setDownloadUrl(newLink);
+        console.log("Güncel sürüm linki ayarlandı:", newLink);
+      })
+      .catch(err => {
+        console.error("Versiyon bilgisi alınamadı.", err);
+      });
+  }
+}, [isApp]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

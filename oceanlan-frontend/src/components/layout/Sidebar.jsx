@@ -43,23 +43,23 @@ const Sidebar = ({ unreadCount }) => {
   const [dropAction, setDropAction] = useState(null);
   const [dragSource, setDragSource] = useState(null);
 
-   const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.1.3.exe');
+const [downloadUrl, setDownloadUrl] = useState('');
   const isApp = isElectron();
 
   useEffect(() => {
-    if (!isApp) {
-      fetch('https://oceanlan.com/version.json')
-        .then(response => response.json())
-        .then(data => {
-          // package.json build ayarına uygun link yapısı:
-          const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
-          setDownloadUrl(newLink);
-        })
-        .catch(err => {
-          console.error("Sidebar versiyon kontrolü başarısız:", err);
-        });
-    }
-  }, [isApp]);
+  if (!isApp) {
+    fetch('https://oceanlan.com/version.json')
+      .then(res => res.json())
+      .then(data => {
+        const newLink = `https://oceanlan.com/uploads/installer/OceanLan-Setup-${data.version}.exe`;
+        setDownloadUrl(newLink);
+        console.log("Güncel sürüm linki ayarlandı:", newLink);
+      })
+      .catch(err => {
+        console.error("Versiyon bilgisi alınamadı.", err);
+      });
+  }
+}, [isApp]);
 
   // 1. Verileri Yükle ve Sıralamayı Ayarla
   useEffect(() => {
