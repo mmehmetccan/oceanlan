@@ -15,8 +15,7 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
 
   const [error, setError] = useState('');
-const [downloadUrl, setDownloadUrl] = useState('');
-
+const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.4.8.exe');
   const { login, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const isApp = isElectron();
