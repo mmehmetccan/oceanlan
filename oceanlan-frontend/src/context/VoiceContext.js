@@ -11,10 +11,10 @@ export const VoiceContext = createContext();
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
-const GATE_OPEN_RMS = 0.006;  // ESKİSİ: 0.020 (Artık fısıltıyı bile algılar)
-const GATE_CLOSE_RMS = 0.003; // ESKİSİ: 0.014 (Cümle sonlarını yutmaz)
+const GATE_OPEN_RMS = 0.012;  // 👈 Biraz yükselttik (0.006 idi)
+const GATE_CLOSE_RMS = 0.008; // ESKİSİ: 0.014 (Cümle sonlarını yutmaz)
 const GATE_FLOOR = 0.001;     // ESKİSİ: 0.08  (Konuşmadığında fan sesi TAMAMEN kesilir)
-const GATE_HOLD_MS = 400;     // ESKİSİ: 260   (Kesik kesik konuşmayı engeller)
+const GATE_HOLD_MS = 500;     // ESKİSİ: 260   (Kesik kesik konuşmayı engeller)
 const EXPANDER_POWER = 6.0;   // Gürültüyü daha sert bastırır
 const RMS_SMOOTHING = 0.90;   // Dalgalanmayı önler
 
@@ -322,12 +322,15 @@ export const VoiceProvider = ({ children }) => {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 }
-        }
+        audio: {
+        deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+        echoCancellation: true,    // 👈 Oyundaki sesin geri gitmesini engeller
+        noiseSuppression: true,     // 👈 Arka plan gürültüsünü süzer
+        autoGainControl: true,      // 👈 Ses seviyesini dengeler
+        channelCount: 1,            // 👈 Mono ses (WebRTC için daha kararlı)
+        sampleRate: 48000
+    },
+    video: false
       });
 
       setMyCameraStream(stream);
@@ -694,9 +697,40 @@ export const VoiceProvider = ({ children }) => {
   const rejoinChannel = () => {};
 
   const createPeer = (targetSocketId, initiator, streams = [], userId = null) => {
-    const p = new Peer({ initiator, trickle: false, streams, config: rtcConfig });
-    p.on('signal', data => socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { targetSocketId, sdp: data, userId: user?.id }));
-    p.on('stream', stream => handleRemoteStream(stream, targetSocketId, userId));
+    const p = new Peer({ 
+      initiator, 
+      trickle: false, 
+      streams, 
+      config: rtcConfig 
+    });
+
+    p.on('signal', data => {
+      socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { 
+        targetSocketId, 
+        sdp: data, 
+        userId: user?.id 
+      });
+    });
+
+    p.on('stream', stream => {
+      // 🟢 C KISMI BURADA: Stream geldiğinde kontrol et
+      if (stream.getAudioTracks().length === 0 && stream.getVideoTracks().length === 0) {
+        console.warn("[WebRTC] Boş stream algılandı! Bağlantı tazeleniyor...");
+        reconnectVoiceChannel(); 
+      }
+      handleRemoteStream(stream, targetSocketId, userId);
+    });
+
+    // 🟢 C KISMI BURADA: Bağlantı hatalarını yakala
+    p.on('error', err => {
+      console.error('[WebRTC Hatası]:', err);
+      // Eğer bağlantı koptuysa veya ICE adayları eşleşmediyse
+      if (err.code === 'ERR_ICE_CONNECTION_FAILURE' || err.code === 'ERR_DATA_CHANNEL') {
+        console.log("[WebRTC] Bağlantı koptu, otomatik yeniden bağlanılıyor...");
+        reconnectVoiceChannel();
+      }
+    });
+
     peersRef.current[targetSocketId] = p;
     return p;
   };
@@ -744,8 +778,11 @@ export const VoiceProvider = ({ children }) => {
         vTrack.onended = cleanupVideo;
         vTrack.onmute = () => {
           setTimeout(() => {
-            if (vTrack.readyState !== 'live' || vTrack.muted) cleanupVideo();
-          }, 400);
+            // Eğer hala kapalıysa ve gerçekten yayın bittiyse kapat
+            if (vTrack.readyState === 'ended') {
+                cleanupVideo();
+            }
+        }, 3000);
         };
       }
 

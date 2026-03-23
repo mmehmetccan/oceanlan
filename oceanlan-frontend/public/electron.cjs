@@ -21,6 +21,12 @@ autoUpdater.autoDownload = true;
 // Sesin kullanıcı etkileşimi olmadan çalabilmesi için:
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
+// 2. WebRTC için donanım hızlandırma desteğini zorla (Daha akıcı yayın için)
+app.commandLine.appendSwitch('enable-exclusive-audio');
+
 // --- 1. SPLASH PENCERESİ OLUŞTURMA ---
 function createSplashWindow() {
   splashWindow = new BrowserWindow({

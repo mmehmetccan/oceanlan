@@ -157,6 +157,7 @@ io.on('connection', (socket) => {
         delete sock.currentVoiceChannel;
     };
 
+    
     // -------------------------------------
     // 1. SES KANALINA KATILMA (DÜZELTİLDİ)
     // -------------------------------------

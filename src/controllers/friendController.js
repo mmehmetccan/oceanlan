@@ -114,37 +114,54 @@ const respondToFriendRequest = async (req, res) => {
 const removeFriend = async (req, res) => {
   try {
     const userId = req.user.id;
-    const targetUserId = req.body.targetUserId || req.params.friendId;
+    // URL'den gelen ID (:friendId) veya body'den gelen (targetUserId)
+    const friendId = req.params.friendId || req.body.targetUserId;
 
-    if (!targetUserId) return res.status(400).json({ success: false, message: 'Hedef ID gerekli' });
-
-    // 1. Arkadaşlıktan çıkar
-    await Promise.all([
-      User.findByIdAndUpdate(userId, { $pull: { friends: targetUserId } }),
-      User.findByIdAndUpdate(targetUserId, { $pull: { friends: userId } }),
-    ]);
-
-    // 2. İstekleri sil (Varsa)
-    const deletedRequest = await FriendRequest.findOneAndDelete({
-      $or: [
-        { requester: userId, recipient: targetUserId },
-        { requester: targetUserId, recipient: userId },
-      ],
-    });
-
-    // SOCKET: Karşı tarafa haber ver
-    const io = req.app.get('io');
-    if (io) {
-      // "removedUserId: userId" -> Beni (işlemi yapanı) listenden sil
-      io.to(targetUserId.toString()).emit('friendRemoved', { removedUserId: userId });
-
-      // Eğer istek varsa iptal edildiğini bildir
-      io.to(targetUserId.toString()).emit('friendRequestCancelled', { cancelledUserId: userId });
+    if (!friendId) {
+      return res.status(400).json({ success: false, message: 'Arkadaş ID belirtilmedi' });
     }
 
-    return res.status(200).json({ success: true, message: 'Bağlantı kaldırıldı' });
+    // 1. Kendi listemden arkadaşı çıkar
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { friends: friendId } },
+      { new: true }
+    );
+
+    // 2. Arkadaşın listesinden beni çıkar
+    await User.findByIdAndUpdate(
+      friendId,
+      { $pull: { friends: userId } }
+    );
+
+    // 3. Varsa aradaki DM konuşmasını (Conversation) silme! 
+    // Genelde DM geçmişi kalsın istenir ama istersen burada Conversation'ı da silebilirsin.
+    // Şimdilik sadece arkadaşlık bağını koparıyoruz.
+
+    // 🟢 GAMIFICATION: Arkadaş sayısı azaldığı için statları güncelle
+    // Not: processGamification hata verirse işlemin tamamını bozmaması için try-catch içine alıyoruz
+    try {
+        const { processGamification } = require('../utils/gamificationEngine');
+        if (processGamification) {
+            await processGamification(userId, 'REMOVE_FRIEND');
+        }
+    } catch (gamiErr) {
+        console.error("Gamification güncelleme hatası (Önemli değil):", gamiErr);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Arkadaşlıktan başarıyla çıkarıldı.',
+      data: user.friends
+    });
+
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Hata', error: error.message });
+    console.error("Arkadaş çıkarma hatası detayı:", error);
+    res.status(500).json({ 
+        success: false, 
+        message: 'Arkadaşlıktan çıkarılırken bir sunucu hatası oluştu.',
+        error: error.message 
+    });
   }
 };
 
