@@ -22,7 +22,7 @@ const Member = require('./models/MemberModel');
 const User = require('./models/UserModel');
 const { generalLimiter } = require('./middleware/rateLimiters');
 const { processGamification } = require('./utils/gamificationEngine');
-
+const { askOceanAI } = require('./utils/aiAssistant');
 // Medya Sunucusu
 const nms = require('./mediaServer');
 
@@ -412,25 +412,64 @@ io.on('connection', (socket) => {
 
     // Mesaj Gönderme
     socket.on('sendMessage', async (data) => {
-        try {
-            if (!data.content || !data.channelId || !data.authorId) return;
-            const channel = await Channel.findById(data.channelId);
-            if (!channel) return;
+    try {
+        // 1. Gelen veriyi parçalayalım (Değişken hatalarını önlemek için)
+        const { content, channelId, authorId } = data;
 
-            const newMessage = await Message.create({
-                content: data.content,
-                author: data.authorId,
-                channel: data.channelId,
-                server: channel.server,
-            });
+        if (!content || !channelId || !authorId) return;
 
-            const populated = await Message.findById(newMessage._id).populate('author', 'username avatarUrl onlineStatus badges level');
-            io.to(data.channelId).emit('newMessage', populated);
+        const channel = await Channel.findById(channelId);
+        if (!channel) return;
 
+        const serverId = channel.server;
 
-            processGamification(data.authorId, 'SEND_MESSAGE', io);
-        } catch (e) { console.error(e); }
-    });
+        // 2. Kullanıcının mesajını veritabanına kaydet
+        const newMessage = await Message.create({
+            content: content,
+            author: authorId,
+            channel: channelId,
+            server: serverId,
+        });
+
+        // 3. Kullanıcı mesajını odaya ANLIK gönder (Beklemeden)
+        const populated = await Message.findById(newMessage._id)
+            .populate('author', 'username avatarUrl onlineStatus badges level');
+        
+        io.to(channelId).emit('newMessage', populated);
+
+        // 4. XP Sistemini tetikle
+        processGamification(authorId, 'SEND_MESSAGE', io);
+
+        // 🤖 OCEAN AI KOMUTU KONTROLÜ
+        if (content.startsWith('!sor ')) {
+            const question = content.replace('!sor ', '').trim();
+            
+            if (question.length > 0) {
+                // Asenkron olarak AI cevabını al (Kullanıcıyı bekletmiyoruz)
+                const aiAnswer = await askOceanAI(question);
+
+                const aiMessage = {
+                    _id: `ai_${Date.now()}`,
+                    content: aiAnswer,
+                    author: {
+                        username: "Ocean AI",
+                        avatarUrl: "/assets/ai-avatar.png",
+                        isBot: true 
+                    },
+                    channel: channelId,
+                    server: serverId,
+                    createdAt: new Date()
+                };
+
+                // AI cevabını sadece ilgili kanala gönder
+                io.to(channelId).emit('newMessage', aiMessage);
+            }
+        }
+
+    } catch (e) { 
+        console.error("[SendMessage Hatası]:", e); 
+    }
+});
 
     socket.on('watch-party-action', ({ type, payload, serverId }) => {
         console.log(`[YouTube] Server: ${serverId} -> İşlem: ${type}`);

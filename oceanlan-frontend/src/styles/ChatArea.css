@@ -10,7 +10,15 @@
   min-width: 0;
   position: relative;
 }
+.ocean-ai-item {
+    transition: all 0.3s ease;
+    animation: fadeInAI 0.5s ease-out;
+}
 
+@keyframes fadeInAI {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 /* --- HEADER --- */
 .chat-header {
   height: 48px;
