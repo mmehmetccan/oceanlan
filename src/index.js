@@ -413,39 +413,39 @@ io.on('connection', (socket) => {
     // Mesaj Gönderme
     socket.on('sendMessage', async (data) => {
     try {
-        // 1. Gelen veriyi parçalayalım (Değişken hatalarını önlemek için)
-        const { content, channelId, authorId } = data;
+        // Değişkenleri güvenli bir şekilde alalım
+        const content = data.content;
+        const channelId = data.channelId;
+        const authorId = data.authorId;
 
         if (!content || !channelId || !authorId) return;
 
         const channel = await Channel.findById(channelId);
         if (!channel) return;
 
-        const serverId = channel.server;
-
-        // 2. Kullanıcının mesajını veritabanına kaydet
+        // 1. Kullanıcı mesajını kaydet
         const newMessage = await Message.create({
             content: content,
             author: authorId,
             channel: channelId,
-            server: serverId,
+            server: channel.server,
         });
 
-        // 3. Kullanıcı mesajını odaya ANLIK gönder (Beklemeden)
+        // 2. Mesajı odaya gönder
         const populated = await Message.findById(newMessage._id)
             .populate('author', 'username avatarUrl onlineStatus badges level');
         
         io.to(channelId).emit('newMessage', populated);
 
-        // 4. XP Sistemini tetikle
+        // 3. XP sistemini işlet
         processGamification(authorId, 'SEND_MESSAGE', io);
 
-        // 🤖 OCEAN AI KOMUTU KONTROLÜ
+        // 🤖 4. OCEAN AI ASİSTANI (!sor kontrolü)
         if (content.startsWith('!sor ')) {
             const question = content.replace('!sor ', '').trim();
             
-            if (question.length > 0) {
-                // Asenkron olarak AI cevabını al (Kullanıcıyı bekletmiyoruz)
+            if (question) {
+                // AI Cevabını al
                 const aiAnswer = await askOceanAI(question);
 
                 const aiMessage = {
@@ -457,17 +457,15 @@ io.on('connection', (socket) => {
                         isBot: true 
                     },
                     channel: channelId,
-                    server: serverId,
+                    server: channel.server,
                     createdAt: new Date()
                 };
 
-                // AI cevabını sadece ilgili kanala gönder
                 io.to(channelId).emit('newMessage', aiMessage);
             }
         }
-
     } catch (e) { 
-        console.error("[SendMessage Hatası]:", e); 
+        console.error("Chat Hatası:", e); 
     }
 });
 
