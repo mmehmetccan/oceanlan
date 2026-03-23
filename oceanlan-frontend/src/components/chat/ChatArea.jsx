@@ -228,57 +228,22 @@ const ChatArea = () => {
 
               const isMyMessage = String(authorId) === String(currentUserId);
 
-
-              const isAI = msg.author.isBot === true;
-
               return (
-                <div 
-                  key={msg._id || index} 
-                  className={`message-item ${isAI ? 'ocean-ai-item' : ''}`}
-                  style={isAI ? { backgroundColor: 'rgba(0, 175, 244, 0.05)', borderLeft: '3px solid #00aff4' } : {}}
-                >
-                  <div className="message-avatar-wrapper" onClick={() => !isAI && setShowProfileId(authorId)}>
-                    <img 
-                      src={avatarSrc} 
-                      alt={msg.author.username} 
-                      className="message-avatar" 
-                      onError={(e) => { e.target.src = DEFAULT_AVATAR; }} 
-                    />
+                <div key={index} className="message-item">
+                  <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
+                    <img src={avatarSrc} alt={msg.author.username} className="message-avatar" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
                   </div>
                   <div className="message-body">
                     <div className="message-header">
-                      <span 
-                        className="message-author" 
-                        onClick={() => !isAI && setShowProfileId(authorId)}
-                      >
-                        {msg.author.username}
-                      </span>
-                      
-                      {/* 🤖 Bot Etiketi */}
-                      {isAI && (
-                        <span style={{
-                          backgroundColor: '#5865f2',
-                          color: 'white',
-                          fontSize: '10px',
-                          padding: '1px 4px',
-                          borderRadius: '3px',
-                          marginLeft: '4px',
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase'
-                        }}>Asistan</span>
-                      )}
-
-                      {!isAI && <UserLevelTag level={msg.author?.level} activeBadge={msg.author?.activeBadge} />}
+                      <span className="message-author" onClick={() => setShowProfileId(authorId)}>{msg.author.username}</span>
+                      <UserLevelTag level={msg.author?.level} activeBadge={msg.author?.activeBadge} />
                       <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
                     </div>
                     <div className="message-content-wrapper">{renderMessageContent(msg)}</div>
                   </div>
-                  
-                  {isMyMessage && !isAI && (
+                  {isMyMessage && (
                     <div className="message-actions-group">
-                      <button className="message-delete-btn" title="Sil" onClick={() => handleDeleteClick(msg._id)}>
-                        <TrashIcon />
-                      </button>
+                      <button className="message-delete-btn" title="Sil" onClick={() => handleDeleteClick(msg._id)}><TrashIcon /></button>
                     </div>
                   )}
                 </div>

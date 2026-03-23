@@ -22,7 +22,7 @@ const Member = require('./models/MemberModel');
 const User = require('./models/UserModel');
 const { generalLimiter } = require('./middleware/rateLimiters');
 const { processGamification } = require('./utils/gamificationEngine');
-const { askOceanAI } = require('./utils/aiAssistant');
+
 // Medya Sunucusu
 const nms = require('./mediaServer');
 
@@ -157,7 +157,6 @@ io.on('connection', (socket) => {
         delete sock.currentVoiceChannel;
     };
 
-    
     // -------------------------------------
     // 1. SES KANALINA KATILMA (DÜZELTİLDİ)
     // -------------------------------------
@@ -412,62 +411,25 @@ io.on('connection', (socket) => {
 
     // Mesaj Gönderme
     socket.on('sendMessage', async (data) => {
-    try {
-        // Değişkenleri güvenli bir şekilde alalım
-        const content = data.content;
-        const channelId = data.channelId;
-        const authorId = data.authorId;
+        try {
+            if (!data.content || !data.channelId || !data.authorId) return;
+            const channel = await Channel.findById(data.channelId);
+            if (!channel) return;
 
-        if (!content || !channelId || !authorId) return;
+            const newMessage = await Message.create({
+                content: data.content,
+                author: data.authorId,
+                channel: data.channelId,
+                server: channel.server,
+            });
 
-        const channel = await Channel.findById(channelId);
-        if (!channel) return;
+            const populated = await Message.findById(newMessage._id).populate('author', 'username avatarUrl onlineStatus badges level');
+            io.to(data.channelId).emit('newMessage', populated);
 
-        // 1. Kullanıcı mesajını kaydet
-        const newMessage = await Message.create({
-            content: content,
-            author: authorId,
-            channel: channelId,
-            server: channel.server,
-        });
 
-        // 2. Mesajı odaya gönder
-        const populated = await Message.findById(newMessage._id)
-            .populate('author', 'username avatarUrl onlineStatus badges level');
-        
-        io.to(channelId).emit('newMessage', populated);
-
-        // 3. XP sistemini işlet
-        processGamification(authorId, 'SEND_MESSAGE', io);
-
-        // 🤖 4. OCEAN AI ASİSTANI (!sor kontrolü)
-        if (content.startsWith('!sor ')) {
-            const question = content.replace('!sor ', '').trim();
-            
-            if (question) {
-                // AI Cevabını al
-                const aiAnswer = await askOceanAI(question);
-
-                const aiMessage = {
-                    _id: `ai_${Date.now()}`,
-                    content: aiAnswer,
-                    author: {
-                        username: "Ocean AI",
-                        avatarUrl: "/assets/ai-avatar.png",
-                        isBot: true 
-                    },
-                    channel: channelId,
-                    server: channel.server,
-                    createdAt: new Date()
-                };
-
-                io.to(channelId).emit('newMessage', aiMessage);
-            }
-        }
-    } catch (e) { 
-        console.error("Chat Hatası:", e); 
-    }
-});
+            processGamification(data.authorId, 'SEND_MESSAGE', io);
+        } catch (e) { console.error(e); }
+    });
 
     socket.on('watch-party-action', ({ type, payload, serverId }) => {
         console.log(`[YouTube] Server: ${serverId} -> İşlem: ${type}`);
