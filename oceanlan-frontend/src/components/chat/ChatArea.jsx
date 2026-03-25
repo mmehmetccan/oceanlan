@@ -158,7 +158,10 @@ const ChatArea = () => {
   if (loading || !activeServer || !currentChannel) return <div className="chat-area">Yükleniyor...</div>;
 
   const renderMessageContent = (msg) => {
-    const fullFileUrl = getFullImageUrl(msg.fileUrl);
+  const fullFileUrl = getFullImageUrl(msg.fileUrl);
+  
+  // Bot mesajı mı kontrolü
+  const isBot = msg.author?.isBot || msg.author?.username === "Ocean AI";
     return (
       <>
         {msg.fileUrl && (
@@ -168,8 +171,12 @@ const ChatArea = () => {
             {msg.fileType === 'other' && <a href={fullFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#00aff4' }}>Dosyayı İndir</a>}
           </div>
         )}
-        {msg.content && <p className="message-content">{msg.content}</p>}
-      </>
+        {msg.content && (
+        <p className={`message-content ${isBot ? 'ai-content' : ''}`}>
+          {msg.content}
+        </p>
+      )}
+    </>
     );
   };
 
@@ -229,18 +236,25 @@ const ChatArea = () => {
               const isMyMessage = String(authorId) === String(currentUserId);
 
               return (
-                <div key={index} className="message-item">
-                  <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
-                    <img src={avatarSrc} alt={msg.author.username} className="message-avatar" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
-                  </div>
+  <div key={index} className={`message-item ${msg.author?.isBot ? 'ai-message-row' : ''}`}>
+    <div className="message-avatar-wrapper" onClick={() => setShowProfileId(authorId)}>
+      <img 
+        src={msg.author?.isBot ? '/assets/ai-avatar.png' : avatarSrc} 
+        alt={msg.author.username} 
+        className={`message-avatar ${msg.author?.isBot ? 'ai-avatar' : ''}`} 
+        onError={(e) => { e.target.src = DEFAULT_AVATAR; }} 
+      />
+    </div>
                   <div className="message-body">
                     <div className="message-header">
-                      <span className="message-author" onClick={() => setShowProfileId(authorId)}>{msg.author.username}</span>
-                      <UserLevelTag level={msg.author?.level} activeBadge={msg.author?.activeBadge} />
-                      <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
-                    </div>
-                    <div className="message-content-wrapper">{renderMessageContent(msg)}</div>
-                  </div>
+                      <span className={`message-author ${msg.author?.isBot ? 'ai-author-name' : ''}`}>
+            {msg.author.username} {msg.author?.isBot && <span className="bot-tag">BOT</span>}
+        </span>
+        {!msg.author?.isBot && <UserLevelTag level={msg.author?.level} activeBadge={msg.author?.activeBadge} />}
+        <span className="message-time">{formatMessageDate(msg.createdAt)}</span>
+      </div>
+      <div className="message-content-wrapper">{renderMessageContent(msg)}</div>
+    </div>
                   {isMyMessage && (
                     <div className="message-actions-group">
                       <button className="message-delete-btn" title="Sil" onClick={() => handleDeleteClick(msg._id)}><TrashIcon /></button>
