@@ -22,8 +22,6 @@ const Member = require('./models/MemberModel');
 const User = require('./models/UserModel');
 const { generalLimiter } = require('./middleware/rateLimiters');
 const { processGamification } = require('./utils/gamificationEngine');
-const { askOceanAI } = require('./utils/aiHelper');
-const { encrypt, decrypt } = require('./utils/cryptoHelper');
 
 // Medya Sunucusu
 const nms = require('./mediaServer');
@@ -413,45 +411,25 @@ io.on('connection', (socket) => {
 
     // Mesaj Gönderme
     socket.on('sendMessage', async (data) => {
-    try {
-        const { content, channelId, authorId } = data;
+        try {
+            if (!data.content || !data.channelId || !data.authorId) return;
+            const channel = await Channel.findById(data.channelId);
+            if (!channel) return;
 
-        // 1. Mesajı ŞİFRELEYEREK kaydet
-        const encryptedContent = encrypt(content);
-        
-        const newMessage = await Message.create({
-            content: encryptedContent, // Veritabanına şifreli gitti
-            author: authorId,
-            channel: channelId,
-            server: data.serverId
-        });
-
-        // 2. Kullanıcılara geri gönderirken DEŞİFRE ET (Okunabilir olması için)
-        const populated = await Message.findById(newMessage._id).populate('author');
-        populated.content = decrypt(populated.content);
-        
-        io.to(channelId).emit('newMessage', populated);
-
-        // 3. !sor AI Kısmı
-        if (content.startsWith('!sor ')) {
-            const question = content.replace('!sor ', '').trim();
-            const aiAnswer = await askOceanAI(question);
-            
-            // AI cevabını da şifreleyerek kaydedebilirsin
-            const encryptedAI = encrypt(aiAnswer);
-            // ... (AI kayıt işlemi)
-            
-            // AI cevabını deşifre ederek odaya gönder
-            io.to(channelId).emit('newMessage', {
-                content: aiAnswer, // Ekranda direkt açık görünsün
-                author: { username: "Ocean AI", isBot: true },
-                // ...
+            const newMessage = await Message.create({
+                content: data.content,
+                author: data.authorId,
+                channel: data.channelId,
+                server: channel.server,
             });
-        }
-    } catch (err) {
-        console.error("Şifreleme Hatası:", err);
-    }
-});
+
+            const populated = await Message.findById(newMessage._id).populate('author', 'username avatarUrl onlineStatus badges level');
+            io.to(data.channelId).emit('newMessage', populated);
+
+
+            processGamification(data.authorId, 'SEND_MESSAGE', io);
+        } catch (e) { console.error(e); }
+    });
 
     socket.on('watch-party-action', ({ type, payload, serverId }) => {
         console.log(`[YouTube] Server: ${serverId} -> İşlem: ${type}`);
