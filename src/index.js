@@ -29,7 +29,8 @@ const nms = require('./mediaServer');
 // Veritabanı
 connectDB();
 
-const app = express();
+
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // 🟢 SOCKET AYARLARI (PING TIME ARTIRILDI - KOPMALARI ÖNLER)
