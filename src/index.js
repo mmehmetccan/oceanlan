@@ -13,6 +13,8 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 
+const app = express();
+app.set('trust proxy', 1);
 // Modeller
 const Message = require('./models/MessageModel');
 const Channel = require('./models/ChannelModel');
@@ -30,7 +32,6 @@ const nms = require('./mediaServer');
 connectDB();
 
 
-app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // 🟢 SOCKET AYARLARI (PING TIME ARTIRILDI - KOPMALARI ÖNLER)
