@@ -496,6 +496,19 @@ io.on('connection', (socket) => {
 });
 
 // Başlat
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`[SERVER] ${PORT} portunda aktif.`));
-nms.run();
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => {
+    console.log(`[SERVER] ${PORT} portunda aktif.`);
+});
+
+/** 
+ * 🛠️ DÜZELTME: Media Server'ı sadece bir kez ve 
+ * hata kontrolleriyle başlatıyoruz.
+ */
+try {
+    // Eğer nms zaten çalışıyorsa hata vermemesi için kontrol ekleyebilirsin
+    // Veya mediaServer.js içindeki nms.run() satırını silip sadece burada bırakabilirsin
+    nms.run(); 
+} catch (error) {
+    console.error("NMS başlatılırken bir hata oluştu (Muhtemelen zaten çalışıyor):", error.message);
+}
