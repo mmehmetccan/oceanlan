@@ -8,7 +8,6 @@ import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 import UserBadgeList from '../gamification/UserBadgeList';
 import UserLevelTag from '../gamification/UserLevelTag';
-import { checkUserPermission } from '../../utils/permissionChecker';
 
 const handleAvatarError = (e) => {
     if (e?.target?.dataset?.fallbackApplied === 'true') return;
@@ -97,20 +96,10 @@ const ServerMembersPanel = () => {
     if (!isOnServerRoute || !activeServer) return null;
 
     const handleContextMenu = (e, member) => {
-    e.preventDefault();
-    // Güvenlik kontrolü
-    if (!activeServer || !user || !member || !member.user) return;
-    
-    if (member.user._id === user.id) return;
-    
-    const isAdmin = checkUserPermission(activeServer, user.id, 'ADMINISTRATOR');
-    const isModerator = checkUserPermission(activeServer, user.id, 'KICK_MEMBERS') || 
-                        checkUserPermission(activeServer, user.id, 'BAN_MEMBERS');
-
-    if (isAdmin || isModerator || member.user.onlineStatus === 'online') {
+        e.preventDefault();
+        if (!member || !member.user || member.user._id === user.id) return;
         setContextMenu({ x: e.pageX, y: e.pageY, member });
-    }
-};
+    };
 
     return (
         <div className="smp-sidebar" onClick={() => setContextMenu(null)}>
@@ -139,7 +128,7 @@ const ServerMembersPanel = () => {
                                     <div
                                         key={member._id}
                                         // 🟢 YENİ CSS SINIFI: smp-item
-                                        className={`smp-item ${member.user?.onlineStatus !== 'online' ? 'offline' : ''}`}
+                                        className={`smp-item ${!isOnline ? 'offline' : ''}`}
                                         onContextMenu={(e) => handleContextMenu(e, member)}
                                     >
                                         {/* 🟢 YENİ CSS SINIFI: smp-avatar-wrapper */}
