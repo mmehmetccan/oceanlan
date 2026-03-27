@@ -18,7 +18,14 @@ autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
 autoUpdater.autoDownload = true;
 
+
+autoUpdater.requestHeaders = { "Cache-Control": "no-cache" };
+autoUpdater.signals.updateCancelled(() => {
+    console.log("Güncelleme iptal edildi.");
+});
+
 // Sesin kullanıcı etkileşimi olmadan çalabilmesi için:
+
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -361,34 +368,46 @@ app.on('window-all-closed', () => {
 });
 
 // --- AUTO UPDATER OLAYLARI ---
-autoUpdater.on('checking-for-update', () => { });
+autoUpdater.on('checking-for-update', () => { 
+  console.log("Güncelleme kontrol ediliyor...");
+});
+
 autoUpdater.on('update-available', (info) => {
-  if (splashWindow) splashWindow.webContents.send('message', 'Güncelleme bulundu, indiriliyor...');
-});
-autoUpdater.on('update-not-available', (info) => {
   if (splashWindow) {
-    splashWindow.webContents.send('message', 'Uygulama başlatılıyor...');
+    splashWindow.webContents.send('message', `Yeni sürüm (${info.version}) bulundu, indiriliyor...`);
+  }
+});autoUpdater.on('update-not-available', (info) => {
+  if (splashWindow) {
+    splashWindow.webContents.send('message', 'Uygulama güncel, başlatılıyor...');
     setTimeout(() => {
-      splashWindow.close();
+      if (splashWindow) splashWindow.close();
       createMainWindow();
     }, 1000);
   }
 });
+
+// ❌ BEYAZ EKRAN ÇÖZÜMÜ: Hata olsa bile ana pencereyi aç
 autoUpdater.on('error', (err) => {
+  console.error("Güncelleme hatası:", err);
   if (splashWindow) {
-    splashWindow.webContents.send('message', 'Başlatılıyor...');
+    splashWindow.webContents.send('message', 'Güncelleme sunucusuna bağlanılamadı. Uygulama başlatılıyor...');
     setTimeout(() => {
-      splashWindow.close();
-      createMainWindow();
-    }, 1000);
+      if (splashWindow) splashWindow.close();
+      if (!mainWindow) createMainWindow(); // Hata durumunda ana pencereyi zorla aç
+    }, 2000);
   }
 });
+
 autoUpdater.on('download-progress', (progressObj) => {
   if (splashWindow) {
+    // İlerlemeyi logla ve splash penceresine gönder
+    console.log(`İndirme yüzdesi: ${progressObj.percent}`);
     splashWindow.webContents.send('download-progress', progressObj.percent);
   }
 });
+
 autoUpdater.on('update-downloaded', (info) => {
-  if (splashWindow) splashWindow.webContents.send('message', 'Yükleniyor...');
-  autoUpdater.quitAndInstall(true, true);
+  if (splashWindow) splashWindow.webContents.send('message', 'Güncelleme hazır, yükleniyor...');
+  // quitAndInstall(isSilent, isForceRunAfter)
+  autoUpdater.quitAndInstall(false, true);
 });
