@@ -8,6 +8,7 @@ import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 import UserBadgeList from '../gamification/UserBadgeList';
 import UserLevelTag from '../gamification/UserLevelTag';
+import { checkUserPermission } from '../../utils/permissionChecker';
 
 const handleAvatarError = (e) => {
     if (e?.target?.dataset?.fallbackApplied === 'true') return;
@@ -97,18 +98,19 @@ const ServerMembersPanel = () => {
 
     const handleContextMenu = (e, member) => {
     e.preventDefault();
-    // Kendine sağ tıklarsa menü açma
+    
+    // Temel kontroller: Üye verisi var mı ve sağ tıklanan kişi kullanıcının kendisi mi?
     if (!member || !member.user || member.user._id === user.id) return;
     
-    // YETKİ KONTROLÜ: Eğer kullanıcı yetkiliyse, çevrimdışı üyeye de sağ tıklayabilsin
-    const isAdmin = checkUserPermission(activeServer, user.id, 'ADMINISTRATOR');
-    const isModerator = checkUserPermission(activeServer, user.id, 'KICK_MEMBERS') || checkUserPermission(activeServer, user.id, 'BAN_MEMBERS');
-
-    // Yetkili ise her türlü tıklar, değilse sadece online üyeye işlem yapabilir (opsiyonel kısıtlama)
-    if (isAdmin || isModerator || member.user.onlineStatus === 'online') {
-        setContextMenu({ x: e.pageX, y: e.pageY, member });
-    }
+    // Sağ tıklama menüsünü aç
+    setContextMenu({ 
+        x: e.pageX, 
+        y: e.pageY, 
+        member 
+    });
 };
+    
+ 
 
     return (
         <div className="smp-sidebar" onClick={() => setContextMenu(null)}>
