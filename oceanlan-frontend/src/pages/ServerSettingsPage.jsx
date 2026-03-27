@@ -61,29 +61,50 @@ const Switch = ({ checked, onChange, label, description }) => (
 // --- ÜYE ROL YÖNETİCİSİ (GÜNCELLENDİ: BUTONLU KAYDETME) ---
 const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose }) => {
   const [memberRoles, setMemberRoles] = useState(new Set((member.roles || []).filter(r => r).map(r => r._id)));
-  const [hasChanges, setHasChanges] = useState(false); // Değişiklik var mı?
+  const [hasChanges, setHasChanges] = useState(false);
   const { addToast } = useContext(ToastContext);
 
   const handleRoleToggle = (roleId) => {
     const newRolesSet = new Set(memberRoles);
     if (newRolesSet.has(roleId)) newRolesSet.delete(roleId);
     else newRolesSet.add(roleId);
-
     setMemberRoles(newRolesSet);
-    setHasChanges(true); // Değişiklik yapıldı olarak işaretle
+    setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  const handleSaveRoles = async () => {
     try {
       await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/roles`, { roles: Array.from(memberRoles) });
       addToast('Roller güncellendi.', 'success');
       onUpdate();
-      onClose(); // Başarılı olunca kapat
+      setHasChanges(false);
     } catch (error) {
       addToast(`Hata: ${error.response?.data?.message}`, 'error');
-      // Hata olursa eski haline döndür
-      setMemberRoles(new Set((member.roles || []).filter(r => r).map(r => r._id)));
-      setHasChanges(false);
+    }
+  };
+
+  // 🟢 YENİ: BANLAMA FONKSİYONU
+  const handleBan = async () => {
+    const reason = prompt(`${member.user?.username} kullanıcısını yasaklamak için bir sebep girin:`);
+    if (reason === null) return;
+    try {
+      await axiosInstance.post(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/ban`, { reason });
+      addToast('Kullanıcı sunucudan yasaklandı.', 'success');
+      onUpdate();
+      onClose();
+    } catch (error) {
+      addToast('Yasaklama işlemi başarısız.', 'error');
+    }
+  };
+
+  // 🟢 YENİ: SUNUCU GENELİ SUSTURMA/SAĞIRLAŞTIRMA
+  const handleUpdateStatus = async (type, value) => {
+    try {
+      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/status`, { [type]: value });
+      addToast('Kullanıcı durumu güncellendi.', 'success');
+      onUpdate();
+    } catch (error) {
+      addToast('İşlem başarısız.', 'error');
     }
   };
 
@@ -100,32 +121,60 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose })
         </button>
       </div>
 
-      <div className="permission-grid">
-        {validRoles.map(role => (
-          <label key={role._id} className={`permission-card ${memberRoles.has(role._id) ? 'active' : ''}`} style={{ cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: role.color || '#999' }}></span>
-              <span style={{ color: memberRoles.has(role._id) ? '#fff' : '#b9bbbe' }}>{role.name}</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={memberRoles.has(role._id)}
-              onChange={() => handleRoleToggle(role._id)}
-              style={{ width: 16, height: 16 }}
-            />
-          </label>
-        ))}
+      <div style={{ backgroundColor: 'rgba(255, 166, 0, 0.1)', border: '1px solid orange', borderRadius: '6px', padding: '10px', marginBottom: '20px' }}>
+        <p style={{ color: 'orange', fontSize: '13px', margin: 0 }}>
+          <strong>⚠️ Yetkili Notu:</strong> Buradan yapacağınız susturma veya sağırlaştırma işlemleri <strong>sunucu genelidir</strong>. 
+          Kullanıcı hangi ses kanalına girerse girsin bu kısıtlamalar devam edecektir. Banlanan kullanıcılar "Yasaklılar" sekmesinden tekrar açılabilir.
+        </p>
+      </div>
+
+      <div style={{ marginBottom: '25px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <button 
+          className={`modern-btn ${member.isMuted ? 'btn-primary' : 'btn-secondary'}`} 
+          onClick={() => handleUpdateStatus('isMuted', !member.isMuted)}
+        >
+          {member.isMuted ? 'Susturmayı Kaldır' : 'Sunucuda Sustur'}
+        </button>
+        <button 
+          className={`modern-btn ${member.isDeafened ? 'btn-primary' : 'btn-secondary'}`} 
+          onClick={() => handleUpdateStatus('isDeafened', !member.isDeafened)}
+        >
+          {member.isDeafened ? 'Sağırlaştırmayı Kaldır' : 'Sunucuda Sağırlaştır'}
+        </button>
+        <button className="modern-btn btn-danger" onClick={handleBan}>
+          Sunucudan Banla
+        </button>
+      </div>
+
+      <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
+        <h5 style={{ color: '#b9bbbe', marginBottom: '10px' }}>Rolleri Düzenle</h5>
+        <div className="permission-grid">
+          {validRoles.map(role => (
+            <label key={role._id} className={`permission-card ${memberRoles.has(role._id) ? 'active' : ''}`} style={{ cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: role.color || '#999' }}></span>
+                <span style={{ color: memberRoles.has(role._id) ? '#fff' : '#b9bbbe' }}>{role.name}</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={memberRoles.has(role._id)}
+                onChange={() => handleRoleToggle(role._id)}
+                style={{ width: 16, height: 16 }}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-        <button className="modern-btn btn-secondary" onClick={onClose}>İptal</button>
+        <button className="modern-btn btn-secondary" onClick={onClose}>Kapat</button>
         <button
           className="modern-btn btn-primary"
-          onClick={handleSave}
+          onClick={handleSaveRoles}
           disabled={!hasChanges}
           style={{ opacity: !hasChanges ? 0.5 : 1 }}
         >
-          <CheckIcon width={16} /> Değişiklikleri Kaydet
+          <CheckIcon width={16} /> Rol Değişikliklerini Kaydet
         </button>
       </div>
     </div>
