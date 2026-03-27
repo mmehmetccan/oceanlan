@@ -52,28 +52,7 @@
   background-color: #1a1b1e;
   border-radius: 4px;
 }
-.ai-message-row {
-    background-color: rgba(0, 175, 244, 0.05); /* Çok hafif mavi arka plan */
-    border-left: 3px solid #00aff4;
-}
 
-.bot-tag {
-    background-color: #00aff4;
-    color: white;
-    font-size: 10px;
-    padding: 2px 4px;
-    border-radius: 3px;
-    margin-left: 5px;
-    vertical-align: middle;
-}
-
-.ai-author-name {
-    color: #00aff4 !important;
-}
-
-.ai-avatar {
-    border: 2px solid #00aff4;
-}
 /* --- MESAJ SATIRI --- */
 .message-item {
   display: flex;
