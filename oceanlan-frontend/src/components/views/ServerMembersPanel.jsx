@@ -98,19 +98,19 @@ const ServerMembersPanel = () => {
 
     const handleContextMenu = (e, member) => {
     e.preventDefault();
+    // Güvenlik kontrolü
+    if (!activeServer || !user || !member || !member.user) return;
     
-    // Temel kontroller: Üye verisi var mı ve sağ tıklanan kişi kullanıcının kendisi mi?
-    if (!member || !member.user || member.user._id === user.id) return;
+    if (member.user._id === user.id) return;
     
-    // Sağ tıklama menüsünü aç
-    setContextMenu({ 
-        x: e.pageX, 
-        y: e.pageY, 
-        member 
-    });
+    const isAdmin = checkUserPermission(activeServer, user.id, 'ADMINISTRATOR');
+    const isModerator = checkUserPermission(activeServer, user.id, 'KICK_MEMBERS') || 
+                        checkUserPermission(activeServer, user.id, 'BAN_MEMBERS');
+
+    if (isAdmin || isModerator || member.user.onlineStatus === 'online') {
+        setContextMenu({ x: e.pageX, y: e.pageY, member });
+    }
 };
-    
- 
 
     return (
         <div className="smp-sidebar" onClick={() => setContextMenu(null)}>
