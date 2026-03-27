@@ -123,10 +123,11 @@ mainWindow.loadFile(indexPath).catch(err => {
     // Eğer dist içinde değilse root içinde aramayı dene (Yedek plan)
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 });
-
+}
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+  
 
   // ✅ YENİ: Main window oluşunca global hook'u başlat
   startGlobalPTTHookIfNeeded();
@@ -241,7 +242,8 @@ function sendToRenderer(channel) {
 }
 
 // ✅ YENİ: Global hook (oyun odaktayken bile bas-konuş)
-function startGlobalPTTHookIfNeeded() {
+function startGlobalPTTHookIfNeeded()
+{
   if (hookStarted) return;
   hookStarted = true;
 
