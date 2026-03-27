@@ -233,12 +233,12 @@ const forgotPassword = async (req, res) => {
 // --- ŞİFRE SIFIRLAMA (KODU KONTROL EDER VE ŞİFREYİ DEĞİŞTİRİR) ---
 const resetPassword = async (req, res) => {
   try {
-    const { email, resetCode, password } = req.body;
+    const { email, resetCode, password } = req.body; // Veriler body'den geliyor
 
-    // Gelen kodu hashle
+    // 1. Kodu hashle (DB'dekiyle karşılaştırmak için)
     const hashedCode = crypto.createHash('sha256').update(resetCode).digest('hex');
 
-    // Kullanıcıyı mail, kod ve süre kontrolüyle bul
+    // 2. Kullanıcıyı bul (Email, Hashli Kod ve Süre kontrolü)
     const user = await User.findOne({
       email,
       resetPasswordToken: hashedCode,
@@ -246,10 +246,13 @@ const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Kod geçersiz veya süresi dolmuş' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Kod geçersiz veya süresi dolmuş' 
+      });
     }
 
-    // Yeni şifreyi ata ve token alanlarını temizle
+    // 3. Yeni şifreyi ata (Modeldeki pre-save hook bunu hashleyecektir)
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
@@ -258,7 +261,7 @@ const resetPassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Şifre başarıyla güncellendi. Giriş yapabilirsiniz.',
+      message: 'Şifre başarıyla güncellendi.',
     });
 
   } catch (error) {
