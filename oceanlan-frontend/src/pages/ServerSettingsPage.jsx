@@ -101,7 +101,7 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose })
   const handleUpdateStatus = async (type, value) => {
   try {
     // URL'nin doğruluğundan emin olun: /api/v1/servers/:serverId/members/:memberId/status
-    await axiosInstance.put(`/api/v1/servers/${serverId}/members/${member._id}/status`, { 
+    await axiosInstance.put(`/servers/${serverId}/members/${member._id}/status`, { 
       [type]: value 
     });
     
