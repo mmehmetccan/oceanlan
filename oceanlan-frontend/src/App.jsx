@@ -67,7 +67,7 @@ const AppContent = () => {
                 <PublicRoute><RegisterPage /></PublicRoute>
             } />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
-            <Route path="/resetpassword/:resetToken" element={<ResetPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/verify-change-email/:token" element={<VerifyEmailPage />} />
             <Route path="/legal/:type" element={<LegalPage />} />

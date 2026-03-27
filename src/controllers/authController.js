@@ -180,6 +180,7 @@ const loginUser = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// --- ŞİFRE UNUTTUM (KOD GÖNDERİR) ---
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
@@ -190,89 +191,74 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Bu e-posta ile kayıtlı kullanıcı bulunamadı' });
     }
 
-    // 1. Reset token oluştur (Modeldeki metot)
-    const resetToken = user.getResetPasswordToken();
+    // 1. 6 Haneli Sayısal Kod Oluştur (Örn: 542189)
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 2. Token'ı DB'ye kaydet
+    // 2. Kodu hashleyip veritabanına kaydet (Güvenlik için)
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetCode).digest('hex');
+    
+    // 3. Kodun geçerlilik süresini ayarla (Örn: 15 dakika)
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+
     await user.save({ validateBeforeSave: false });
 
-    // 3. Link oluştur (Frontend URL'si)
-    const resetUrl = `http://oceanlan.com/resetpassword/${resetToken}`;
-
-    // 4. E-posta İçeriği (HTML)
+    // 4. E-posta İçeriği
     const message = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-        <h2 style="color: #5865f2;">Şifre Sıfırlama İsteği</h2>
-        <p>Hesabınız için bir şifre sıfırlama talebi aldık.</p>
-        <p>Şifrenizi yenilemek için lütfen aşağıdaki butona tıklayın:</p>
-        <a href="${resetUrl}" style="background-color: #5865f2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Şifremi Sıfırla</a>
-        <p style="margin-top: 20px; font-size: 12px; color: #777;">Bu işlemi siz yapmadıysanız, bu e-postayı görmezden gelebilirsiniz.</p>
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; text-align: center;">
+        <h2 style="color: #1ab199;">OceanLan Şifre Sıfırlama</h2>
+        <p>Şifrenizi sıfırlamak için aşağıdaki kodu kullanın:</p>
+        <h1 style="background: #f4f4f4; display: inline-block; padding: 10px 20px; letter-spacing: 5px; color: #1ab199; border-radius: 8px;">
+          ${resetCode}
+        </h1>
+        <p style="margin-top: 20px; font-size: 12px; color: #777;">Bu kod 15 dakika geçerlidir. İşlemi siz yapmadıysanız lütfen bu maili dikkate almayın.</p>
       </div>
     `;
 
-    try {
-      // 5. Gerçek E-postayı Gönder
-      await sendEmail({
-        email: user.email,
-        subject: 'OceanLan Şifre Sıfırlama',
-        message, // HTML içeriği sendEmail içinde işleniyor
-      });
+    await sendEmail({
+      email: user.email,
+      subject: 'OceanLan Şifre Sıfırlama Kodu',
+      message,
+    });
 
-      res.status(200).json({
-        success: true,
-        message: 'Sıfırlama bağlantısı e-posta adresinize gönderildi.',
-      });
-
-    } catch (err) {
-      console.error("Şifre sıfırlama mail hatası:", err);
-
-      // Hata olursa token'ı temizle ki kullanıcı tekrar deneyebilsin
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save({ validateBeforeSave: false });
-
-      return res.status(500).json({ success: false, message: 'E-posta gönderilemedi. Lütfen daha sonra tekrar deneyin.' });
-    }
+    res.status(200).json({
+      success: true,
+      message: 'Sıfırlama kodu e-posta adresinize gönderildi.',
+    });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: 'E-posta gönderilemedi.' });
   }
 };
 
-// --- YENİ: ŞİFRE SIFIRLAMA ---
-// @desc    Yeni şifreyi kaydeder
-// @route   PUT /api/v1/auth/resetpassword/:resetToken
+// --- ŞİFRE SIFIRLAMA (KODU KONTROL EDER VE ŞİFREYİ DEĞİŞTİRİR) ---
 const resetPassword = async (req, res) => {
   try {
-    // URL'den gelen token'ı hashleyip DB'dekiyle karşılaştıracağız
-    const resetPasswordToken = crypto
-      .createHash('sha256')
-      .update(req.params.resetToken)
-      .digest('hex');
+    const { email, resetCode, password } = req.body;
 
+    // Gelen kodu hashle
+    const hashedCode = crypto.createHash('sha256').update(resetCode).digest('hex');
+
+    // Kullanıcıyı mail, kod ve süre kontrolüyle bul
     const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() }, // Süresi dolmamış olmalı
+      email,
+      resetPasswordToken: hashedCode,
+      resetPasswordExpire: { $gt: Date.now() },
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Geçersiz veya süresi dolmuş token' });
+      return res.status(400).json({ success: false, message: 'Kod geçersiz veya süresi dolmuş' });
     }
 
-    // Yeni şifreyi ata
-    user.password = req.body.password;
-
-    // Token alanlarını temizle
+    // Yeni şifreyi ata ve token alanlarını temizle
+    user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
-    // Kaydet (pre-save hook çalışıp şifreyi hashleyecek)
     await user.save();
 
     res.status(200).json({
       success: true,
       message: 'Şifre başarıyla güncellendi. Giriş yapabilirsiniz.',
-      token: generateToken(user._id),
     });
 
   } catch (error) {
