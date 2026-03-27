@@ -99,14 +99,19 @@ const MemberRoleManager = ({ member, serverRoles, serverId, onUpdate, onClose })
 
   // 🟢 YENİ: SUNUCU GENELİ SUSTURMA/SAĞIRLAŞTIRMA
   const handleUpdateStatus = async (type, value) => {
-    try {
-      await axiosInstance.put(`${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}/status`, { [type]: value });
-      addToast('Kullanıcı durumu güncellendi.', 'success');
-      onUpdate();
-    } catch (error) {
-      addToast('İşlem başarısız.', 'error');
-    }
-  };
+  try {
+    // URL'nin doğruluğundan emin olun: /api/v1/servers/:serverId/members/:memberId/status
+    await axiosInstance.put(`/api/v1/servers/${serverId}/members/${member._id}/status`, { 
+      [type]: value 
+    });
+    
+    addToast('İşlem başarılı.', 'success');
+    onUpdate(); // Listeyi yenile
+  } catch (error) {
+    console.error("İstek Hatası:", error.response?.data);
+    addToast(error.response?.data?.message || 'Yetkiniz yetersiz veya sunucu hatası.', 'error');
+  }
+};
 
   const validRoles = (serverRoles || []).filter(r => r && r.name !== '@everyone');
 
@@ -798,46 +803,52 @@ const ServerSettingsPage = () => {
           )}
 
           {/* --- TAB: ÜYELER --- */}
-          {activeTab === 'members' && (
-            <>
-              <div className="settings-card">
-                {safeMembers.map(m => (
-                  <div key={m._id} className="info-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {/* 🟢 DÜZELTME: getImageUrl kullanımı */}
-                      <img
-                        src={getImageUrl(m.user.avatarUrl)}
-                        onError={(e) => e.target.src = '/default-avatar.png'}
-                        style={{ width: 32, height: 32, borderRadius: '50%' }}
-                      />
-                      <div>
-                        <strong style={{ color: 'white', display: 'block' }}>{m.user.username}</strong>
-                        <span style={{ fontSize: '12px', color: '#b9bbbe' }}>{(m.roles || []).filter(r => r).map(r => r.name).join(', ')}</span>
-                      </div>
-                    </div>
+{activeTab === 'members' && (
+  <>
+    <div className="settings-card">
+      {safeMembers.map(m => (
+        <div key={m._id} className="info-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src={getImageUrl(m.user?.avatarUrl)}
+              onError={(e) => {
+                e.target.onerror = null; // Sonsuz döngüyü engelle
+                e.target.src = '/default-avatar.png'; // Buraya kesin var olan bir resim yolu koy
+              }}
+              style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+              alt={m.user?.username}
+            />
+            <div>
+              <strong style={{ color: 'white', display: 'block' }}>{m.user?.username || 'Bilinmeyen Kullanıcı'}</strong>
+              <span style={{ fontSize: '12px', color: '#b9bbbe' }}>
+                {(m.roles || []).filter(r => r).map(r => r.name).join(', ') || 'Rol Yok'}
+              </span>
+            </div>
+          </div>
 
-                    <button
-                      className="modern-btn btn-secondary"
-                      style={{ padding: '6px 12px' }}
-                      onClick={() => setManagingMember(m)}
-                    >
-                      <PencilSquareIcon width={16} /> Yönet
-                    </button>
-                  </div>
-                ))}
-              </div>
+          <button
+            className="modern-btn btn-secondary"
+            style={{ padding: '6px 12px' }}
+            onClick={() => setManagingMember(m)}
+          >
+            <PencilSquareIcon width={16} /> Yönet
+          </button>
+        </div>
+      ))}
+      {safeMembers.length === 0 && <p style={{color: '#72767d', textAlign: 'center'}}>Sunucuda üye bulunamadı.</p>}
+    </div>
 
-              {managingMember && (
-                <MemberRoleManager
-                  member={managingMember}
-                  serverRoles={safeRoles}
-                  serverId={serverId}
-                  onUpdate={() => fetchServerDetails(serverId)}
-                  onClose={() => setManagingMember(null)}
-                />
-              )}
-            </>
-          )}
+    {managingMember && (
+      <MemberRoleManager
+        member={managingMember}
+        serverRoles={safeRoles}
+        serverId={serverId}
+        onUpdate={() => fetchServerDetails(serverId)}
+        onClose={() => setManagingMember(null)}
+      />
+    )}
+  </>
+)}
 
           {/* --- TAB: YASAKLILAR --- */}
           {activeTab === 'bans' && (
