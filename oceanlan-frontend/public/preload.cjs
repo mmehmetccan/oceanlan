@@ -2,19 +2,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-
-  onPTTDown: (cb) => {
-    const handler = () => cb();
-    ipcRenderer.on('ptt-down', handler);
-    return () => ipcRenderer.removeListener('ptt-down', handler);
-  },
-  onPTTUp: (cb) => {
-    const handler = () => cb();
-    ipcRenderer.on('ptt-up', handler);
-    return () => ipcRenderer.removeListener('ptt-up', handler);
-  },
-
-
+  // PTT Olayları
+  onPTTDown: (cb) => ipcRenderer.on('ptt-down', () => cb()),
+  onPTTUp: (cb) => ipcRenderer.on('ptt-up', () => cb()),
   setPTTKeyCode: (code) => ipcRenderer.send('ptt:setKeyCode', code),
 
   // Ekran Kaynakları
@@ -25,8 +15,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleMaximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
 
-  // 👇 YENİ: Güncelleme Mesajlarını Dinle
-  onUpdateMessage: (callback) => ipcRenderer.on('update-message', (_event, data) => callback(data)),
+  // ✅ GÜNCELLEME TAKİBİ (Splash ve Main için ortak)
+  // Bu kanal üzerinden 'message' ve 'download-progress' verilerini alabilirsin
+  onUpdateMessage: (callback) => {
+    const subscription = (_event, data) => callback(data);
+    ipcRenderer.on('message', subscription);
+    return () => ipcRenderer.removeListener('message', subscription);
+  },
+  
+  onDownloadProgress: (callback) => {
+    const subscription = (_event, percent) => callback(percent);
+    ipcRenderer.on('download-progress', subscription);
+    return () => ipcRenderer.removeListener('download-progress', subscription);
+  },
 
   isElectron: true
 });

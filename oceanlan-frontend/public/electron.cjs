@@ -117,9 +117,12 @@ function createMainWindow() {
     mainWindow.loadURL('http://localhost:5173/');
   } else {
     const appPath = app.getAppPath();
-    const indexPath = path.join(appPath, 'dist', 'index.html');
-    mainWindow.loadFile(indexPath);
-  }
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+mainWindow.loadFile(indexPath).catch(err => {
+    console.error("Ana sayfa yüklenemedi:", err);
+    // Eğer dist içinde değilse root içinde aramayı dene (Yedek plan)
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+});
 
   mainWindow.on('closed', () => {
     mainWindow = null;
