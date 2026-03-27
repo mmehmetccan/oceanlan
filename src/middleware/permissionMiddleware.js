@@ -1,6 +1,6 @@
 const Member = require('../models/MemberModel');
 const Role = require('../models/RoleModel');
-
+const Server = require('../models/ServerModel');
 // Bu, bir middleware "üreticisidir".
 // Hangi izni kontrol edeceğimizi (örn: 'KICK_MEMBERS') parametre olarak alır.
 const checkPermission = (requiredPermission) => {
