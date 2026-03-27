@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { getImageUrl } from '../utils/urlHelper';
-
+import { FaEye, FaEyeSlash } from 'react-icons/fa'; // 🟢 YENİ IMPORT
 // İKONLAR
 import {
     EnvelopeIcon,
@@ -36,10 +36,12 @@ const UserProfilePage = () => {
     const [email, setEmail] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState(''); // 🟢 YENİ
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState(null);
 
     // Confirmation Modal State
+    const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
 
     // 1. Sayfa açıldığında veritabanından güncel veriyi çek
@@ -103,6 +105,9 @@ const UserProfilePage = () => {
     // Profil Ayarlarını Güncelle
     const handleUpdateSettings = async (e) => {
         e.preventDefault();
+        if (newPassword && newPassword !== confirmNewPassword) {
+            return addToast('Yeni şifreler birbiriyle eşleşmiyor!', 'error');
+        }
         setLoading(true);
 
         try {
@@ -110,7 +115,11 @@ const UserProfilePage = () => {
             if (username !== user.username) updateData.username = username;
             if (email !== user.email) updateData.email = email;
 
-            if (newPassword || currentPassword) {
+            if (newPassword) {
+                if (!currentPassword) {
+                    setLoading(false);
+                    return addToast('Şifre değiştirmek için mevcut şifrenizi girmelisiniz.', 'error');
+                }
                 updateData.currentPassword = currentPassword;
                 updateData.newPassword = newPassword;
             }
@@ -125,7 +134,8 @@ const UserProfilePage = () => {
 
             if (newPassword) {
                 addToast('Şifreniz güncellendi. Lütfen tekrar giriş yapın.', 'success');
-                performLogout();
+                logout();
+                navigate('/login');
                 return;
             }
 
@@ -137,13 +147,13 @@ const UserProfilePage = () => {
             addToast(res.data.message, 'success');
             setCurrentPassword('');
             setNewPassword('');
+            setConfirmNewPassword('');
         } catch (err) {
             addToast(err.response?.data?.message || 'Güncelleme başarısız.', 'error');
         } finally {
             setLoading(false);
         }
     };
-
     // Avatar Yükle
     const handleAvatarUpload = async () => {
         if (!avatarFile) return;
@@ -183,6 +193,25 @@ const UserProfilePage = () => {
             setLoading(false);
         }
     };
+
+
+    const toggleButtonStyle = {
+    position: 'absolute',
+    right: '10px',
+    top: '50%', // 🟢 Üstten %50 dikey boşluk
+    transform: 'translateY(-30%)', // 🟢 Kendi yüksekliğinin yarısı kadar yukarı çek (Tam merkezler)
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#1ab199',
+    fontSize: '18px', // İkon boyutu
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '5px',
+    zIndex: 2,
+    marginTop: '12px' // ⚠️ EĞER label varsa dikeyde label payını dengelemek için gerekebilir
+};
 
     return (
         <div className="profile-settings-area">
@@ -240,54 +269,96 @@ const UserProfilePage = () => {
 
                 {/* SAĞ: Form */}
                 <form onSubmit={handleUpdateSettings} className="settings-card profile-form">
-                    <h3>Hesap Bilgilerini Güncelle</h3>
+    <h3>Hesap Bilgilerini Güncelle</h3>
 
-                    <div className="profile-form-group">
-                        <label>Kullanıcı Adı</label>
-                        <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                        />
-                    </div>
+    <div className="profile-form-group">
+        <label>Kullanıcı Adı</label>
+        <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+        />
+    </div>
 
-                    <div className="profile-form-group">
-                        <label>E-posta</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                    </div>
+    <div className="profile-form-group">
+        <label>E-posta</label>
+        <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+        />
+    </div>
+    <hr style={{ border: '0', borderTop: '1px solid #444', margin: '20px 0' }} />
 
-                    <div className="profile-form-group">
-                        <label>Mevcut Şifre</label>
-                        <input
-                            type="password"
-                            placeholder="Güvenlik için gereklidir"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                        />
-                    </div>
+    {/* MEVCUT ŞİFRE */}
+    <div className="profile-form-group" style={{ position: 'relative' }}>
+        <label>Mevcut Şifre</label>
+        <input
+            type={showPass.current ? 'text' : 'password'}
+            placeholder="Güvenlik için gereklidir"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+        />
+        <button
+            type="button"
+            className="password-toggle-btn"
+            onClick={() => setShowPass({ ...showPass, current: !showPass.current })}
+            style={toggleButtonStyle}
+        >
+            {/* 🟢 YENİ İKON YAPISI */}
+            {showPass.current ? <FaEyeSlash /> : <FaEye />} 
+        </button>
+    </div>
 
-                    <div className="profile-form-group">
-                        <label>Yeni Şifre</label>
-                        <input
-                            type="password"
-                            placeholder="Opsiyonel"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                        />
-                    </div>
 
-                    <button
-                        type="submit"
-                        className="btn-accent"
-                        disabled={loading || !username || !email}
-                    >
-                        {loading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
-                    </button>
-                </form>
+    {/* YENİ ŞİFRE */}
+    <div className="profile-form-group" style={{ position: 'relative' }}>
+        <label>Yeni Şifre</label>
+        <input
+            type={showPass.new ? 'text' : 'password'}
+            placeholder="Değiştirmek istemiyorsanız boş bırakın"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+        />
+        <button
+            type="button"
+            className="password-toggle-btn"
+            onClick={() => setShowPass({ ...showPass, new: !showPass.new })}
+            style={toggleButtonStyle}
+        >
+            {/* 🟢 YENİ İKON YAPISI */}
+            {showPass.new ? <FaEyeSlash /> : <FaEye />}
+        </button>
+    </div>
+
+    {/* YENİ ŞİFRE TEKRAR */}
+    <div className="profile-form-group" style={{ position: 'relative' }}>
+        <label>Yeni Şifre (Tekrar)</label>
+        <input
+            type={showPass.confirm ? 'text' : 'password'}
+            placeholder="Yeni şifreyi tekrar girin"
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+        />
+        <button
+            type="button"
+            className="password-toggle-btn"
+            onClick={() => setShowPass({ ...showPass, confirm: !showPass.confirm })}
+            style={toggleButtonStyle}
+        >
+            {/* 🟢 YENİ İKON YAPISI */}
+            {showPass.confirm ? <FaEyeSlash /> : <FaEye />}
+        </button>
+    </div>
+
+    <button
+        type="submit"
+        className="btn-accent"
+        disabled={loading || !username || !email}
+    >
+        {loading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+    </button>
+</form>
             </div>
 
             {/* ÇIKIŞ KARTI */}

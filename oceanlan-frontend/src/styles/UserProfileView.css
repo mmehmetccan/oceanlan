@@ -53,6 +53,27 @@
   background-color: #18191c;
 }
 
+.password-toggle-btn {
+    position: absolute;
+    right: 10px;
+    bottom: 8px; /* Inputun içine ortalar */
+    background: none;
+    border: none;
+    color: #1ab199; /* Projenin ana rengi */
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 5px;
+    transition: opacity 0.2s;
+}
+
+.password-toggle-btn:hover {
+    opacity: 0.8;
+}
+
+.profile-form-group input {
+    padding-right: 65px; /* Yazının butonun altına girmemesi için */
+}
 /* Kapatma Butonu */
 .user-profile-modal-close {
   position: absolute;

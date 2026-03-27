@@ -72,25 +72,35 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
   const MEMBER_API_URL = `${API_URL_BASE}/api/v1/servers/${serverId}/members/${member._id}`;
 
   const handleKick = async () => {
-    if (!window.confirm(`${targetUser.username} üyesini atmak istiyor musun?`)) return;
-    try { await axios.delete(MEMBER_API_URL); fetchServerDetails(serverId); onClose(); }
-    catch (e) { alert('Hata: ' + e.message); }
+    if (!window.confirm(`${targetUser.username} atılsın mı?`)) return;
+    try {
+      await axios.delete(MEMBER_URL);
+      fetchServerDetails(serverId);
+      onClose();
+    } catch (e) { alert("Hata: " + e.response?.data?.message); }
   };
 
   const handleBan = async () => {
-    const reason = prompt('Yasaklama nedeni:');
+    const reason = prompt(`${targetUser.username} için yasaklama nedeni:`);
     if (reason === null) return;
-    try { await axios.post(`${MEMBER_API_URL}/ban`, { reason }); socket.emit('memberBanned', { serverId, memberId: member._id }); fetchServerDetails(serverId); onClose(); }
-    catch (e) { alert('Hata: ' + e.message); }
+    try {
+      await axios.post(`${MEMBER_URL}/ban`, { reason });
+      // Kullanıcı online ise socket üzerinden de düşür
+      if (isOnline) socket.emit('force_disconnect', { targetUserId: targetUser._id });
+      fetchServerDetails(serverId);
+      onClose();
+    } catch (e) { alert("Hata: " + e.response?.data?.message); }
   };
 
-  // 🟢 YEREL SUSTURMA (Sadece sen duymazsın)
-  const handleLocalMute = () => {
-    if (isLocalMuted) {
-        setUserVolume(targetUserId, 100); // Sesi geri aç
-    } else {
-        setUserVolume(targetUserId, 0);   // Sesi kapat
-    }
+  // 🟢 Sunucu Genelinde Sustur (Server Mute)
+  const handleServerMute = async () => {
+    try {
+      const newStatus = !member.isMuted;
+      await axios.put(`${MEMBER_URL}/status`, { isMuted: newStatus });
+      socket.emit('memberUpdated', { serverId, memberId: member._id, isMuted: newStatus });
+      fetchServerDetails(serverId);
+      onClose();
+    } catch (e) { alert("Hata: " + e.response?.data?.message); }
   };
 
   // 🟢 SUNUCU SAĞIRLAŞTIRMA (O kişi kimseyi duyamaz - Yetki gerekir)

@@ -96,10 +96,19 @@ const ServerMembersPanel = () => {
     if (!isOnServerRoute || !activeServer) return null;
 
     const handleContextMenu = (e, member) => {
-        e.preventDefault();
-        if (!member || !member.user || member.user._id === user.id) return;
+    e.preventDefault();
+    // Kendine sağ tıklarsa menü açma
+    if (!member || !member.user || member.user._id === user.id) return;
+    
+    // YETKİ KONTROLÜ: Eğer kullanıcı yetkiliyse, çevrimdışı üyeye de sağ tıklayabilsin
+    const isAdmin = checkUserPermission(activeServer, user.id, 'ADMINISTRATOR');
+    const isModerator = checkUserPermission(activeServer, user.id, 'KICK_MEMBERS') || checkUserPermission(activeServer, user.id, 'BAN_MEMBERS');
+
+    // Yetkili ise her türlü tıklar, değilse sadece online üyeye işlem yapabilir (opsiyonel kısıtlama)
+    if (isAdmin || isModerator || member.user.onlineStatus === 'online') {
         setContextMenu({ x: e.pageX, y: e.pageY, member });
-    };
+    }
+};
 
     return (
         <div className="smp-sidebar" onClick={() => setContextMenu(null)}>
@@ -128,7 +137,7 @@ const ServerMembersPanel = () => {
                                     <div
                                         key={member._id}
                                         // 🟢 YENİ CSS SINIFI: smp-item
-                                        className={`smp-item ${!isOnline ? 'offline' : ''}`}
+                                        className={`smp-item ${member.user?.onlineStatus !== 'online' ? 'offline' : ''}`}
                                         onContextMenu={(e) => handleContextMenu(e, member)}
                                     >
                                         {/* 🟢 YENİ CSS SINIFI: smp-avatar-wrapper */}

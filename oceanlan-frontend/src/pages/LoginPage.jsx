@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { isElectron } from '../utils/platformHelper';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import '../styles/Auth.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -17,7 +18,10 @@ const LoginPage = () => {
   const [error, setError] = useState('');
 const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.4.8.exe');
   const { login, loading } = useContext(AuthContext);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPass, setShowPass] = useState({ new: false, confirm: false });
   const navigate = useNavigate();
+
   const isApp = isElectron();
 
  useEffect(() => {
@@ -47,6 +51,27 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
     }
   };
 
+
+
+  const iconButtonStyle = {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)', // Milimetrik ortalama
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#1ab199', // OceanLan yeşili
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '5px',
+    fontSize: '18px',
+    zIndex: 10
+};
+
+
+
   return (
     <div className="auth-wrapper">
       <div className="auth-box">
@@ -70,20 +95,28 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              
             />
           </div>
 
           <div className="input-group">
             <LockClosedIcon className="input-icon" />
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'} // Dinamik tip
               className="auth-input"
               placeholder="Şifre"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-          </div>
+            <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={iconButtonStyle}
+        >
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+        </button>
+</div>
 
           {/* 🟢 BENİ HATIRLA ve ŞİFREMİ UNUTTUM SATIRI */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', fontSize: '14px', width: '100%' }}>
