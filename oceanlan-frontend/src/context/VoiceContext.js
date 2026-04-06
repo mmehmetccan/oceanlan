@@ -8,7 +8,22 @@ import { ToastContext } from './ToastContext';
 
 export const VoiceContext = createContext();
 
-const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+// 🔧 DÜZELTİLDİ #1: TURN sunucusu eklendi — sadece STUN yetmez,
+// NAT arkasındaki kullanıcılarda ICE adayları eşleşmeyince ses gitmez.
+// Kendi TURN sunucun varsa credentials kısmını doldur.
+const rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Kendi TURN sunucun varsa aşağıyı aç:
+    // {
+    //   urls: 'turn:turn.oceanlan.com:3478',
+    //   username: 'oceanlan',
+    //   credential: 'YOUR_TURN_SECRET'
+    // },
+  ],
+  iceTransportPolicy: 'all',
+};
 
 // 🟢 GÜRÜLTÜ ENGELLEME (Noise Gate) EŞİKLERİ
 const GATE_OPEN_RMS = 0.012;  // 👈 Biraz yükselttik (0.006 idi)
@@ -375,27 +390,78 @@ export const VoiceProvider = ({ children }) => {
 
   const startScreenShare = async (electronSourceId = null) => {
     try {
-      // ✅ Kamera açıksa ekran paylaşımı açarken kapat (aynı anda 2 video istemiyorsan)
-      if (myCameraStreamRef.current) {
-        stopCamera();
-      }
+      if (myCameraStreamRef.current) stopCamera();
 
       let stream;
       if (window.electronAPI && electronSourceId) {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: electronSourceId, minWidth: 1280, maxWidth: 1920, minHeight: 720, maxHeight: 1080 } }
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: electronSourceId,
+              minWidth: 1280, maxWidth: 1920,
+              minHeight: 720, maxHeight: 1080,
+              // 🔧 DÜZELTİLDİ #3: Oyunlarda GPU yakalama sınırlandırılır,
+              // sınırsız FPS talebi track'i anında 'ended'e düşürür
+              maxFrameRate: 30,
+            }
+          }
         });
       } else {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: 30, max: 30 }, // 🔧 DÜZELTİLDİ #3: frameRate sınırı
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: true,
+          // 🔧 DÜZELTİLDİ #3: Sistem sesi varsa ayrı track — WebRTC karışıklığını önler
+          selfBrowserSurface: 'exclude',
+        });
       }
+
       setMyScreenStream(stream);
       myScreenStreamRef.current = stream;
+
+      const videoTrack = stream.getVideoTracks()[0];
+
+      // 🔧 DÜZELTİLDİ #3: addStream yerine replaceTrack kullan
+      // addStream eski track'lerle çakışır, izleyicide görüntü donuklaşır
       Object.values(peersRef.current).forEach(peer => {
-        try { if (peer && !peer.destroyed) peer.addStream(stream); } catch (err) {}
+        if (!peer || peer.destroyed) return;
+        try {
+          // Mevcut video track'i varsa değiştir, yoksa ekle
+          const senders = peer._pc?.getSenders?.() || [];
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) {
+            videoSender.replaceTrack(videoTrack).catch(() => {
+              // replaceTrack başarısız olursa addStream fallback
+              peer.addStream(stream);
+            });
+          } else {
+            peer.addStream(stream);
+          }
+        } catch (err) {
+          console.warn('[ScreenShare] Track eklenemedi:', err);
+        }
       });
-      stream.getVideoTracks()[0].onended = () => stopScreenShare();
-    } catch (err) { addToast("Ekran paylaşımı başlatılamadı", "error"); }
+
+      // Kullanıcı OS'tan paylaşımı kapatırsa veya oyun minimize olursa
+      videoTrack.onended = () => stopScreenShare();
+
+      // 🔧 DÜZELTİLDİ #3: Track mute olunca (oyun tam ekran gibi) hemen kesme,
+      // 3 saniye bekle, hala ended ise kapat
+      videoTrack.onmute = () => {
+        setTimeout(() => {
+          if (videoTrack.readyState === 'ended') stopScreenShare();
+        }, 3000);
+      };
+
+    } catch (err) {
+      console.error('[ScreenShare] Hata:', err);
+      addToast("Ekran paylaşımı başlatılamadı", "error");
+    }
   };
 
   const stopScreenShare = () => {
@@ -411,9 +477,17 @@ export const VoiceProvider = ({ children }) => {
     const stream = myScreenStreamRef.current;
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
-      Object.values(peersRef.current).forEach(p => {
-        try { p.removeStream(stream); } catch(e){}
+
+      // 🔧 DÜZELTİLDİ #3b: Peer'lara video track'in bittiğini bildir
+      Object.values(peersRef.current).forEach(peer => {
+        if (!peer || peer.destroyed) return;
+        try {
+          const senders = peer._pc?.getSenders?.() || [];
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) videoSender.replaceTrack(null).catch(() => {});
+        } catch (e) {}
       });
+
       setMyScreenStream(null);
       myScreenStreamRef.current = null;
     }
@@ -496,7 +570,14 @@ export const VoiceProvider = ({ children }) => {
     }
   };
 
+  const gateLoopActiveRef = useRef(false); // 🔧 DÜZELTİLDİ #2: Eski döngüyü öldürmek için flag
+
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
+    // Her yeni analiz başlamadan önce önceki döngüyü durdur
+    gateLoopActiveRef.current = false;
+    const loopId = {}; // her çağrıya özgü referans
+    gateLoopActiveRef.current = true;
+    const thisLoopAlive = gateLoopActiveRef; // closure'a yakala
     if (analyser && gateGainNode && audioCtx) {
       analyser.fftSize = 1024;
       const timeData = new Float32Array(analyser.fftSize);
@@ -506,6 +587,8 @@ export const VoiceProvider = ({ children }) => {
       let smoothedRms = 0;
 
       const checkVolume = () => {
+        // 🔧 DÜZELTİLDİ #2b: Eski döngü öldürüldüyse dur (refreshStream race condition'ı)
+        if (!gateLoopActiveRef.current) return;
         if (!gateGainNode || audioCtx.state === 'closed') return;
 
         if (inputMode === 'PUSH_TO_TALK') {
@@ -566,6 +649,8 @@ export const VoiceProvider = ({ children }) => {
         const simpleSrc = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
         simpleSrc.connect(simpleAnalyser);
         const checkLoop = () => {
+          // 🔧 DÜZELTİLDİ #2c: Basit modda da eski döngü öldürülür
+          if (!gateLoopActiveRef.current) { simpleCtx.close().catch(() => {}); return; }
           if (simpleCtx.state === 'closed') return;
           if (inputMode === 'PUSH_TO_TALK') {
             updateSpeakingStatus(isPTTPressedRef.current);
@@ -699,15 +784,20 @@ export const VoiceProvider = ({ children }) => {
   const createPeer = (targetSocketId, initiator, streams = [], userId = null) => {
     const p = new Peer({ 
       initiator, 
-      trickle: false, 
+      trickle: true,   // 🔧 DÜZELTİLDİ #1b: trickle:true — false iken ICE adayları geç gelirse bağlantı sessiz kalıyor
       streams, 
       config: rtcConfig 
     });
 
     p.on('signal', data => {
-      socketRef.current?.emit(initiator ? 'webrtc-offer' : 'webrtc-answer', { 
+      // trickle:true ile hem offer/answer hem ICE candidate aynı event'ten geliyor
+      const eventName = data.type === 'offer' ? 'webrtc-offer'
+        : data.type === 'answer' ? 'webrtc-answer'
+        : 'webrtc-ice-candidate';
+      socketRef.current?.emit(eventName, { 
         targetSocketId, 
         sdp: data, 
+        candidate: data.candidate,
         userId: user?.id 
       });
     });
@@ -721,13 +811,19 @@ export const VoiceProvider = ({ children }) => {
       handleRemoteStream(stream, targetSocketId, userId);
     });
 
-    // 🟢 C KISMI BURADA: Bağlantı hatalarını yakala
+    // 🔧 DÜZELTİLDİ #1c: Peer hatalarında döngüsel reconnect yerine sadece o peer yeniden kurulur
     p.on('error', err => {
       console.error('[WebRTC Hatası]:', err);
-      // Eğer bağlantı koptuysa veya ICE adayları eşleşmediyse
       if (err.code === 'ERR_ICE_CONNECTION_FAILURE' || err.code === 'ERR_DATA_CHANNEL') {
-        console.log("[WebRTC] Bağlantı koptu, otomatik yeniden bağlanılıyor...");
-        reconnectVoiceChannel();
+        console.log("[WebRTC] Peer bağlantısı koptu, sadece bu peer yeniden kuruluyor...");
+        // Tüm odadan çıkmak yerine sadece bu peer'ı yeniden kur
+        const uid = socketUserMapRef.current[targetSocketId];
+        peersRef.current[targetSocketId]?.destroy();
+        delete peersRef.current[targetSocketId];
+        const audioStream = processedStreamRef.current || localStreamRef.current;
+        const videoStream = myScreenStreamRef.current || myCameraStreamRef.current;
+        const newStreams = [audioStream, videoStream].filter(Boolean);
+        createPeer(targetSocketId, true, newStreams, uid);
       }
     });
 

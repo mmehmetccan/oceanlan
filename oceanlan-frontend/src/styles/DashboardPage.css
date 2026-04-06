@@ -1,23 +1,210 @@
-/* Sidebar'ın bulunduğu CSS dosyasına eklenmeli */
+/* src/styles/DashboardPage.css */
 
-.sidebar-icon {
-    position: relative;
-    /* ... mevcut stiller ... */
+/* ============================================================
+   1. MASAÜSTÜ DÜZENİ (1201px ve Üzeri)
+   ============================================================ */
+@media (min-width: 1201px) {
+  .dashboard-main-row { 
+    display: flex; 
+    height: 100%; 
+  }
+
+  .secondary-sidebar, 
+  .server-members-wrapper { 
+    width: 240px; 
+    display: block !important; 
+  }
+.sidebar-bottom-actions {
+  display: flex;
+  flex-direction: row; /* Web'de yan yana */
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+  margin-top: auto; /* Sidebar'ın en altına iter */
+}
+  .main-content-area { 
+    flex: 1; 
+  }
+
+  /* Web'de mobil araçları tamamen gizle */
+  .db-trigger, 
+  .db-overlay, 
+  .db-drawer-header { 
+    display: none !important; 
+  }
+
+  /* Web'de Sidebar üstte yatay bar olarak kalsın */
+  .sidebar-container.sidebar {
+    position: relative !important;
+    width: 100% !important;
+    height: 82px !important;
+    flex-direction: row !important;
+    z-index: 2500;
+  }
 }
 
-.notification-badge {
-    position: absolute;
+/* ============================================================
+   2. ORTAK MOBİL BİLEŞENLER (Genel Tanımlar)
+   ============================================================ */
+.db-trigger {
+  display: none;
+  position: fixed;
+  top: 15px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #1ab199;
+  color: white;
+  z-index: 1000 !important; /* Drawer ve Overlay'in arkasında kalmalı */
+  border: none;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto !important;
+}
+
+.db-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1500; 
+  pointer-events: none;
+}
+
+.db-overlay.active {
+  display: block !important;
+  pointer-events: auto !important;
+}
+
+/* ============================================================
+   3. MOBİL DÜZEN (1200px ve Altı)
+   ============================================================ */
+@media (max-width: 1200px) {
+  /* --- SIDEBAR'I SOLA ÇİVİLE --- */
+  .dashboard-layout .sidebar, 
+  .sidebar-container.sidebar {
+    position: fixed !important;
+    top: 10px !important;
+    left: 0 !important;
+    width: 72px !important;
+    height: 100vh !important;
+    z-index: 9999 !important; /* En üst katman: Sidebar asla kapanmaz */
+    background-color: #202225 !important;
+    display: flex !important;
+    flex-direction: column !important; /* İkonlar alt alta */
+    margin: 0 !important;
+    padding: 12px 0 !important;
+    transform: none !important;
+  }
+
+  /* --- ANA İÇERİK ALANI --- */
+  .dashboard-layout .main-content-area {
+    margin-left: 72px !important; /* Sidebar'ın yanından başla */
+    width: calc(100% - 72px) !important;
+    height: 100vh;
+    position: relative;
+    z-index: 100;
+    flex: none !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dashboard-main-row {
+    display: block !important;
+    width: 100% !important;
+    position: relative;
+  }
+
+  /* --- TETİKLEYİCİ BUTONLAR --- */
+  .db-trigger {
+    display: flex !important;
+  }
+
+  .db-left-btn { 
+    left: 85px !important; /* Sidebar(72px) + Boşluk */
+    top:60px;
+  }
+
+  .db-right-btn { 
+    right: 15px !important; 
+        top:60px;
+
+  }
+
+  /* --- ÇEKMECELER (DRAWERS) --- */
+  .secondary-sidebar, 
+  .server-members-wrapper {
+    position: fixed !important;
     top: 0;
-    right: 0;
-    background-color: #f04747; /* Kırmızı renk */
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    padding: 2px 5px;
-    border-radius: 50%; /* Yuvarlak şekil */
-    min-width: 12px;
-    text-align: center;
-    line-height: 10px;
-    border: 2px solid #202225; /* Sidebar arka plan rengi */
-    transform: translate(25%, -25%); /* İkonun üst sağına taşır */
+    height: 100vh;
+    width: 280px !important;
+    z-index: 2000; 
+    transition: left 0.3s ease, right 0.3s ease;
+    pointer-events: none;
+    margin: 0 !important;
+  }
+
+  /* Sol Çekmece (Kanallar) */
+  .secondary-sidebar { 
+    left: -320px; 
+    background: #2f3136; 
+  }
+
+  .secondary-sidebar.db-open {
+    left: 72px !important; /* Sidebar'ın hemen yanından açılır */
+    pointer-events: auto !important;
+    box-shadow: 5px 0 20px rgba(0,0,0,0.5);
+  }
+
+  /* Sağ Çekmece (Üyeler) */
+  .server-members-wrapper { 
+    right: -320px; 
+    background: #2b2d31; 
+  }
+
+  .server-members-wrapper.db-open { 
+    right: 0 !important; 
+    pointer-events: auto !important;
+    box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+  }
+
+  /* --- DRAWER BAŞLIKLARI --- */
+  .db-drawer-header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .db-drawer-header span { 
+    color: white; 
+    font-weight: bold; 
+    font-size: 13px; 
+  }
+
+  .db-drawer-header button { 
+    background: none; 
+    border: none; 
+    color: #b9bbbe; 
+    cursor: pointer;
+  }
+}
+
+/* ============================================================
+   4. EKSTRA BİLEŞENLER
+   ============================================================ */
+.voice-room-sticky {
+  position: absolute;
+  bottom: 0;
+  left: 72px;
+  width: 240px;
+  z-index: 9999;
+  background-color: #292b2f;
+  border-top: 1px solid #3f4147;
 }

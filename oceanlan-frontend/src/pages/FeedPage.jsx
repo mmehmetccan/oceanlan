@@ -14,7 +14,7 @@ import { getImageUrl } from '../utils/urlHelper';
 import UserLevelTag from '../components/gamification/UserLevelTag';
 import LevelUpModal from '../components/gamification/LevelUpModal';
 // 🟢 İKONLAR
-import { FireIcon, GlobeAltIcon, EyeIcon } from '@heroicons/react/24/solid';
+import { FireIcon, GlobeAltIcon, EyeIcon,UsersIcon, XMarkIcon ,Bars3CenterLeftIcon} from '@heroicons/react/24/solid';
 import '../styles/FeedPage.css';
 
 const getAvatarUrlWrapper = (entity) => getImageUrl(entity?.avatarUrl || entity?.avatar);
@@ -31,6 +31,9 @@ const FeedPage = () => {
 
   // 🟢 TOP SERVERS STATE
   const [topServers, setTopServers] = useState([]);
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);    
 
   const [recipientUsername, setRecipientUsername] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
@@ -109,6 +112,10 @@ const FeedPage = () => {
 
 
   const handleVisitServer = (serverId) => {
+    if (window.innerWidth <= 1200) {
+      setIsLeftMenuOpen(false);
+      setIsMobileMenuOpen(false);
+    }
     navigate(`/dashboard/server/${serverId}`);
   };
 
@@ -249,8 +256,22 @@ const FeedPage = () => {
   return (
     <div className="feed-shell" onClick={() => setContextMenu(null)} style={{ gridTemplateColumns: '280px 1fr 340px' }}>
 
+      <button className="mobile-trigger left-trigger" onClick={() => setIsLeftMenuOpen(true)}>
+        <Bars3CenterLeftIcon width={24} />
+      </button>
+      <button className="mobile-trigger right-trigger" onClick={() => setIsMobileMenuOpen(true)}>
+        <UsersIcon width={24} />
+        {unreadDmConversations.length > 0 && <span className="mobile-unread-dot" />}
+      </button>
+      
       {/* 🟢 1. SOL PANEL - EN GÜÇLÜ SUNUCULAR */}
-      <aside className="feed-rail" style={{ overflowY: 'auto' }}>
+<div className={`mobile-overlay ${isLeftMenuOpen ? 'active' : ''}`} onClick={() => setIsLeftMenuOpen(false)} />
+      <aside className={`feed-rail left-rail ${isLeftMenuOpen ? 'open' : ''}`}>
+        <div className="mobile-drawer-header">
+          <h3>Sıralama</h3>
+          <button onClick={() => setIsLeftMenuOpen(false)}><XMarkIcon width={24} /></button>
+        </div>
+
         <div className="rail-card">
           <div className="rail-card-header" style={{ justifyContent: 'space-between' }}>
             <h4 style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#1ab199', margin: 0 }}>
@@ -270,11 +291,9 @@ const FeedPage = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
                   <span style={{ fontWeight: 'bold', color: index < 3 ? '#FFD700' : '#72767d', width: '15px' }}>{index + 1}</span>
 
-                  {/* İKON TIKLANINCA GİT */}
                   <div
                     onClick={() => handleVisitServer(srv._id)}
                     style={{ width: '32px', height: '32px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#202225', flexShrink: 0, cursor: 'pointer' }}
-                    title="İncele"
                   >
                     {srv.iconUrl ?
                       <img src={getImageUrl(srv.iconUrl)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> :
@@ -282,7 +301,6 @@ const FeedPage = () => {
                     }
                   </div>
 
-                  {/* İSİM TIKLANINCA GİT */}
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <div
                       onClick={() => handleVisitServer(srv._id)}
@@ -293,11 +311,9 @@ const FeedPage = () => {
                     <div style={{ fontSize: '10px', color: '#b9bbbe' }}>⚡ {srv.totalLevel} Lvl</div>
                   </div>
 
-                  {/* 🟢 DEĞİŞİKLİK: BUTON ARTIK "GİT/İNCELE" İŞLEVİ GÖRÜYOR */}
                   <button
                     onClick={() => handleVisitServer(srv._id)}
                     style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: 'rgba(255,255,255,0.1)', color: '#b9bbbe', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    title="Sunucuyu İncele"
                   >
                     <EyeIcon width={12} />
                   </button>
@@ -311,7 +327,7 @@ const FeedPage = () => {
             onClick={() => navigate('/dashboard/discover')}
             style={{ width: '100%', marginTop: '15px', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px dashed #4f545c', color: '#b9bbbe', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
           >
-            <GlobeAltIcon width={16} /> Diğer Sunucuları Keşfet
+            <GlobeAltIcon width={16} /> Keşfet
           </button>
         </div>
       </aside>
@@ -335,8 +351,14 @@ const FeedPage = () => {
       </div>
 
       {/* 🟢 3. SAĞ PANEL - PROFİL & ARKADAŞLAR (Top 10 Silindi) */}
-      <aside className="feed-rail">
-        {/* PROFİL KARTI */}
+<div className={`mobile-overlay ${isMobileMenuOpen ? 'active' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+      
+      <aside className={`feed-rail right-rail ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className="mobile-drawer-header">
+            <h3>Sosyal</h3>
+            <button onClick={() => setIsMobileMenuOpen(false)}><XMarkIcon width={24}/></button>
+        </div>
+                {/* PROFİL KARTI */}
         <div className="rail-card rail-profile">
           <div className="rail-profile-avatar">
             <img src={getImageUrl(user?.avatarUrl || user?.avatar)} onError={handleAvatarErrorWrapper} alt="Avatar" />

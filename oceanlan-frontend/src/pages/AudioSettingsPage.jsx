@@ -1,5 +1,5 @@
 // src/pages/AudioSettingsPage.jsx
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect ,useRef} from 'react';
 import { AudioSettingsContext } from '../context/AudioSettingsContext';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AudioSettings.css';
@@ -17,6 +17,12 @@ const AudioSettingsPage = () => {
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const navigate = useNavigate();
+
+  const [isTestingMic, setIsTestingMic] = useState(false);
+  const [micLevel, setMicLevel] = useState(0); // 0-100 arası görsel bar için
+  const testStreamRef = useRef(null);
+  const testAudioCtxRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   // Cihazları Listele
   useEffect(() => {
@@ -37,6 +43,108 @@ const AudioSettingsPage = () => {
     };
     getDevices();
     navigator.mediaDevices.ondevicechange = getDevices;
+  }, []);
+
+  const toggleMicTest = async () => {
+  if (isTestingMic) {
+    stopMicTest();
+  } else {
+    try {
+      // 1. Cihaz seçimini ve güncel kısıtlamaları uygula
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { 
+          deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: false // Test sırasında ham sesi görmek daha iyidir
+        }
+      });
+      testStreamRef.current = stream;
+
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioContext();
+      testAudioCtxRef.current = audioCtx;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      
+      // 2. Ses seviyesi (inputVolume) düğümünü ekle
+      // Böylece sesi kıstığında bar da düşer.
+      const gainNode = audioCtx.createGain();
+      const vol = inputVolume / 100;
+      gainNode.gain.value = vol;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512; // Daha hassas analiz için yükseltildi
+      analyser.smoothingTimeConstant = 0.4; // Tepki hızını artırır (dalgalanma için kritik)
+
+      source.connect(gainNode);
+      gainNode.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateLevel = () => {
+  // 1. Döngü Güvenlik Kontrolleri
+  if (!testAudioCtxRef.current || !isTestingMic) return; 
+
+  // 2. Mute Kontrolü (Mikrofon kapalıysa barı sıfırla ve bekle)
+  if (isMicMuted) {
+    setMicLevel(0);
+    animationFrameRef.current = requestAnimationFrame(updateLevel);
+    return;
+  }
+
+  // 3. Frekans Verisini Al
+  analyser.getByteFrequencyData(dataArray);
+
+  // 4. Sadece Konuşma Frekanslarına Odaklan (Dalgalanma için KRİTİK)
+  // İnsan sesi genelde düşük ve orta frekanslardadır. 
+  // Tüm buffer yerine ilk %30'luk kısmı (bas ve orta sesler) hesaplamak barı canlandırır.
+  let sum = 0;
+  const focusRange = Math.floor(bufferLength * 0.3); 
+  
+  for (let i = 0; i < focusRange; i++) {
+    sum += dataArray[i];
+  }
+  
+  let average = sum / focusRange;
+
+  // 5. Giriş Volümü ile Çarp (Sesi kıstığında barın düşmesi için)
+  const currentVolMult = inputVolume / 100;
+  average = average * currentVolMult;
+
+  // 6. Dip Gürültü Filtresi ve Hassasiyet Çarpanı
+  if (average < 1.5) {
+    average = 0;
+  }
+
+  // Barın daha hareketli görünmesi için logaritmik veya daha yüksek bir çarpan:
+  const finalLevel = Math.min(average * 1.8, 100); 
+  
+  setMicLevel(finalLevel);
+
+  animationFrameRef.current = requestAnimationFrame(updateLevel);
+};
+
+      updateLevel();
+      setIsTestingMic(true);
+    } catch (err) {
+      console.error("Test başlatılamadı:", err);
+      addToast("Mikrofona erişilemedi.", "error");
+    }
+  }
+};
+
+  const stopMicTest = () => {
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (testStreamRef.current) testStreamRef.current.getTracks().forEach(t => t.stop());
+    if (testAudioCtxRef.current) testAudioCtxRef.current.close();
+    setMicLevel(0);
+    setIsTestingMic(false);
+  };
+
+  // Sayfadan çıkınca testi durdur
+  useEffect(() => {
+    return () => stopMicTest();
   }, []);
 
   // ✅ PTT tuş yakalama (klavye + mouse)
@@ -108,6 +216,30 @@ const AudioSettingsPage = () => {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* ✅ MİKROFON TESTİ (YENİ EKLENEN) */}
+      <div className="settings-section mic-test-section">
+        <h3>Mikrofonu Kontrol Et</h3>
+        <p style={{fontSize:'12px', color:'#b9bbbe', marginBottom:'10px'}}>
+            Sesinin nasıl gittiğini görmek için testi başlat ve konuş.
+        </p>
+        <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+            <button 
+                onClick={toggleMicTest} 
+                className={`test-btn ${isTestingMic ? 'active' : ''}`}
+            >
+                {isTestingMic ? 'Durdur' : 'Testi Başlat'}
+            </button>
+            <div className="mic-meter-container">
+                <div 
+                    className="mic-meter-fill" 
+                    style={{ width: `${micLevel}%`, backgroundColor: micLevel > 15 ? '#43b581' : '#f04747' }}
+                />
+                {/* Gate Eşiği Çizgisi (Görsel Yardımcı) */}
+                <div className="gate-threshold-line" style={{ left: '12%' }} /> 
+            </div>
+        </div>
       </div>
 
       {/* MİKROFON SES SEVİYESİ */}

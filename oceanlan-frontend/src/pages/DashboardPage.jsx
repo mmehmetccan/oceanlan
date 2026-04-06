@@ -31,7 +31,9 @@ import { ToastContext } from '../context/ToastContext';
 import { isElectron } from '../utils/platformHelper';
 
 // İkonlar
-import { UsersIcon, XMarkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
+import { UsersIcon, XMarkIcon, ChatBubbleLeftRightIcon, Bars3CenterLeftIcon } from '@heroicons/react/24/solid';
+import '../styles/DashboardPage.css';
+
 
 // 🟢 YENİ: Sunucuya girince kanal seçilmediyse çıkacak boş ekran
 const ServerWelcome = () => (
@@ -74,10 +76,12 @@ const DashboardPage = () => {
   const onServerRoute = location.pathname.includes('/dashboard/server/');
 
   // Mobilde üyeler panelini açıp kapatmak için state
-  const [showMobileMembers, setShowMobileMembers] = useState(false);
+  const [showMobileChannels, setShowMobileChannels] = useState(false); // Sol Çekmece
+  const [showMobileMembers, setShowMobileMembers] = useState(false);   // Sağ Çekmece
 
-  // Kanal değişirse mobil menüyü otomatik kapat
+  // Sayfa değişince her şeyi kapat
   useEffect(() => {
+    setShowMobileChannels(false);
     setShowMobileMembers(false);
   }, [location.pathname]);
 
@@ -125,50 +129,42 @@ const DashboardPage = () => {
   }, [socket, serverId, navigate, addToast]);
 
   return (
-    <div
-      className="dashboard-layout"
-      style={{
-        position: 'relative',
-        overflow: 'hidden',
-        paddingTop: isApp ? '32px' : '0'
-      }}
-    >
-      <TitleBar onContactClick={() => navigate('/dashboard/contact')} />
-
-      <Sidebar unreadCount={unreadDmConversations?.length || 0} />
+    <div className="dashboard-layout" style={{ paddingTop: isApp ? '32px' : '0' }}>
+     <Sidebar unreadCount={unreadDmConversations?.length || 0} />
+    
+    <TitleBar onContactClick={() => navigate('/dashboard/contact')} />
+      {/* 📱 MOBİL BUTONLAR */}
+      {onServerRoute && (
+        <>
+          <button className="db-trigger db-left-btn" onClick={() => setShowMobileChannels(true)}>
+            <Bars3CenterLeftIcon width={24} />
+          </button>
+          <button className="db-trigger db-right-btn" onClick={() => setShowMobileMembers(true)}>
+            <UsersIcon width={24} />
+          </button>
+        </>
+      )}
 
       <div className={`dashboard-main-row ${onServerRoute ? '' : 'single-column'}`}>
-
+        
+        {/* 🟢 SOL ÇEKMECE (Kanallar) */}
         {onServerRoute && (
-          <div className="secondary-sidebar">
-            <Routes>
-              <Route path="server/:serverId/*" element={<ServerView />} />
-            </Routes>
-          </div>
+          <>
+            <div className={`db-overlay ${showMobileChannels ? 'active' : ''}`} onClick={() => setShowMobileChannels(false)} />
+            <aside className={`secondary-sidebar ${showMobileChannels ? 'db-open' : ''}`}>
+               <div className="db-drawer-header">
+                 <span>SUNUCU MENÜSÜ</span>
+                 <button onClick={() => setShowMobileChannels(false)}><XMarkIcon width={20}/></button>
+               </div>
+              <Routes>
+                <Route path="server/:serverId/*" element={<ServerView />} />
+              </Routes>
+            </aside>
+          </>
         )}
 
-        {isScreenPickerOpen && (
-          <ScreenSharePickerModal
-            onClose={() => setScreenPickerOpen(false)}
-            onSelect={(sourceId) => {
-              setScreenPickerOpen(false);
-              if (screenShareCallback) screenShareCallback(sourceId);
-            }}
-          />
-        )}
-
-        <div className="main-content-area" style={{ position: 'relative' }}>
-
-          {/* Mobilde Üyeler Butonu */}
-          {onServerRoute && (
-            <button
-              className="mobile-members-toggle-btn"
-              onClick={() => setShowMobileMembers(!showMobileMembers)}
-            >
-              {showMobileMembers ? <XMarkIcon width={24} /> : <UsersIcon width={24} />}
-            </button>
-          )}
-
+        {/* ORTA PANEL (Ana İçerik Alanı) */}
+        <main className="main-content-area" style={{ position: 'relative' }}>
           <Routes>
             <Route path="discover" element={<ServerDiscoveryPage />} />
             <Route path="feed" element={<FeedPage />} />
@@ -180,7 +176,7 @@ const DashboardPage = () => {
             <Route path="server/:serverId/channels/tatildeki-rotam" element={<TatildekiRotamFrame />} />
             <Route path="server/:serverId/channel/:channelId" element={<ChatArea />} />
 
-            {/* 🟢 DÜZELTME: Bu iki satır FeedPage'in yanlışlıkla açılmasını engeller */}
+            {/* Sunucu Karşılama Sayfaları */}
             <Route path="server/:serverId" element={<ServerWelcome />} />
             <Route path="server/:serverId/*" element={<ServerWelcome />} />
 
@@ -191,37 +187,40 @@ const DashboardPage = () => {
             <Route path="profile/:userId" element={<UserProfileViewPage />} />
             <Route path="settings/audio" element={<AudioSettingsPage />} />
 
-            {/* Catch-all route */}
             <Route path="*" element={<FeedPage />} />
           </Routes>
-        </div>
+        </main>
 
-        {/* Server Üyeler Paneli */}
+        {/* 🟢 SAĞ PANEL (Üyeler - Drawer) */}
+        {/* 🟢 SAĞ ÇEKMECE (Üyeler) */}
         {onServerRoute && (
-          <div className={`server-members-wrapper ${showMobileMembers ? 'mobile-open' : ''}`}>
-            {showMobileMembers && (
-              <div
-                className="mobile-backdrop"
-                onClick={() => setShowMobileMembers(false)}
-              />
-            )}
-            <div className="members-panel-content">
-              <ServerMembersPanel />
-            </div>
-          </div>
+          <>
+            <div className={`db-overlay ${showMobileMembers ? 'active' : ''}`} onClick={() => setShowMobileMembers(false)} />
+            <aside className={`server-members-wrapper ${showMobileMembers ? 'db-open' : ''}`}>
+               <div className="db-drawer-header">
+                 <span>ÜYELER</span>
+                 <button onClick={() => setShowMobileMembers(false)}><XMarkIcon width={20}/></button>
+               </div>
+              <div className="members-panel-content">
+                <ServerMembersPanel />
+              </div>
+            </aside>
+          </>
         )}
-
       </div>
 
+      
+
+      {/* Sesli Kanal Kontrol Paneli */}
       {currentVoiceChannelId && (
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 72,
-          width: 240,
-          zIndex: 9999,
-          backgroundColor: '#292b2f',
-          borderTop: '1px solid #3f4147'
+        <div style={{ 
+          position: 'absolute', 
+          bottom: 0, 
+          left: 72, 
+          width: 240, 
+          zIndex: 9999, 
+          backgroundColor: '#292b2f', 
+          borderTop: '1px solid #3f4147' 
         }}>
           <VoiceRoom />
         </div>

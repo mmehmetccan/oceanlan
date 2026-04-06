@@ -257,12 +257,32 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
     }
   };
 
-  return (
-    <div className="server-topbar">
 
-      <div className="server-topbar-scroll"
-           onDragOver={(e) => e.preventDefault()}
-           onDrop={(e) => handleDrop(e, orderedItems.length)}
+  const isMobile = window.innerWidth <= 1200;
+
+  return (
+<aside 
+    className="server-topbar sidebar-container sidebar" 
+    style={{ 
+      display: 'flex', 
+      flexDirection: isMobile ? 'column' : 'row', // Mobilde dikey, Webde yatay
+      alignItems: 'center', 
+      paddingTop: isMobile ? '15px' : '0' 
+    }}
+  >
+    <div 
+      className="server-topbar-scroll"
+      style={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row', // Mobilde dikey, Webde yatay
+        overflowY: isMobile ? 'auto' : 'hidden',
+        overflowX: isMobile ? 'hidden' : 'auto',
+        width: '100%',
+        alignItems: 'center',
+        gap: '8px'
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => handleDrop(e, orderedItems.length)}
       >
         <Link to="/dashboard/feed" className="sidebar-icon" title="Ana Sayfa" style={{borderRadius: '12px'}}>
 <img
@@ -358,6 +378,7 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
             href={downloadUrl}
             target="_blank"
             rel="noopener noreferrer"
+            className="download-button-sidebar" // ✅ BU SINIFI EKLEDİK
             style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -390,18 +411,23 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
         </a>
       )}
 
-      {/* ALT BUTONLAR (SES ve PROFİL) */}
-      <div style={{display:'flex', gap:'8px', justifyContent: 'center'}}>
+      <div className="sidebar-bottom-actions">
+  <div 
+    className="sidebar-icon" 
+    onClick={() => navigate('/dashboard/settings/audio')} 
+    title="Ses Ayarları"
+  >
+    <SpeakerWaveIcon width={20}/>
+  </div>
 
-        {/* 🟢 YENİ İKON: Ses Ayarları için SpeakerWaveIcon */}
-        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/audio')} title="Ses Ayarları" style={{color: '#b9bbbe'}}>
-            <SpeakerWaveIcon width={20}/>
-        </div>
-
-        <div className="sidebar-icon" onClick={() => navigate('/dashboard/settings/profile')} title="Profil" style={{color: '#b9bbbe'}}>
-            <UserIcon width={20}/>
-        </div>
-      </div>
+  <div 
+    className="sidebar-icon" 
+    onClick={() => navigate('/dashboard/settings/profile')} 
+    title="Profil"
+  >
+    <UserIcon width={20}/>
+  </div>
+</div>
 
       {isModalOpen && <JoinServerModal onClose={() => setIsModalOpen(false)} />}
       {isCreateOpen && (
@@ -432,7 +458,7 @@ const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/ins
           onSettings={(srv) => navigate(`/dashboard/server/${srv._id}/settings`)}
         />
       )}
-    </div>
+</aside>
   );
 };
 

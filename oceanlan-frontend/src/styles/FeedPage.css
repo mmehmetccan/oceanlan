@@ -3,22 +3,109 @@
 /* Layout */
 .feed-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 24px;
-  padding: 28px 32px;
-  height: 100%;
-  box-sizing: border-box;
-  background: radial-gradient(circle at 20% 10%, rgba(88, 101, 242, 0.06), transparent 28%),
-    radial-gradient(circle at 90% 15%, rgba(114, 137, 218, 0.08), transparent 32%),
-    var(--color-sidebar);
+  gap: 20px;
+  padding: 20px;
+  background: var(--color-sidebar, #1e1f22);
+  min-height: 100vh;
 }
 
+.mobile-trigger {
+  display: none;
+  position: fixed;
+  bottom: 25px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #1ab199;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  z-index: 100;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.left-trigger { left: 20px; }
+.right-trigger { right: 20px; }
+
+.mobile-unread-dot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 12px;
+  height: 12px;
+  background: #ed4245;
+  border: 2px solid #2f3136;
+  border-radius: 50%;
+}
+/* 2. Mobil Tetikleyici Buton */
+.mobile-friends-trigger {
+  display: none; /* Desktop'ta gizli */
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary, #1ab199);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  z-index: 100;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-unread-dot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 12px;
+  height: 12px;
+  background: #ed4245;
+  border: 2px solid white;
+  border-radius: 50%;
+}
+
+/* 3. Mobil Overlay (Arka plan karartma) */
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+.mobile-overlay.active {
+  display: block;
+}
+
+/* 4. Mobil Drawer Header */
+.mobile-drawer-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 20px;
+}
+
+.mobile-drawer-header h3 { color: white; margin: 0; }
+.mobile-drawer-header button { background: none; border: none; color: #b9bbbe; }
+
 .feed-main {
-  max-width: 760px;
-  margin: 0 auto;
+  max-width: 680px !important; /* Okuma ergonomisi için optimize edildi */
+  margin: 0 auto !important;
+  padding: 0 10px 100px 10px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 25px;
 }
 
 .feed-list {
@@ -32,40 +119,43 @@
   padding: 10px 4px;
 }
 
-/* Create Post retained from prior */
 .create-post-card {
-  background: linear-gradient(140deg, rgba(58, 60, 67, 0.95), rgba(38, 39, 45, 0.94));
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
-}
-
-.create-post-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  background: rgba(43, 45, 49, 0.7) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 24px !important;
+  padding: 24px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
 }
 
 .create-post-input {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-height: 110px;
-  resize: vertical;
-  font-size: 14px;
-  transition: border 0.2s ease, box-shadow 0.2s ease;
+  background: rgba(30, 31, 34, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 16px !important;
+  padding: 18px !important;
+  font-size: 16px !important;
+  color: #fff !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-height: 120px !important;
 }
 
 .create-post-input:focus {
-  outline: none;
-  border-color: rgba(88, 242, 137, 0.6);
-  box-shadow: 0 12px 28px rgba(88, 242, 124, 0.25);
+  background: rgba(30, 31, 34, 0.9) !important;
+  border-color: #1ab199 !important;
+  box-shadow: 0 0 0 4px rgba(26, 177, 153, 0.1) !important;
 }
 
+.comment-section {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 15px;
+}
+
+.comment-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.03) !important;
+  padding: 12px 0 !important;
+}
 .create-post-actions {
   display: flex;
   justify-content: space-between;
@@ -315,20 +405,21 @@
 
 /* Post Card */
 .post-card {
-  background: linear-gradient(145deg, rgba(58, 60, 67, 0.95), rgba(38, 39, 45, 0.92));
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  padding: 18px 20px;
-  margin-bottom: 0;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
-  color: #dbdce0;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  background: rgba(30, 31, 34, 0.6) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 18px !important;
+  padding: 20px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  margin-bottom: 20px;
 }
 
 .post-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 22px 38px rgba(0, 0, 0, 0.45);
+  transform: translateY(-4px);
+  background: rgba(35, 36, 40, 0.8) !important;
+  border-color: rgba(26, 177, 153, 0.4) !important; /* Tema renginde hafif parlama */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
 }
 
 .post-header {
@@ -339,12 +430,11 @@
 }
 
 .post-author-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 14px !important; /* Squircle form (iOS/Instagram tarzı) */
+  border: 2px solid rgba(26, 177, 153, 0.2) !important;
   overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.05);
 }
 
 .post-author-avatar img {
@@ -355,9 +445,10 @@
 }
 
 .post-author-name {
-  font-weight: 600;
-  color: #ffffff;
-  font-size: 15px;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  letter-spacing: 0.3px;
 }
 
 .post-author-details {
@@ -367,10 +458,9 @@
 }
 
 .post-date {
-  font-size: 12px;
-  color: #9d9fa8;
+  font-size: 12px !important;
+  color: #949ba4 !important;
 }
-
 .post-content {
   margin-top: 4px;
   display: flex;
@@ -379,49 +469,53 @@
   color: #f5f5f7;
   line-height: 1.5;
 }
+.post-content p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #dbdee1;
+  margin: 15px 0;
+}
 
 .post-media {
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  border-radius: 12px !important;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
 }
 
 .post-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .post-action-button {
-  flex: 1;
-  min-width: 150px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(255, 255, 255, 0.04);
-  color: #d0d2d9;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #b5bac1 !important;
+  padding: 8px 16px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  transition: all 0.2s ease !important;
 }
 
 .post-action-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(26, 177, 153, 0.15) !important;
+  color: #1ab199 !important;
   transform: translateY(-1px);
 }
 
 .post-action-button.is-active {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background: rgba(26, 177, 153, 0.25) !important;
+  border-color: #1ab199 !important;
+  color: #ffffff !important;
 }
+
+
 
 .comment-item {
   display: flex;
@@ -490,22 +584,104 @@
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .feed-shell {
     grid-template-columns: 1fr;
+    padding: 10px;
   }
+  .feed-main {
+    /* Mobilde panelin ekranın %95'ini kaplamasını ve ortalanmasını sağlar */
+    width: 55% !important; 
+    min-width: 350px; /* Çok daralınca okunabilirlik bozulmasın diye alt sınır */
+    max-width: 100% !important;
+    margin: 0 auto !important; 
+    padding-bottom: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+.feed-shell .left-rail {
+    position: fixed !important;
+    top: 0;
+    /* Kapalıyken ekranın daha gerisinde dursun */
+    left: -350px; 
+    width: 280px !important;
+    height: 100vh;
+    z-index: 2000; /* Sidebar 5000/9999 olduğu için onun altında kalır */
+    transition: left 0.3s ease;
+  }
+
+  /* 2. PANEL AÇILDIĞINDA SİDEBAR'IN YANINA GELSİN */
+  .feed-shell .left-rail.open {
+    /* 0 yerine 72px yaparak Sidebar'ın (sunucu ikonları) arkasında kalmasını önlüyoruz */
+    left: 72px !important; 
+    box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+  }
+  
+  .mobile-trigger {
+    display: flex;
+    position: fixed;
+    top: 20px;
+    width: 50px; height: 50px;
+    background: #1ab199;
+    border-radius: 50%;
+    z-index: 1000;
+    justify-content: center; align-items: center;
+    color: white; border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .left-trigger { left: 80px; }
+  .right-trigger { right: 20px; }
 
   .feed-rail {
-    position: static;
+    position: fixed;
+    top: 0; width: 300px; height: 100vh;
+    background: #2b2d31;
+    z-index: 2000;
+    padding: 20px;
+    transition: 0.3s ease;
   }
+  .left-rail { left: -320px; }
+  .left-rail.open { left: 0; }
+  .right-rail { right: -320px; }
+  .right-rail.open { right: 0; }
+
+  .mobile-overlay.active {
+    display: block;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6); z-index: 1500;
+  }
+  .mobile-drawer-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
 }
 
-@media (max-width: 768px) {
-  .feed-shell {
-    padding: 18px;
-  }
-
-  .post-action-button {
-    min-width: 120px;
-  }
+/* --- ORTAK BİLEŞEN STİLLERİ --- */
+.rail-card {
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid rgba(255,255,255,0.05);
 }
+
+.rail-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: 8px; transition: 0.2s;
+}
+.rail-user:hover { background: rgba(255,255,255,0.05); }
+
+.mini-server-icon, .mini-avatar {
+  width: 35px; height: 35px; border-radius: 8px; object-fit: cover;
+}
+
+.rank-num { font-weight: bold; width: 20px; }
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #72767d;
+}
+.status-dot.online { background: #3ba55d; }
+
+.rail-form-mini { display: flex; gap: 5px; margin-top: 10px; }
+.rail-form-mini input {
+  flex: 1; background: #1e1f22; border: 1px solid #3f4147;
+  color: white; padding: 5px; border-radius: 4px;
+}
+.rail-form-mini button { background: #1ab199; color: white; border: none; padding: 5px 10px; border-radius: 4px; }
