@@ -12,60 +12,38 @@ const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    // {
-    //   urls: 'turn:turn.oceanlan.com:3478',
-    //   username: 'oceanlan',
-    //   credential: 'YOUR_TURN_SECRET'
-    // },
   ],
   iceTransportPolicy: 'all',
 };
 
 // ============================================================
-// 🎛️ NOISE GATE PARAMETRELERİ
+// 🎛️ OPTİMİZE NOISE GATE PARAMETRELERİ
 // ------------------------------------------------------------
-// GATE_OPEN_RMS   : Konuşma başladığı an için RMS eşiği.
-//                   0.018 → 0.030 yükseltildi.
-//                   Klavye/nefes gibi düşük enerjili sesler artık gate'i açmaz.
-//
-// GATE_CLOSE_RMS  : Gate'in kapanmaya başlayacağı eşik.
-//                   Konuşma bitince hızlı kapanır.
-//
-// GATE_FLOOR      : Gate kapalıyken sinyale uygulanan minimum kazanç.
-//                   0.001 → 0.0001 düşürüldü. Arka plan neredeyse tamamen kesilir.
-//
-// GATE_HOLD_MS    : Gate, son konuşma sesinin üstünden bu kadar ms geçmeden kapanmaz.
-//                   Cümle aralarında ses kesilmesini önler.
-//
-// EXPANDER_POWER  : Gate açıkken RMS'i şekillendiren üs değeri.
-//                   8 → 3 düşürüldü. Önceki değer düşük sesli konuşmayı
-//                   neredeyse sıfırlıyordu; şimdi daha doğal geçiş var.
-//
-// RMS_SMOOTHING   : Anlık RMS dalgalanmalarını yumuşatır.
-//                   0.90 korundu — çok yüksek olursa gecikme artar.
+// GATE_OPEN_RMS   : 0.025 - Klavye seslerini geçirmeyecek kadar yüksek,
+//                   konuşmayı kesecek kadar değil
+// GATE_CLOSE_RMS  : 0.010 - Hızlı kapanma için optimize
+// GATE_FLOOR      : 0.0001 - Arka planı tamamen kes
+// GATE_HOLD_MS    : 300 - Cümle araları için yeterli, gecikmeye sebep olmayacak kadar kısa
+// EXPANDER_POWER  : 2.0 - Daha doğal ses geçişi
+// RMS_SMOOTHING   : 0.85 - Hızlı tepki için optimize
 // ============================================================
-const GATE_OPEN_RMS   = 0.015;
-const GATE_CLOSE_RMS  = 0.008;
-const GATE_FLOOR      = 0.002;
-const GATE_HOLD_MS    = 500;
-const EXPANDER_POWER  = 3.0;
-const RMS_SMOOTHING   = 0.75;
+const GATE_OPEN_RMS   = 0.025;
+const GATE_CLOSE_RMS  = 0.010;
+const GATE_FLOOR      = 0.0001;
+const GATE_HOLD_MS    = 300;
+const EXPANDER_POWER  = 2.0;
+const RMS_SMOOTHING   = 0.85;
 
 // ============================================================
-// 🎛️ EQ / FİLTRE PARAMETRELERİ
+// 🎛️ AGRESİF FİLTRELEME PARAMETRELERİ
 // ------------------------------------------------------------
-// LOW_CUT_FREQ    : Highpass filtresi kesim noktası.
-//                   100 → 120 Hz yükseltildi.
-//                   Derin nefes/hırıltı sesleri genellikle 80-120 Hz bandındadır.
-//
-// HIGH_CUT_FREQ   : Lowpass filtresi kesim noktası. Değişmedi.
-//
-// LOW_CUT_Q       : Highpass filtresi Q değeri (eğim diklği).
-//                   0.5 → 0.7 yükseltildi — daha dik kesiş, daha az geçirgen.
+// LOW_CUT_FREQ    : 180 Hz - Mutfak gürültüsü ve klavye bas seslerini kes
+// HIGH_CUT_FREQ   : 8000 Hz - Tiz klavye seslerini kes
+// LOW_CUT_Q       : 0.9 - Daha dik kesiş
 // ============================================================
-const LOW_CUT_FREQ  = 150;
-const HIGH_CUT_FREQ = 16000;
-const LOW_CUT_Q     = 0.7;
+const LOW_CUT_FREQ  = 180;
+const HIGH_CUT_FREQ = 8000;
+const LOW_CUT_Q     = 0.9;
 
 const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -102,6 +80,8 @@ export const VoiceProvider = ({ children }) => {
   const gateGainNodeRef    = useRef(null);
   const isSpeakingRef      = useRef(false);
   const gateLoopActiveRef  = useRef(false);
+  const workletNodeRef     = useRef(null);
+  const scriptNodeRef      = useRef(null);
 
   const isPTTPressedRef    = useRef(false);
   const [isPTTPressed, setIsPTTPressed] = useState(false);
@@ -117,7 +97,7 @@ export const VoiceProvider = ({ children }) => {
     pttKeyCode  = 'Space'
   } = audioSettings || {};
 
-  // Ref'lere yansıt — closure'ların stale değer okumasını önler
+  // Ref'lere yansıt
   const isNoiseSuppressionRef = useRef(isNoiseSuppression);
   const inputModeRef          = useRef(inputMode);
   const inputVolumeRef        = useRef(inputVolume);
@@ -141,6 +121,95 @@ export const VoiceProvider = ({ children }) => {
   const [peersWithVideo,         setPeersWithVideo]         = useState({});
 
   // ─────────────────────────────────────────────────────────────
+  // ARKA PLAN OPTİMİZASYONU - Web Audio API'yi canlı tut
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Worklet'i sürekli aktif tutmak için düşük frekanslı bir oscillator
+    let keepAliveTimer = null;
+    let silentOsc = null;
+    let keepAliveGain = null;
+    
+    const startKeepAlive = () => {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') return;
+      
+      try {
+        // Sessiz bir sinyal oluştur - Web Audio API'yi uyutmaz
+        if (!silentOsc) {
+          silentOsc = audioContextRef.current.createOscillator();
+          keepAliveGain = audioContextRef.current.createGain();
+          keepAliveGain.gain.value = 0.000001; // Duyulamayacak kadar düşük
+          silentOsc.connect(keepAliveGain);
+          keepAliveGain.connect(audioContextRef.current.destination);
+          silentOsc.frequency.value = 20; // Duyulamaz frekans
+          silentOsc.start();
+        }
+      } catch (e) {
+        // Sessizce devam et
+      }
+    };
+
+    const stopKeepAlive = () => {
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
+      if (silentOsc) {
+        try {
+          silentOsc.stop();
+          silentOsc.disconnect();
+        } catch (e) {}
+        silentOsc = null;
+      }
+      if (keepAliveGain) {
+        try {
+          keepAliveGain.disconnect();
+        } catch (e) {}
+        keepAliveGain = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      const ctx = audioContextRef.current;
+      if (!ctx || ctx.state === 'closed') return;
+      
+      if (document.hidden) {
+        // Arka plana geçince keep-alive başlat
+        startKeepAlive();
+        // Context'i hemen resume et
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        // Periyodik olarak kontrol et
+        keepAliveTimer = setInterval(() => {
+          if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume().catch(() => {});
+          }
+          startKeepAlive();
+        }, 1000);
+      } else {
+        // Ön plana dönünce keep-alive'i durdur
+        stopKeepAlive();
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+      }
+    };
+
+    // Sayfa görünürlüğü değişince
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Sayfa yüklenince hemen kontrol et
+    if (!document.hidden && audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {});
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopKeepAlive();
+    };
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────
   // MİKROFON AÇ / KAPA
   // ─────────────────────────────────────────────────────────────
   const setLocalMicEnabled = useCallback((enabled) => {
@@ -158,7 +227,10 @@ export const VoiceProvider = ({ children }) => {
       const targetVol = shouldSendAudio
         ? (vol > 100 ? 1.0 + ((vol - 100) / 30) : vol / 100)
         : 0;
-      try { inputGainNodeRef.current.gain.setTargetAtTime(targetVol, ctx.currentTime, 0.05); } catch (_) {}
+      try { 
+        // Anında tepki için setTargetAtTime yerine linear ramp
+        inputGainNodeRef.current.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 0.005); 
+      } catch (_) {}
     }
 
     if (!shouldSendAudio) updateSpeakingStatus(false);
@@ -175,30 +247,21 @@ export const VoiceProvider = ({ children }) => {
 
     const refreshStream = async () => {
       try {
-        // 1) Eski track'leri şimdi yakala — stop etme
         const oldRawStream       = localStreamRef.current;
         const oldProcessedStream = processedStreamRef.current;
 
-        // Peer'larda hangi track'in değiştirileceğini bulmak için
-        // RTCRtpSender'ları kullanacağız — replaceTrack(old, new, stream) yerine
-        // doğrudan sender.replaceTrack(newTrack) daha güvenilir.
-
-        // 2) Yeni constraints
         const newConstraints = buildAudioConstraints(isNoiseSuppression, inputDeviceId);
-
-        // 3) Yeni ham stream
         const newRawStream = await navigator.mediaDevices.getUserMedia(newConstraints);
         pendingStream = newRawStream;
         if (isCancelled) { newRawStream.getTracks().forEach(t => t.stop()); return; }
 
-        // 4) Eski AudioContext'i kapat
+        // Eski AudioContext'i temizle
         if (audioContextRef.current) {
           audioContextRef.current.close().catch(() => {});
           audioContextRef.current = null;
         }
         gateLoopActiveRef.current = false;
 
-        // 5) Yeni processed stream üret
         const newProcessedStream = await processAudioStream(newRawStream);
         if (isCancelled) {
           newRawStream.getTracks().forEach(t => t.stop());
@@ -206,11 +269,10 @@ export const VoiceProvider = ({ children }) => {
         }
         const newTrack = newProcessedStream?.getAudioTracks?.()?.[0];
 
-        // 6) Refs güncelle
         localStreamRef.current    = newRawStream;
         processedStreamRef.current = newProcessedStream;
 
-        // 7) Peer sender'larını güncelle (replaceTrack ile — bağlantı kopmaz)
+        // Peer sender'larını güncelle
         if (newTrack) {
           Object.values(peersRef.current).forEach(peer => {
             if (!peer || peer.destroyed) return;
@@ -228,10 +290,8 @@ export const VoiceProvider = ({ children }) => {
           });
         }
 
-        // 8) Eski ham stream'i durdur
         if (oldRawStream) oldRawStream.getTracks().forEach(t => t.stop());
 
-        // 9) Mute/PTT durumunu geri yükle
         if (inputModeRef.current === 'PUSH_TO_TALK') {
           setLocalMicEnabled(isPTTPressedRef.current);
         } else {
@@ -277,10 +337,9 @@ export const VoiceProvider = ({ children }) => {
     else                          gainValue = 1.0 + ((inputVolume - 100) / 30);
 
     try {
-      inputGainNodeRef.current.gain.setTargetAtTime(
+      inputGainNodeRef.current.gain.linearRampToValueAtTime(
         gainValue,
-        audioContextRef.current.currentTime,
-        0.05
+        audioContextRef.current.currentTime + 0.005
       );
     } catch (_) {}
   }, [inputVolume, isMicMuted, inputMode]);
@@ -344,8 +403,6 @@ export const VoiceProvider = ({ children }) => {
     Object.values(audioElementsRef.current).forEach(audio => {
       if (!audio) return;
       audio.muted = isDeafened;
-      // outputDeviceId boş/default olsa bile her zaman setSinkId çağır.
-      // Böylece sistem varsayılanı değişse (ör. monitör → kulaklık) otomatik takip eder.
       if (typeof audio.setSinkId === 'function') {
         const sinkId = outputDeviceId || 'default';
         audio.setSinkId(sinkId).catch(() => {});
@@ -612,163 +669,205 @@ export const VoiceProvider = ({ children }) => {
   };
 
   // ─────────────────────────────────────────────────────────────
-  // GELİŞMİŞ GÜRÜLTÜ ENGELLEME İŞLEMCİSİ
+  // OPTİMİZE SES İŞLEME - KLASÖR VE MUTFAK SESLERİNİ KES
   // ─────────────────────────────────────────────────────────────
- const processAudioStream = async (rawStream) => {
-  try {
-    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioCtxClass({ sampleRate: 48000 });
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-    const source = audioCtx.createMediaStreamSource(rawStream);
-    const destination = audioCtx.createMediaStreamDestination();
-
-    await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
-    const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
-
-    // 1. Transient Limiter: Klavye tuşuna basma anındaki "patlamayı" anında ezer.
-    const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -35; // Daha agresif (Daha önce -24 idi)
-    limiter.knee.value = 0; 
-    limiter.ratio.value = 20; 
-    limiter.attack.value = 0.001; // 1ms (Gecikmesiz tepki)
-    limiter.release.value = 0.05;
-
-    // 2. Klavye Frekans Filtresi: 
-    // Klavyenin en rahatsız edici "çıt" sesleri 4kHz - 6kHz arasındadır.
-    const keyboardNotch = audioCtx.createBiquadFilter();
-    keyboardNotch.type = 'peaking';
-    keyboardNotch.frequency.value = 5000; // Tam orta nokta
-    keyboardNotch.Q.value = 1.5;
-    keyboardNotch.gain.value = -15; // Bu frekans aralığını %70 baskıla
-
-    const lowFreqCut = audioCtx.createBiquadFilter();
-    lowFreqCut.type = 'highpass';
-    lowFreqCut.frequency.value = 160; 
-
-    // 3. Pre-Gain (Ses yutulmasını önlemek için sabit tutuyoruz)
-    const preGain = audioCtx.createGain();
-    preGain.gain.value = 1.5;
-
-    const outputGate = audioCtx.createGain();
-    outputGate.gain.value = 0; // Başlangıçta kapalı
-    gateGainNodeRef.current = outputGate;
-
-    if (isNoiseSuppressionRef.current) {
-      // ZİNCİR: Kaynak -> Limiter -> keyboardNotch -> lowCut -> preGain -> RNNoise -> Gate -> Dest
-      source.connect(limiter);
-      limiter.connect(keyboardNotch);
-      keyboardNotch.connect(lowFreqCut);
-      lowFreqCut.connect(preGain);
-      preGain.connect(rnnoiseNode);
-      rnnoiseNode.connect(outputGate);
-      outputGate.connect(destination);
+  const processAudioStream = async (rawStream) => {
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtxClass({ 
+        sampleRate: 48000,
+        latencyHint: 'interactive' // Düşük gecikme için
+      });
       
-      const analyser = audioCtx.createAnalyser();
-      rnnoiseNode.connect(analyser);
-      
-      rnnoiseNode.port.postMessage({ type: 'init' });
-      startGateAnalysis(analyser, outputGate, audioCtx); 
-    } else {
-      source.connect(destination);
-      const rawAnalyser = audioCtx.createAnalyser();
-      source.connect(rawAnalyser);
-      startGateAnalysis(rawAnalyser, null, audioCtx);
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      const source = audioCtx.createMediaStreamSource(rawStream);
+      const destination = audioCtx.createMediaStreamDestination();
+
+      // 1. AGRESİF LİMİTER - Klavye "patlamalarını" anında ezer
+      const limiter = audioCtx.createDynamicsCompressor();
+      limiter.threshold.value = -30;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.0005; // 0.5ms - Anında tepki
+      limiter.release.value = 0.03;   // 30ms - Hızlı toparlanma
+
+      // 2. KLASÖR FREKANS ÇENTİK FİLTRESİ - 4-6kHz arası klavye sesleri
+      const keyboardNotch1 = audioCtx.createBiquadFilter();
+      keyboardNotch1.type = 'notch';
+      keyboardNotch1.frequency.value = 4500;
+      keyboardNotch1.Q.value = 2.0;
+
+      const keyboardNotch2 = audioCtx.createBiquadFilter();
+      keyboardNotch2.type = 'notch';
+      keyboardNotch2.frequency.value = 5500;
+      keyboardNotch2.Q.value = 2.0;
+
+      // 3. YÜKSEK GEÇİRGEN FİLTRE - Mutfak gürültüsü ve bas sesler
+      const highpassFilter = audioCtx.createBiquadFilter();
+      highpassFilter.type = 'highpass';
+      highpassFilter.frequency.value = LOW_CUT_FREQ;
+      highpassFilter.Q.value = LOW_CUT_Q;
+
+      // 4. ALÇAK GEÇİRGEN FİLTRE - Tiz klavye sesleri
+      const lowpassFilter = audioCtx.createBiquadFilter();
+      lowpassFilter.type = 'lowpass';
+      lowpassFilter.frequency.value = HIGH_CUT_FREQ;
+      lowpassFilter.Q.value = 0.7;
+
+      // 5. PRE-GAIN - Ses yutulmasını önle
+      const preGain = audioCtx.createGain();
+      preGain.gain.value = 1.3;
+
+      // 6. NOISE GATE - Arka planı tamamen kes
+      const gateGain = audioCtx.createGain();
+      gateGain.gain.value = 0;
+      gateGainNodeRef.current = gateGain;
+
+      // 7. INPUT VOLUME KONTROLÜ
+      const inputGain = audioCtx.createGain();
+      const initialGain = inputVolumeRef.current / 100;
+      inputGain.gain.value = initialGain;
+      inputGainNodeRef.current = inputGain;
+
+      if (isNoiseSuppressionRef.current) {
+        // RNNoise Worklet'i yükle
+        try {
+          await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
+          const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
+          workletNodeRef.current = rnnoiseNode;
+          
+          // ZİNCİR: source -> limiter -> notch1 -> notch2 -> highpass -> lowpass -> preGain -> rnnoise -> inputGain -> gate -> dest
+          source.connect(limiter);
+          limiter.connect(keyboardNotch1);
+          keyboardNotch1.connect(keyboardNotch2);
+          keyboardNotch2.connect(highpassFilter);
+          highpassFilter.connect(lowpassFilter);
+          lowpassFilter.connect(preGain);
+          preGain.connect(rnnoiseNode);
+          rnnoiseNode.connect(inputGain);
+          inputGain.connect(gateGain);
+          gateGain.connect(destination);
+          
+          const analyser = audioCtx.createAnalyser();
+          rnnoiseNode.connect(analyser);
+          
+          rnnoiseNode.port.postMessage({ type: 'init' });
+          startOptimizedGateAnalysis(analyser, gateGain, audioCtx);
+        } catch (rnnoiseError) {
+          console.warn('RNNoise yüklenemedi, fallback filtreler kullanılıyor:', rnnoiseError);
+          // Fallback zinciri
+          source.connect(limiter);
+          limiter.connect(keyboardNotch1);
+          keyboardNotch1.connect(keyboardNotch2);
+          keyboardNotch2.connect(highpassFilter);
+          highpassFilter.connect(lowpassFilter);
+          lowpassFilter.connect(preGain);
+          preGain.connect(inputGain);
+          inputGain.connect(gateGain);
+          gateGain.connect(destination);
+          
+          const analyser = audioCtx.createAnalyser();
+          preGain.connect(analyser);
+          startOptimizedGateAnalysis(analyser, gateGain, audioCtx);
+        }
+      } else {
+        // Noise suppression kapalıyken basit zincir
+        source.connect(highpassFilter);
+        highpassFilter.connect(inputGain);
+        inputGain.connect(destination);
+      }
+
+      audioContextRef.current = audioCtx;
+      return destination.stream;
+    } catch (e) {
+      console.error('Ses işleme başlatılamadı:', e);
+      return rawStream;
     }
-
-    audioContextRef.current = audioCtx;
-    return destination.stream;
-  } catch (e) {
-    console.error('RNNoise Başlatılamadı:', e);
-    return rawStream;
-  }
-};
-
-  // ─────────────────────────────────────────────────────────────
-  // GATE ANALİZ DÖNGÜSÜ
-  // ─────────────────────────────────────────────────────────────
- 
-  // ─────────────────────────────────────────────────────────────
-  // GATE ANALİZ DÖNGÜSÜ (RNNoise Uyumlu ve Hataları Giderilmiş)
-  // ─────────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────
-  // GATE ANALİZ DÖNGÜSÜ (Arka Plan Fix & Parantez Hatası Giderildi)
-  // ─────────────────────────────────────────────────────────────
-  const startGateAnalysis = (analyser, gateGainNode, audioCtx) => {
-    gateLoopActiveRef.current = false;
-
-    setTimeout(() => {
-      gateLoopActiveRef.current = true;
-      if (!analyser || !audioCtx) return;
-
-      // 1. ScriptProcessor oluştur (Arka plan kısıtlamasından etkilenmez)
-      // 4096 buffer boyutu yaklaşık 85ms'lik stabil bir döngü sağlar
-      const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
-      analyser.fftSize = 512;
-      const timeData = new Float32Array(analyser.fftSize);
-      let gateIsOpen = false;
-
-      scriptNode.onaudioprocess = () => {
-        if (!gateLoopActiveRef.current || audioCtx.state === 'closed') {
-          scriptNode.disconnect();
-          return;
-        }
-
-        // Arka planda context'in uyumasına izin verme
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume().catch(() => {});
-        }
-
-        analyser.getFloatTimeDomainData(timeData);
-        let sumSq = 0;
-        for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
-        const rms = Math.sqrt(sumSq / timeData.length);
-
-        // Histerizis Ayarları (Gecikmeyi azaltmak için openThreshold'u biraz düşürdük)
-        const openThreshold = 0.028; 
-        const closeThreshold = 0.012;
-
-        if (rms > openThreshold) {
-          gateIsOpen = true;
-        } else if (rms < closeThreshold) {
-          gateIsOpen = false;
-        }
-
-        const finalStatus = inputModeRef.current === 'PUSH_TO_TALK' ? isPTTPressedRef.current : gateIsOpen;
-
-        if (gateGainNode) {
-          const targetGain = finalStatus ? 1.0 : 0.0;
-          // Açılış rampasını 0.01 (10ms) yaparak gecikmeyi hissizleştirdik
-          const rampTime = finalStatus ? 0.02 : 0.15; 
-          gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
-        }
-
-        updateSpeakingStatus(finalStatus);
-      };
-
-      // Zinciri bağla: Analyser -> scriptNode -> Destination (duyulmaması için)
-      analyser.connect(scriptNode);
-      scriptNode.connect(audioCtx.destination);
-    }, 100);
   };
 
   // ─────────────────────────────────────────────────────────────
-  // 🔧 ARKA PLAN FIX: Sekme geri gelince AudioContext'i resume et
-  // Chrome, arka planda AudioContext'i suspend edebilir.
-  // visibilitychange dinleyerek her sekme geçişinde context'i uyandırıyoruz.
+  // OPTİMİZE GATE ANALİZİ - 0.5 SANİYE GECİKME YOK
   // ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const ctx = audioContextRef.current;
-      if (!ctx || ctx.state === 'closed') return;
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
+  const startOptimizedGateAnalysis = (analyser, gateGainNode, audioCtx) => {
+    gateLoopActiveRef.current = false;
+
+    // Önceki script node'u temizle
+    if (scriptNodeRef.current) {
+      try {
+        scriptNodeRef.current.disconnect();
+      } catch (e) {}
+      scriptNodeRef.current = null;
+    }
+
+    // Hemen başlat
+    gateLoopActiveRef.current = true;
+    
+    if (!analyser || !audioCtx) return;
+
+    // Daha küçük buffer = daha hızlı tepki (256 samples ≈ 5.3ms @ 48kHz)
+    const scriptNode = audioCtx.createScriptProcessor(256, 1, 1);
+    scriptNodeRef.current = scriptNode;
+    
+    analyser.fftSize = 256;
+    const timeData = new Float32Array(analyser.fftSize);
+    
+    let gateIsOpen = false;
+    let lastOpenTime = 0;
+    let smoothRms = 0;
+
+    scriptNode.onaudioprocess = () => {
+      if (!gateLoopActiveRef.current || audioCtx.state === 'closed') {
+        scriptNode.disconnect();
+        return;
       }
+
+      // Context'i aktif tut
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+
+      analyser.getFloatTimeDomainData(timeData);
+      
+      // Hızlı RMS hesaplama
+      let sumSq = 0;
+      for (let i = 0; i < timeData.length; i++) {
+        sumSq += timeData[i] * timeData[i];
+      }
+      const instantRms = Math.sqrt(sumSq / timeData.length);
+      
+      // Yumuşatılmış RMS
+      smoothRms = smoothRms * RMS_SMOOTHING + instantRms * (1 - RMS_SMOOTHING);
+
+      const now = audioCtx.currentTime;
+      
+      // Hızlı gate kararı
+      if (smoothRms > GATE_OPEN_RMS) {
+        gateIsOpen = true;
+        lastOpenTime = now;
+      } else if (smoothRms < GATE_CLOSE_RMS && (now - lastOpenTime) > (GATE_HOLD_MS / 1000)) {
+        gateIsOpen = false;
+      }
+
+      const finalStatus = inputModeRef.current === 'PUSH_TO_TALK' ? 
+        isPTTPressedRef.current : gateIsOpen;
+
+      if (gateGainNode) {
+        // Anında açılma (0.002 saniye), yumuşak kapanma (0.05 saniye)
+        const targetGain = finalStatus ? 1.0 : GATE_FLOOR;
+        const rampTime = finalStatus ? 0.002 : 0.05;
+        
+        // setTargetAtTime yerine linearRampToValueAtTime kullan - daha hızlı
+        gateGainNode.gain.linearRampToValueAtTime(targetGain, now + rampTime);
+      }
+
+      updateSpeakingStatus(finalStatus);
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+    // Zinciri bağla
+    analyser.connect(scriptNode);
+    scriptNode.connect(audioCtx.destination);
+  };
 
   // ─────────────────────────────────────────────────────────────
   // KONUŞMA DURUMU
@@ -826,7 +925,6 @@ export const VoiceProvider = ({ children }) => {
       if (inputMode === 'PUSH_TO_TALK') setLocalMicEnabled(isPTTPressedRef.current);
       else                               setLocalMicEnabled(true);
 
-      // Stream hazır olduktan SONRA join emit edilir — race condition önlenir
       socketRef.current.emit('join-voice-channel', {
         serverId:  sId,
         channelId: cId,
@@ -865,6 +963,14 @@ export const VoiceProvider = ({ children }) => {
     setSpeakingUsers({});
     isSpeakingRef.current  = false;
     gateLoopActiveRef.current = false;
+
+    // Script node'u temizle
+    if (scriptNodeRef.current) {
+      try {
+        scriptNodeRef.current.disconnect();
+      } catch (e) {}
+      scriptNodeRef.current = null;
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop());
@@ -983,7 +1089,6 @@ export const VoiceProvider = ({ children }) => {
       return;
     }
 
-    // Ses elementi oluştur
     if (audioElementsRef.current[socketId]) audioElementsRef.current[socketId].remove();
 
     const audio       = document.createElement('audio');
@@ -993,9 +1098,6 @@ export const VoiceProvider = ({ children }) => {
     audio.muted       = isDeafenedRef.current;
     document.body.appendChild(audio);
 
-    // outputDeviceId her zaman set edilir — boşsa 'default' kullan.
-    // Bu, monitörden gelen ses sorununu önler: tarayıcı hangi cihazı
-    // "default" saydığına bakmaksızın istediğimiz çıkışı zorunlu kılarız.
     if (typeof audio.setSinkId === 'function') {
       const sinkId = outputDeviceIdRef.current || 'default';
       audio.setSinkId(sinkId).catch(() => {});
