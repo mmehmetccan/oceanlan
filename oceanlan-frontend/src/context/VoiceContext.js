@@ -627,42 +627,35 @@ export const VoiceProvider = ({ children }) => {
     await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
     const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-    // 2. KLAVYE ÖNLEYİCİ EK FİLTRELER (Agresif temizlik için)
+    // 2. ÖN FİLTRELEME (RNNoise'un hata yapmasını engeller)
     
-    // Low-cut: 150Hz altı (klavyenin 'tok' sesleri)
-    const lowCut = audioCtx.createBiquadFilter();
-    lowCut.type = 'highpass';
-    lowCut.frequency.value = 150;
-    lowCut.Q.value = 0.7;
+    // Low-Pass: 7000Hz üstünü keser (Çatal, bıçak, cızıltı sesleri bu bölgededir)
+    const highFreqCut = audioCtx.createBiquadFilter();
+    highFreqCut.type = 'lowpass';
+    highFreqCut.frequency.value = 7000; 
 
-    // High-cut: 8000Hz üstü (klavyenin 'çıt' sesleri - konuşma için 8kHz yeterlidir)
-    const highCut = audioCtx.createBiquadFilter();
-    highCut.type = 'lowpass';
-    highCut.frequency.value = 8000;
+    // High-Pass: 200Hz altını keser (Fan uğultusu ve masa titreşimi bu bölgededir)
+    const lowFreqCut = audioCtx.createBiquadFilter();
+    lowFreqCut.type = 'highpass';
+    lowFreqCut.frequency.value = 200; 
 
-    // Compressor: Klavye tuşuna vurunca oluşan ani ses piklerini baskılar
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -30; // Daha agresif eşik
-    compressor.knee.value = 5;
-    compressor.ratio.value = 20; // Yüksek baskılama oranı
-    compressor.attack.value = 0.002; // Çok hızlı (ani sesleri anında yakalar)
-    compressor.release.value = 0.1;
-
-    // 3. Analiz için Analyser
-    const analyser = audioCtx.createAnalyser();
-    analyser.smoothingTimeConstant = 0.8;
+    // Gain: Sesin az gelmesi sorunu için %20'lik bir ön kazanç
+    const preGain = audioCtx.createGain();
+    preGain.gain.value = 1.2;
 
     if (isNoiseSuppressionRef.current) {
-      // ⛓️ YENİ HİBRİT ZİNCİR:
-      // Mikrofon -> Compressor -> Filtreler -> RNNoise -> Analyser & Destination
+      // ⛓️ OPTİMİZE ZİNCİR:
+      // Kaynak -> LowCut (Fan) -> HighCut (Çatal/Cızıltı) -> preGain -> RNNoise -> Çıkış
+      source.connect(lowFreqCut);
+      lowFreqCut.connect(highFreqCut);
+      highFreqCut.connect(preGain);
+      preGain.connect(rnnoiseNode);
       
-      source.connect(compressor);
-      compressor.connect(lowCut);
-      lowCut.connect(highCut);
-      highCut.connect(rnnoiseNode);
-      
-      rnnoiseNode.connect(analyser); 
       rnnoiseNode.connect(destination);
+      
+      // Yeşil ışık analizi için analyser
+      const analyser = audioCtx.createAnalyser();
+      rnnoiseNode.connect(analyser);
       
       rnnoiseNode.port.postMessage({ type: 'init' });
       startGateAnalysis(analyser, null, audioCtx); 
@@ -725,7 +718,7 @@ export const VoiceProvider = ({ children }) => {
 
           // RNNoise gürültüyü sildiği için 0.01 gibi düşük bir RMS değeri 
           // sadece konuşma varken tetiklenecektir.
-          const isSpeaking = rms > 0.01; 
+          const isSpeaking = rms > 0.025; 
           updateSpeakingStatus(isSpeaking);
 
           setTimeout(checkVolume, 50);
