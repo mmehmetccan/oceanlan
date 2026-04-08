@@ -44,7 +44,7 @@ const rtcConfig = {
 // RMS_SMOOTHING   : Anlık RMS dalgalanmalarını yumuşatır.
 //                   0.90 korundu — çok yüksek olursa gecikme artar.
 // ============================================================
-const GATE_OPEN_RMS   = 0.030;
+const GATE_OPEN_RMS   = 0.035;
 const GATE_CLOSE_RMS  = 0.012;
 const GATE_FLOOR      = 0.0001;
 const GATE_HOLD_MS    = 500;
@@ -63,7 +63,7 @@ const RMS_SMOOTHING   = 0.90;
 // LOW_CUT_Q       : Highpass filtresi Q değeri (eğim diklği).
 //                   0.5 → 0.7 yükseltildi — daha dik kesiş, daha az geçirgen.
 // ============================================================
-const LOW_CUT_FREQ  = 120;
+const LOW_CUT_FREQ  = 150;
 const HIGH_CUT_FREQ = 16000;
 const LOW_CUT_Q     = 0.7;
 
@@ -689,7 +689,8 @@ export const VoiceProvider = ({ children }) => {
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
     // Önceki döngüyü durdur
     gateLoopActiveRef.current = false;
-    // Kısa gecikme: bir sonraki frame'de yeni döngü başlasın (requestAnimationFrame sırası)
+
+    // Kısa gecikme: bir sonraki tick'te yeni döngü başlasın
     setTimeout(() => {
       gateLoopActiveRef.current = true;
 
@@ -702,9 +703,20 @@ export const VoiceProvider = ({ children }) => {
         let lastOpenTime = performance.now();
         let smoothedRms  = 0;
 
+        // 🔧 ARKA PLAN FIX:
+        // requestAnimationFrame arka planda (sekme minimize/alt sekme) tamamen durur.
+        // setTimeout(fn, 50) ise Chrome'un throttle sınırı olan ~1 saniyenin çok altında
+        // ve arka planda da çalışmaya devam eder. 50ms ≈ 20Hz — ses kalitesi için yeterli.
         const checkVolume = () => {
-          if (!gateLoopActiveRef.current)          return;
+          if (!gateLoopActiveRef.current)               return;
           if (!gateGainNode || audioCtx.state === 'closed') return;
+
+          // AudioContext arka planda suspend edilmişse resume et
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+            setTimeout(checkVolume, 50);
+            return;
+          }
 
           if (inputModeRef.current === 'PUSH_TO_TALK') {
             const isOpen = isPTTPressedRef.current;
@@ -714,7 +726,7 @@ export const VoiceProvider = ({ children }) => {
               isOpen ? 0.01 : 0.05
             );
             updateSpeakingStatus(isOpen);
-            requestAnimationFrame(checkVolume);
+            setTimeout(checkVolume, 50);
             return;
           }
 
@@ -743,7 +755,7 @@ export const VoiceProvider = ({ children }) => {
           gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
 
           updateSpeakingStatus(gateIsOpen);
-          requestAnimationFrame(checkVolume);
+          setTimeout(checkVolume, 50);
         };
 
         checkVolume();
@@ -762,9 +774,16 @@ export const VoiceProvider = ({ children }) => {
             if (!gateLoopActiveRef.current) { simpleCtx.close().catch(() => {}); return; }
             if (simpleCtx.state === 'closed') return;
 
+            // AudioContext suspend olduysa resume et
+            if (simpleCtx.state === 'suspended') {
+              simpleCtx.resume().catch(() => {});
+              setTimeout(checkLoop, 50);
+              return;
+            }
+
             if (inputModeRef.current === 'PUSH_TO_TALK') {
               updateSpeakingStatus(isPTTPressedRef.current);
-              requestAnimationFrame(checkLoop);
+              setTimeout(checkLoop, 50);
               return;
             }
 
@@ -773,7 +792,7 @@ export const VoiceProvider = ({ children }) => {
             let sum = 0;
             for (let i = 0; i < arr.length; i++) sum += arr[i];
             updateSpeakingStatus((sum / arr.length) > 10);
-            requestAnimationFrame(checkLoop);
+            setTimeout(checkLoop, 50);
           };
 
           checkLoop();
@@ -781,6 +800,24 @@ export const VoiceProvider = ({ children }) => {
       }
     }, 0);
   };
+
+  // ─────────────────────────────────────────────────────────────
+  // 🔧 ARKA PLAN FIX: Sekme geri gelince AudioContext'i resume et
+  // Chrome, arka planda AudioContext'i suspend edebilir.
+  // visibilitychange dinleyerek her sekme geçişinde context'i uyandırıyoruz.
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const ctx = audioContextRef.current;
+      if (!ctx || ctx.state === 'closed') return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // ─────────────────────────────────────────────────────────────
   // KONUŞMA DURUMU
