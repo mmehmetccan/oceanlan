@@ -626,38 +626,41 @@ export const VoiceProvider = ({ children }) => {
     await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
     const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-    // 1. FİLTRELERİ BİRAZ GEVŞETELİM (Sesinin yutulmaması için)
+    // 1. Transient Limiter: Klavye tuşuna basma anındaki "patlamayı" anında ezer.
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -35; // Daha agresif (Daha önce -24 idi)
+    limiter.knee.value = 0; 
+    limiter.ratio.value = 20; 
+    limiter.attack.value = 0.001; // 1ms (Gecikmesiz tepki)
+    limiter.release.value = 0.05;
+
+    // 2. Klavye Frekans Filtresi: 
+    // Klavyenin en rahatsız edici "çıt" sesleri 4kHz - 6kHz arasındadır.
+    const keyboardNotch = audioCtx.createBiquadFilter();
+    keyboardNotch.type = 'peaking';
+    keyboardNotch.frequency.value = 5000; // Tam orta nokta
+    keyboardNotch.Q.value = 1.5;
+    keyboardNotch.gain.value = -15; // Bu frekans aralığını %70 baskıla
+
     const lowFreqCut = audioCtx.createBiquadFilter();
     lowFreqCut.type = 'highpass';
-    lowFreqCut.frequency.value = 120; // 180'den 120'ye çektik, sesin daha dolgun gelir
+    lowFreqCut.frequency.value = 160; 
 
-    const highFreqCut = audioCtx.createBiquadFilter();
-    highFreqCut.type = 'lowpass';
-    highFreqCut.frequency.value = 7500; // 6500'den 7500'e çıkardık, sesin boğulmaz
-
-    // 2. ÖN KAZANÇ (Sesini gürültüden ayırmak için kritik)
+    // 3. Pre-Gain (Ses yutulmasını önlemek için sabit tutuyoruz)
     const preGain = audioCtx.createGain();
-    preGain.gain.value = 1.4; // Sesini %40 artırarak RNNoise'a gönderiyoruz
-
-    // 3. YUMUŞAK COMPRESSOR
-    const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -20; 
-    limiter.knee.value = 15; // Soft-knee: Sesin yutulmasını önler, doğal geçiş sağlar
-    limiter.ratio.value = 12; 
-    limiter.attack.value = 0.005;
-    limiter.release.value = 0.1;
+    preGain.gain.value = 1.5;
 
     const outputGate = audioCtx.createGain();
-    outputGate.gain.value = 1.0;
+    outputGate.gain.value = 0; // Başlangıçta kapalı
     gateGainNodeRef.current = outputGate;
 
     if (isNoiseSuppressionRef.current) {
-      // Zincir: Kaynak -> lowCut -> highCut -> preGain -> limiter -> RNNoise -> Gate -> Dest
-      source.connect(lowFreqCut);
-      lowFreqCut.connect(highFreqCut);
-      highFreqCut.connect(preGain);
-      preGain.connect(limiter);
-      limiter.connect(rnnoiseNode);
+      // ZİNCİR: Kaynak -> Limiter -> keyboardNotch -> lowCut -> preGain -> RNNoise -> Gate -> Dest
+      source.connect(limiter);
+      limiter.connect(keyboardNotch);
+      keyboardNotch.connect(lowFreqCut);
+      lowFreqCut.connect(preGain);
+      preGain.connect(rnnoiseNode);
       rnnoiseNode.connect(outputGate);
       outputGate.connect(destination);
       
@@ -722,8 +725,8 @@ export const VoiceProvider = ({ children }) => {
         const rms = Math.sqrt(sumSq / timeData.length);
 
         // Histerizis Ayarları (Gecikmeyi azaltmak için openThreshold'u biraz düşürdük)
-        const openThreshold = 0.018; 
-        const closeThreshold = 0.008;
+        const openThreshold = 0.028; 
+        const closeThreshold = 0.012;
 
         if (rms > openThreshold) {
           gateIsOpen = true;
@@ -736,7 +739,7 @@ export const VoiceProvider = ({ children }) => {
         if (gateGainNode) {
           const targetGain = finalStatus ? 1.0 : 0.0;
           // Açılış rampasını 0.01 (10ms) yaparak gecikmeyi hissizleştirdik
-          const rampTime = finalStatus ? 0.01 : 0.20; 
+          const rampTime = finalStatus ? 0.02 : 0.15; 
           gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
         }
 
