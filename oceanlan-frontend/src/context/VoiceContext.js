@@ -623,27 +623,51 @@ export const VoiceProvider = ({ children }) => {
     const source = audioCtx.createMediaStreamSource(rawStream);
     const destination = audioCtx.createMediaStreamDestination();
 
-    // 1. RNNoise Modülünü Yükle ve Düğümü Oluştur
+    // 1. RNNoise Modülünü Yükle
     await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
     const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-    // 2. Analiz için Analyser oluştur (Yeşil ışık için şart)
+    // 2. KLAVYE ÖNLEYİCİ EK FİLTRELER (Agresif temizlik için)
+    
+    // Low-cut: 150Hz altı (klavyenin 'tok' sesleri)
+    const lowCut = audioCtx.createBiquadFilter();
+    lowCut.type = 'highpass';
+    lowCut.frequency.value = 150;
+    lowCut.Q.value = 0.7;
+
+    // High-cut: 8000Hz üstü (klavyenin 'çıt' sesleri - konuşma için 8kHz yeterlidir)
+    const highCut = audioCtx.createBiquadFilter();
+    highCut.type = 'lowpass';
+    highCut.frequency.value = 8000;
+
+    // Compressor: Klavye tuşuna vurunca oluşan ani ses piklerini baskılar
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -30; // Daha agresif eşik
+    compressor.knee.value = 5;
+    compressor.ratio.value = 20; // Yüksek baskılama oranı
+    compressor.attack.value = 0.002; // Çok hızlı (ani sesleri anında yakalar)
+    compressor.release.value = 0.1;
+
+    // 3. Analiz için Analyser
     const analyser = audioCtx.createAnalyser();
     analyser.smoothingTimeConstant = 0.8;
 
     if (isNoiseSuppressionRef.current) {
-      // ZİNCİR: Mikrofon -> RNNoise -> Analyser & Destination
-      source.connect(rnnoiseNode);
-      rnnoiseNode.connect(analyser); // Konuşma analizi temiz ses üzerinden yapılsın
+      // ⛓️ YENİ HİBRİT ZİNCİR:
+      // Mikrofon -> Compressor -> Filtreler -> RNNoise -> Analyser & Destination
+      
+      source.connect(compressor);
+      compressor.connect(lowCut);
+      lowCut.connect(highCut);
+      highCut.connect(rnnoiseNode);
+      
+      rnnoiseNode.connect(analyser); 
       rnnoiseNode.connect(destination);
       
       rnnoiseNode.port.postMessage({ type: 'init' });
-
-      // Önemli: startGateAnalysis'i yeni analyser ile başlat
       startGateAnalysis(analyser, null, audioCtx); 
     } else {
       source.connect(destination);
-      // Gürültü engelleme kapalıyken ham sesi analiz et
       const rawAnalyser = audioCtx.createAnalyser();
       source.connect(rawAnalyser);
       startGateAnalysis(rawAnalyser, null, audioCtx);
