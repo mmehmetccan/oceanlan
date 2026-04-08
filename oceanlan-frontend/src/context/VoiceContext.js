@@ -797,15 +797,17 @@ if (pendingStream) pendingStream.getTracks().forEach(t => t.stop());
     });
 
     p.on('signal', data => {
-  if (data.type === 'offer') {
-    socketRef.current?.emit('webrtc-offer', { targetSocketId, sdp: data, userId: user?.id });
-  } else if (data.type === 'answer') {
-    socketRef.current?.emit('webrtc-answer', { targetSocketId, sdp: data, userId: user?.id });
+  if (data.type === 'offer' || data.type === 'answer') {
+    const eventName = data.type === 'offer' ? 'webrtc-offer' : 'webrtc-answer';
+    socketRef.current?.emit(eventName, { 
+      targetSocketId, 
+      sdp: data, // Offer/Answer paketini sdp anahtarıyla gönder
+      userId: user?.id 
+    });
   } else if (data.candidate) {
-    // 🟢 Sadece gerçek bir candidate bilgisi varsa gönder
     socketRef.current?.emit('webrtc-ice-candidate', { 
       targetSocketId, 
-      candidate: data.candidate, // veya direkt data
+      candidate: data.candidate, // ICE Adayını candidate anahtarıyla gönder
       userId: user?.id 
     });
   }

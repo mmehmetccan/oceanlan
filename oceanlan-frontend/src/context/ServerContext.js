@@ -9,7 +9,6 @@ const initialState = {
   activeServer: null,
   activeChannel: null,
   loading: false,
-  presenceCache: {},
 };
 
 const ServerReducer = (state, action) => {
@@ -17,25 +16,7 @@ const ServerReducer = (state, action) => {
     case 'SET_SERVERS':
       return { ...state, servers: action.payload };
     case 'SET_ACTIVE_SERVER':
-      const serverData = action.payload;
-      if (serverData && serverData.members) {
-        serverData.members = serverData.members.map(member => {
-          const mUserId = member.user?._id || member.user;
-          // Eğer bu kullanıcı için cache'de güncel bir status varsa onu kullan
-          if (state.presenceCache[mUserId]) {
-            return {
-              ...member,
-              user: {
-                ...(typeof member.user === 'object' ? member.user : { _id: mUserId }),
-                onlineStatus: state.presenceCache[mUserId].status,
-                lastSeenAt: state.presenceCache[mUserId].lastSeenAt
-              }
-            };
-          }
-          return member;
-        });
-      }
-      return { ...state, activeServer: serverData, loading: false };
+      return { ...state, activeServer: action.payload };
     case 'SELECT_CHANNEL':
       return { ...state, activeChannel: action.payload };
     case 'ADD_SERVER':
@@ -45,26 +26,20 @@ const ServerReducer = (state, action) => {
 
     // 🛠️ DÜZELTME: İSİM EŞİTLENDİ (UPDATE_MEMBER_PRESENCE)
     case 'UPDATE_MEMBER_PRESENCE':
-      const { userId, status, lastSeenAt } = action.payload;
-      
-      // 1. Durumu her zaman cache'e kaydet (sunucu değişse bile kaybolmaz)
-      const newCache = { 
-        ...state.presenceCache, 
-        [userId]: { status, lastSeenAt } 
-      };
-
-      // 2. Eğer o an aktif sunucu varsa listeyi güncelle
-      if (!state.activeServer || !state.activeServer.members) {
-        return { ...state, presenceCache: newCache };
-      }
+      if (!state.activeServer || !state.activeServer.members) return state;
 
       const updatedMembers = state.activeServer.members.map(member => {
         const mUserId = member.user?._id || member.user;
-        if (String(mUserId) === String(userId)) {
+        if (String(mUserId) === String(action.payload.userId)) {
+          // Mevcut veriyi koru, sadece status güncelle
           const oldUserObj = typeof member.user === 'object' ? member.user : { _id: mUserId };
           return {
             ...member,
-            user: { ...oldUserObj, onlineStatus: status, lastSeenAt }
+            user: {
+              ...oldUserObj,
+              onlineStatus: action.payload.status,
+              lastSeenAt: action.payload.lastSeenAt
+            }
           };
         }
         return member;
@@ -72,7 +47,6 @@ const ServerReducer = (state, action) => {
 
       return {
         ...state,
-        presenceCache: newCache,
         activeServer: { ...state.activeServer, members: updatedMembers }
       };
 

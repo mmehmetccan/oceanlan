@@ -473,8 +473,22 @@ io.on('connection', (socket) => {
     socket.on('memberUpdated', (d) => io.to(d.serverId).emit('memberUpdated', d));
 
     // WebRTC
-    socket.on('webrtc-offer', (d) => io.to(d.targetSocketId).emit('webrtc-offer', { socketId: socket.id, sdp: d.sdp }));
-    socket.on('webrtc-answer', (d) => io.to(d.targetSocketId).emit('webrtc-answer', { socketId: socket.id, sdp: d.sdp }));
+    socket.on('webrtc-offer', (d) => {
+    io.to(d.targetSocketId).emit('webrtc-offer', { 
+        socketId: socket.id, 
+        sdp: d.sdp, // Sinyali sdp anahtarıyla gönder
+        userId: d.userId 
+    });
+});
+
+socket.on('webrtc-answer', (d) => {
+    io.to(d.targetSocketId).emit('webrtc-answer', { 
+        socketId: socket.id, 
+        sdp: d.sdp, // Sinyali sdp anahtarıyla gönder
+        userId: d.userId 
+    });
+});
+
 socket.on('webrtc-ice-candidate', (data) => {
     const { targetSocketId, candidate, userId } = data;
     
