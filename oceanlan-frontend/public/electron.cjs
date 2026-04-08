@@ -47,7 +47,7 @@ function createSplashWindow() {
     show: false,
     icon: path.join(__dirname, 'ms-icon-310x310.png'),
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: false,
     },
   });
@@ -91,9 +91,11 @@ function createMainWindow() {
       height: 30
     },
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      nodeIntegration: true,
-      contextIsolation: false,
+preload: isDev 
+    ? path.join(__dirname, 'preload.cjs')
+    : path.join(app.getAppPath(), 'public', 'preload.cjs'),
+          nodeIntegration: false,
+      contextIsolation: true,
       webSecurity: false,
       backgroundThrottling: false
     },
@@ -120,7 +122,7 @@ mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     const appPath = app.getAppPath();
     
-    const indexPath = path.join(__dirname, 'dist', 'index.html');
+  const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
 mainWindow.loadFile(indexPath).catch(err => {
     console.error("Ana sayfa yüklenemedi:", err);
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
