@@ -58,9 +58,7 @@ const VoiceRoom = () => {
         toggleNoiseSuppression();
 
         // State güncellenip (isNoiseSuppression) yeni değere geçsin diye minik gecikme
-        setTimeout(() => {
-            reconnectVoiceChannel?.();
-        }, 150);
+        
     };
 
     // 👇 3. BUTONA BASILINCA ÇALIŞAN FONKSİYON

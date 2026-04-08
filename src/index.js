@@ -475,8 +475,19 @@ io.on('connection', (socket) => {
     // WebRTC
     socket.on('webrtc-offer', (d) => io.to(d.targetSocketId).emit('webrtc-offer', { socketId: socket.id, sdp: d.sdp }));
     socket.on('webrtc-answer', (d) => io.to(d.targetSocketId).emit('webrtc-answer', { socketId: socket.id, sdp: d.sdp }));
-    socket.on('webrtc-ice-candidate', (d) => io.to(d.targetSocketId).emit('webrtc-ice-candidate', { socketId: socket.id, candidate: d.candidate }));
+socket.on('webrtc-ice-candidate', (data) => {
+    const { targetSocketId, candidate, userId } = data;
+    
+    // Güvenlik: Hedef socket ID yoksa işlem yapma
+    if (!targetSocketId || !candidate) return;
 
+    // Adayı (candidate) bekletmeden hedef kullanıcıya fırlat
+    io.to(targetSocketId).emit('webrtc-ice-candidate', {
+        socketId: socket.id, // Gönderenin ID'si
+        candidate: candidate, // Adayın kendisi
+        userId: userId        // Gönderen kullanıcının DB ID'si
+    });
+});
     // Disconnect
     socket.on('disconnect', () => {
         console.log(`[SOCKET]: Ayrıldı ${socket.id}`);

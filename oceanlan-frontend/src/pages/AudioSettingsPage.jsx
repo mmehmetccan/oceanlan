@@ -2,6 +2,7 @@
 import React, { useContext, useState, useEffect ,useRef} from 'react';
 import { AudioSettingsContext } from '../context/AudioSettingsContext';
 import { useNavigate } from 'react-router-dom';
+import { ToastContext } from '../context/ToastContext';
 import '../styles/AudioSettings.css';
 
 const AudioSettingsPage = () => {
@@ -10,14 +11,15 @@ const AudioSettingsPage = () => {
     pttKey, setPttKey, pttKeyCode, setPttKeyCode,
     outputDeviceId, setOutputDeviceId,
     inputDeviceId, setInputDeviceId,
-    inputVolume, setInputVolume
+    inputVolume, setInputVolume,
+    isMicMuted
   } = useContext(AudioSettingsContext);
 
   const [isListening, setIsListening] = useState(false);
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const navigate = useNavigate();
-
+const { addToast } = useContext(ToastContext);
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [micLevel, setMicLevel] = useState(0); // 0-100 arası görsel bar için
   const testStreamRef = useRef(null);
@@ -87,11 +89,7 @@ const AudioSettingsPage = () => {
   if (!testAudioCtxRef.current || !isTestingMic) return; 
 
   // 2. Mute Kontrolü (Mikrofon kapalıysa barı sıfırla ve bekle)
-  if (isMicMuted) {
-    setMicLevel(0);
-    animationFrameRef.current = requestAnimationFrame(updateLevel);
-    return;
-  }
+  
 
   // 3. Frekans Verisini Al
   analyser.getByteFrequencyData(dataArray);
