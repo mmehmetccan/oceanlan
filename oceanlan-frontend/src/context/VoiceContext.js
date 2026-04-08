@@ -44,12 +44,12 @@ const rtcConfig = {
 // RMS_SMOOTHING   : Anlık RMS dalgalanmalarını yumuşatır.
 //                   0.90 korundu — çok yüksek olursa gecikme artar.
 // ============================================================
-const GATE_OPEN_RMS   = 0.025;
-const GATE_CLOSE_RMS  = 0.012;
-const GATE_FLOOR      = 0.0001;
+const GATE_OPEN_RMS   = 0.015;
+const GATE_CLOSE_RMS  = 0.008;
+const GATE_FLOOR      = 0.002;
 const GATE_HOLD_MS    = 500;
-const EXPANDER_POWER  = 12.0;
-const RMS_SMOOTHING   = 0.90;
+const EXPANDER_POWER  = 3.0;
+const RMS_SMOOTHING   = 0.75;
 
 // ============================================================
 // 🎛️ EQ / FİLTRE PARAMETRELERİ
@@ -653,11 +653,11 @@ export const VoiceProvider = ({ children }) => {
         // ─── Compressor: klavye gibi ani yüksek sesler tepe enerji yapar;
         //     compressor bunları hızla bastırır GATE açılmadan önce ─────────
         const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -35;   // daha agresif eşik
-        compressor.knee.value      = 10;    // daha sert geçiş
+        compressor.threshold.value = -45;   // daha agresif eşik
+        compressor.knee.value      = 6;    // daha sert geçiş
         compressor.ratio.value     = 20;     // yüksek baskı oranı
-        compressor.attack.value    = 0.001; // çok hızlı attack — anlık sesleri yakalar
-        compressor.release.value   = 0.15;
+        compressor.attack.value    = 0.003; // çok hızlı attack — anlık sesleri yakalar
+        compressor.release.value   = 0.25;
 
         inputGain.connect(highPass);
         highPass.connect(lowPass);
@@ -712,9 +712,9 @@ export const VoiceProvider = ({ children }) => {
           if (!gateGainNode || audioCtx.state === 'closed') return;
 
           // AudioContext arka planda suspend edilmişse resume et
-          if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
+          if (audioCtx.state !== 'running') {
+  audioCtx.resume().catch(() => {});
+}
 
           if (inputModeRef.current === 'PUSH_TO_TALK') {
             const isOpen = isPTTPressedRef.current;
@@ -773,7 +773,7 @@ export const VoiceProvider = ({ children }) => {
             if (simpleCtx.state === 'closed') return;
 
             // AudioContext suspend olduysa resume et
-            if (simpleCtx.state === 'suspended') {
+            if (simpleCtx.state === 'running') {
               simpleCtx.resume().catch(() => {});
               setTimeout(checkLoop, 50);
               return;
