@@ -623,43 +623,41 @@ export const VoiceProvider = ({ children }) => {
     const source = audioCtx.createMediaStreamSource(rawStream);
     const destination = audioCtx.createMediaStreamDestination();
 
-    // 1. RNNoise Modülünü Yükle
     await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
     const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-    // 2. AGRESİF FİLTRE VE DİNAMİK İŞLEMCİLER
-    
-    // Low-Pass: 6500Hz üstünü sertçe kes (Klavye çıtlamaları ve cızıltı buradadır)
-    const highFreqCut = audioCtx.createBiquadFilter();
-    highFreqCut.type = 'lowpass';
-    highFreqCut.frequency.value = 6500; 
-    highFreqCut.Q.value = 1.0; // Daha dik bir kesiş
-
-    // High-Pass: 180Hz altını kes (Fan ve masa gürültüsü)
+    // 1. FİLTRELERİ BİRAZ GEVŞETELİM (Sesinin yutulmaması için)
     const lowFreqCut = audioCtx.createBiquadFilter();
     lowFreqCut.type = 'highpass';
-    lowFreqCut.frequency.value = 180; 
+    lowFreqCut.frequency.value = 120; // 180'den 120'ye çektik, sesin daha dolgun gelir
 
-    // Compressor/Limiter: Ani klavye vuruşlarını RNNoise'a girmeden "ezmek" için
+    const highFreqCut = audioCtx.createBiquadFilter();
+    highFreqCut.type = 'lowpass';
+    highFreqCut.frequency.value = 7500; // 6500'den 7500'e çıkardık, sesin boğulmaz
+
+    // 2. ÖN KAZANÇ (Sesini gürültüden ayırmak için kritik)
+    const preGain = audioCtx.createGain();
+    preGain.gain.value = 1.4; // Sesini %40 artırarak RNNoise'a gönderiyoruz
+
+    // 3. YUMUŞAK COMPRESSOR
     const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -24; 
-    limiter.knee.value = 0; // Sert diz (Hard knee)
-    limiter.ratio.value = 20; 
-    limiter.attack.value = 0.001; // Milisaniyelik tepki
-    limiter.release.value = 0.05;
+    limiter.threshold.value = -20; 
+    limiter.knee.value = 15; // Soft-knee: Sesin yutulmasını önler, doğal geçiş sağlar
+    limiter.ratio.value = 12; 
+    limiter.attack.value = 0.005;
+    limiter.release.value = 0.1;
 
-    // Output Gate (Sessizlik anında cızıltıyı tamamen yok etmek için)
     const outputGate = audioCtx.createGain();
     outputGate.gain.value = 1.0;
-    gateGainNodeRef.current = outputGate; // Gate döngüsü için ref'e bağla
+    gateGainNodeRef.current = outputGate;
 
     if (isNoiseSuppressionRef.current) {
-      // ⛓️ AGRESİF ZİNCİR:
-      // Kaynak -> Limiter -> LowCut -> HighCut -> RNNoise -> outputGate -> Destination
-      source.connect(limiter);
-      limiter.connect(lowFreqCut);
+      // Zincir: Kaynak -> lowCut -> highCut -> preGain -> limiter -> RNNoise -> Gate -> Dest
+      source.connect(lowFreqCut);
       lowFreqCut.connect(highFreqCut);
-      highFreqCut.connect(rnnoiseNode);
+      highFreqCut.connect(preGain);
+      preGain.connect(limiter);
+      limiter.connect(rnnoiseNode);
       rnnoiseNode.connect(outputGate);
       outputGate.connect(destination);
       
@@ -667,7 +665,6 @@ export const VoiceProvider = ({ children }) => {
       rnnoiseNode.connect(analyser);
       
       rnnoiseNode.port.postMessage({ type: 'init' });
-      // Gate analizi artık outputGate'i de kontrol edecek
       startGateAnalysis(analyser, outputGate, audioCtx); 
     } else {
       source.connect(destination);
@@ -704,6 +701,7 @@ export const VoiceProvider = ({ children }) => {
         analyser.fftSize = 512;
         const timeData = new Float32Array(analyser.fftSize);
 
+        let gateIsOpen = false; // Fonksiyonun dışında bir yerde tanımlanmalı
         const checkVolume = () => {
   if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
 
@@ -712,16 +710,25 @@ export const VoiceProvider = ({ children }) => {
   for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
   const rms = Math.sqrt(sumSq / timeData.length);
 
-  // Eşik değerini 0.03 yaparak klavye ve cızıltının "ışığı yakmasını" engelle
-  const isSpeaking = rms > 0.03; 
+  // ÇİFT EŞİK MANTIĞI:
+  // 0.025 ile açılır, 0.012'nin altına düşene kadar kapanmaz.
+  const openThreshold = 0.025; 
+  const closeThreshold = 0.012;
 
-  // Eğer gateGainNode (outputGate) varsa, sessizlikte kazancı 0 yap (Cızıltıyı öldür)
-  if (gateGainNode) {
-    const targetGain = isSpeaking ? 1.0 : 0.0;
-    gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.05);
+  if (rms > openThreshold) {
+    gateIsOpen = true;
+  } else if (rms < closeThreshold) {
+    gateIsOpen = false;
   }
 
-  updateSpeakingStatus(isSpeaking);
+  if (gateGainNode) {
+    // Kapanırken daha yavaş (0.15s), açılırken daha hızlı (0.02s) tepki
+    const targetGain = gateIsOpen ? 1.0 : 0.0;
+    const rampTime = gateIsOpen ? 0.02 : 0.15; 
+    gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
+  }
+
+  updateSpeakingStatus(gateIsOpen);
   setTimeout(checkVolume, 50);
 };
 
