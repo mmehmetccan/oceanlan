@@ -2,8 +2,10 @@
   "main": "public/electron.cjs",
   "homepage": "./",
   "name": "oceanlan",
+  "description": "OceanLan Sosyal Uygulaması",
+  "author": "Mehmet Can Gumus",
   "private": true,
-  "version": "1.5.5",
+  "version": "1.5.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -60,10 +62,12 @@
     },
     "files": [
       "dist/**/*",
+      "public/**/*",
       "public/electron.cjs",
       "public/preload.cjs",
       "public/splash.html"
     ],
+      "forceCodeSigning": false,
     "win": {
       "target": [
         {
@@ -77,9 +81,12 @@
       "artifactName": "OceanLan-Setup-${version}.exe"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "oneClick": true,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "allowElevation": true
     }
   }
 }
+

@@ -81,6 +81,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
+    show: false,
     icon: path.join(__dirname, 'ms-icon-310x310.png'),
     frame: false,
     autoHideMenuBar: true,
@@ -94,7 +95,7 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
       contextIsolation: true,
-      webSecurity: true,
+      webSecurity: false,
       backgroundThrottling: false
     },
   });
@@ -118,11 +119,17 @@ function createMainWindow() {
   } else {
     const appPath = app.getAppPath();
     const indexPath = path.join(__dirname, 'dist', 'index.html');
+
 mainWindow.loadFile(indexPath).catch(err => {
     console.error("Ana sayfa yüklenemedi:", err);
     // Eğer dist içinde değilse root içinde aramayı dene (Yedek plan)
-    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
 });
+autoUpdater.on('update-downloaded', (info) => {
+    // true, true -> Sessiz kur ve bittikten sonra uygulamayı başlat
+    autoUpdater.quitAndInstall(true, true); 
+});
+
 }
   mainWindow.on('closed', () => {
     mainWindow = null;

@@ -43,7 +43,7 @@ const Sidebar = ({ unreadCount }) => {
   const [dropAction, setDropAction] = useState(null);
   const [dragSource, setDragSource] = useState(null);
 
-const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.5.5.exe');
+const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.5.6.exe');
   const isApp = isElectron();
 
   useEffect(() => {
