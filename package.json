@@ -31,6 +31,7 @@
     "node-media-server": "^2.6.2",
     "nodemailer": "^7.0.11",
     "opusscript": "^0.1.1",
+    "rnnoise-wasm": "^0.0.1-security",
     "sharp": "^0.34.5",
     "simple-peer": "^9.11.1",
     "socket.io": "^4.8.1",

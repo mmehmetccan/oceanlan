@@ -615,188 +615,131 @@ export const VoiceProvider = ({ children }) => {
   // GELİŞMİŞ GÜRÜLTÜ ENGELLEME İŞLEMCİSİ
   // ─────────────────────────────────────────────────────────────
   const processAudioStream = async (rawStream) => {
-    try {
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtxClass) return rawStream;
+  try {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtxClass({ sampleRate: 48000 });
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-      const audioCtx = new AudioCtxClass();
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const source = audioCtx.createMediaStreamSource(rawStream);
+    const destination = audioCtx.createMediaStreamDestination();
 
-      const source      = audioCtx.createMediaStreamSource(rawStream);
-      const destination = audioCtx.createMediaStreamDestination();
+    // 1. RNNoise Modülünü Yükle ve Düğümü Oluştur
+    await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
+    const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-      // Input gain
-      const inputGain = audioCtx.createGain();
-      const vol       = inputVolumeRef.current;
-      inputGain.gain.value = vol === 0 ? 0 : (vol > 100 ? 1.0 + ((vol - 100) / 30) : vol / 100);
-      inputGainNodeRef.current = inputGain;
+    // 2. Analiz için Analyser oluştur (Yeşil ışık için şart)
+    const analyser = audioCtx.createAnalyser();
+    analyser.smoothingTimeConstant = 0.8;
 
-      source.connect(inputGain);
+    if (isNoiseSuppressionRef.current) {
+      // ZİNCİR: Mikrofon -> RNNoise -> Analyser & Destination
+      source.connect(rnnoiseNode);
+      rnnoiseNode.connect(analyser); // Konuşma analizi temiz ses üzerinden yapılsın
+      rnnoiseNode.connect(destination);
+      
+      rnnoiseNode.port.postMessage({ type: 'init' });
 
-      if (isNoiseSuppressionRef.current) {
-        // ─── Filtre zinciri: inputGain → highPass → lowPass → gate → compressor → dest ───
-
-        const highPass = audioCtx.createBiquadFilter();
-        highPass.type            = 'highpass';
-        highPass.frequency.value = LOW_CUT_FREQ;
-        highPass.Q.value         = LOW_CUT_Q;
-
-        const lowPass = audioCtx.createBiquadFilter();
-        lowPass.type            = 'lowpass';
-        lowPass.frequency.value = HIGH_CUT_FREQ;
-        lowPass.Q.value         = 0.5;
-
-        const gateGain = audioCtx.createGain();
-        gateGain.gain.value      = 1;
-        gateGainNodeRef.current  = gateGain;
-
-        // ─── Compressor: klavye gibi ani yüksek sesler tepe enerji yapar;
-        //     compressor bunları hızla bastırır GATE açılmadan önce ─────────
-        const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -45;   // daha agresif eşik
-        compressor.knee.value      = 6;    // daha sert geçiş
-        compressor.ratio.value     = 20;     // yüksek baskı oranı
-        compressor.attack.value    = 0.003; // çok hızlı attack — anlık sesleri yakalar
-        compressor.release.value   = 0.25;
-
-        inputGain.connect(highPass);
-        highPass.connect(lowPass);
-        lowPass.connect(gateGain);
-        gateGain.connect(compressor);
-        compressor.connect(destination);
-
-        // Analyser gate loop için lowPass'ten beslenir
-        const analyser = audioCtx.createAnalyser();
-        analyser.smoothingTimeConstant = 0.8;
-        lowPass.connect(analyser);
-        startGateAnalysis(analyser, gateGain, audioCtx);
-      } else {
-        inputGain.connect(destination);
-        startGateAnalysis(null, null, null, rawStream);
-      }
-
-      audioContextRef.current = audioCtx;
-      return destination.stream;
-    } catch (e) {
-      console.error('[processAudioStream] Hata:', e);
-      return rawStream;
+      // Önemli: startGateAnalysis'i yeni analyser ile başlat
+      startGateAnalysis(analyser, null, audioCtx); 
+    } else {
+      source.connect(destination);
+      // Gürültü engelleme kapalıyken ham sesi analiz et
+      const rawAnalyser = audioCtx.createAnalyser();
+      source.connect(rawAnalyser);
+      startGateAnalysis(rawAnalyser, null, audioCtx);
     }
-  };
+
+    audioContextRef.current = audioCtx;
+    return destination.stream;
+  } catch (e) {
+    console.error('RNNoise Başlatılamadı:', e);
+    return rawStream;
+  }
+};
 
   // ─────────────────────────────────────────────────────────────
   // GATE ANALİZ DÖNGÜSÜ
   // ─────────────────────────────────────────────────────────────
+ 
+  // ─────────────────────────────────────────────────────────────
+  // GATE ANALİZ DÖNGÜSÜ (RNNoise Uyumlu ve Hataları Giderilmiş)
+  // ─────────────────────────────────────────────────────────────
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-    // Önceki döngüyü durdur
+    // Önceki döngüyü tamamen durdur
     gateLoopActiveRef.current = false;
 
-    // Kısa gecikme: bir sonraki tick'te yeni döngü başlasın
+    // Bir sonraki tick'te yeni döngü başlasın (race condition önleme)
     setTimeout(() => {
       gateLoopActiveRef.current = true;
 
-      if (analyser && gateGainNode && audioCtx) {
-        // ─── FULL GATE MODU (gürültü engelleme açık) ───
-        analyser.fftSize = 1024;
-        const timeData   = new Float32Array(analyser.fftSize);
+      // --- 1. DURUM: Analyser ve Context Mevcutsa (Normal/RNNoise Modu) ---
+      if (analyser && audioCtx) {
+        analyser.fftSize = 512;
+        const timeData = new Float32Array(analyser.fftSize);
 
-        let gateIsOpen   = true;
-        let lastOpenTime = performance.now();
-        let smoothedRms  = 0;
-
-        // 🔧 ARKA PLAN FIX:
-        // requestAnimationFrame arka planda (sekme minimize/alt sekme) tamamen durur.
-        // setTimeout(fn, 50) ise Chrome'un throttle sınırı olan ~1 saniyenin çok altında
-        // ve arka planda da çalışmaya devam eder. 50ms ≈ 20Hz — ses kalitesi için yeterli.
         const checkVolume = () => {
-          if (!gateLoopActiveRef.current)               return;
-          if (!gateGainNode || audioCtx.state === 'closed') return;
+          // Döngü durdurulduysa veya context kapandıysa çık
+          if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
 
-          // AudioContext arka planda suspend edilmişse resume et
+          // Tarayıcı kısıtlamaları için AudioContext'i uyandır
           if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
+            audioCtx.resume().catch(() => {});
+          }
 
+          // A) PUSH_TO_TALK (Bas-Konuş) Aktifse
           if (inputModeRef.current === 'PUSH_TO_TALK') {
-            const isOpen = isPTTPressedRef.current;
-            gateGainNode.gain.setTargetAtTime(
-              isOpen ? 1 : 0,
-              audioCtx.currentTime,
-              isOpen ? 0.01 : 0.05
-            );
-            updateSpeakingStatus(isOpen);
+            updateSpeakingStatus(isPTTPressedRef.current);
             setTimeout(checkVolume, 50);
             return;
           }
 
+          // B) VOICE_ACTIVITY (Ses Aktivitesi) - RNNoise Destekli
           analyser.getFloatTimeDomainData(timeData);
           let sumSq = 0;
           for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
           const rms = Math.sqrt(sumSq / timeData.length);
 
-          smoothedRms = RMS_SMOOTHING * smoothedRms + (1 - RMS_SMOOTHING) * rms;
+          // RNNoise gürültüyü sildiği için 0.01 gibi düşük bir RMS değeri 
+          // sadece konuşma varken tetiklenecektir.
+          const isSpeaking = rms > 0.01; 
+          updateSpeakingStatus(isSpeaking);
 
-          const now = performance.now();
-          if (smoothedRms >= GATE_OPEN_RMS) {
-            gateIsOpen   = true;
-            lastOpenTime = now;
-          } else if (smoothedRms <= GATE_CLOSE_RMS && now - lastOpenTime > GATE_HOLD_MS) {
-            gateIsOpen = false;
-          }
-
-          const norm   = Math.min(Math.max(smoothedRms / GATE_OPEN_RMS, 0), 1);
-          const shaped = Math.pow(norm, EXPANDER_POWER);
-          const target = gateIsOpen
-            ? GATE_FLOOR + (1 - GATE_FLOOR) * shaped
-            : GATE_FLOOR;
-
-          const tau = gateIsOpen ? 0.035 : 0.12;
-          gateGainNode.gain.setTargetAtTime(target, audioCtx.currentTime, tau);
-
-          updateSpeakingStatus(gateIsOpen);
           setTimeout(checkVolume, 50);
         };
 
         checkVolume();
-        return;
+        return; // İşlem başarılı, fonksiyondan çık.
       }
 
+      // --- 2. DURUM: Basit Mod (Hata durumları için yedek analiz) ---
       if (rawStreamForSimpleMode) {
-        // ─── BASİT MOD (gürültü engelleme kapalı, sadece konuşma göstergesi) ───
         try {
-          const simpleCtx      = new (window.AudioContext || window.webkitAudioContext)();
+          const simpleCtx = new (window.AudioContext || window.webkitAudioContext)();
           const simpleAnalyser = simpleCtx.createAnalyser();
-          const simpleSrc      = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
+          const simpleSrc = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
           simpleSrc.connect(simpleAnalyser);
 
           const checkLoop = () => {
-            if (!gateLoopActiveRef.current) { simpleCtx.close().catch(() => {}); return; }
-            if (simpleCtx.state === 'closed') return;
-
-            // AudioContext suspend olduysa resume et
-            if (simpleCtx.state === 'suspended') {
-              simpleCtx.resume().catch(() => {});
-              setTimeout(checkLoop, 50);
-              return;
+            if (!gateLoopActiveRef.current) { 
+              simpleCtx.close().catch(() => {}); 
+              return; 
             }
-
-            if (inputModeRef.current === 'PUSH_TO_TALK') {
-              updateSpeakingStatus(isPTTPressedRef.current);
-              setTimeout(checkLoop, 50);
-              return;
-            }
-
+            
             const arr = new Uint8Array(simpleAnalyser.frequencyBinCount);
             simpleAnalyser.getByteFrequencyData(arr);
             let sum = 0;
             for (let i = 0; i < arr.length; i++) sum += arr[i];
+            
             updateSpeakingStatus((sum / arr.length) > 10);
             setTimeout(checkLoop, 50);
           };
 
           checkLoop();
-        } catch (_) {}
+        } catch (err) {
+          console.error("Basit ses analizi başlatılamadı:", err);
+        }
       }
-    }, 0);
+    }, 100);
   };
 
   // ─────────────────────────────────────────────────────────────
