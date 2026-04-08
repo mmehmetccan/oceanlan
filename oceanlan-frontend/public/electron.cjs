@@ -93,13 +93,15 @@ function createMainWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: true,
-      contextIsolation: true,
+      contextIsolation: false,
       webSecurity: false,
       backgroundThrottling: false
     },
   });
 
   mainWindow.setMenuBarVisibility(false);
+
+mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Ekran Paylaşımı İzni
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
@@ -117,10 +119,10 @@ function createMainWindow() {
     mainWindow.loadURL('http://localhost:5173/');
   } else {
     const appPath = app.getAppPath();
+    
     const indexPath = path.join(__dirname, 'dist', 'index.html');
 mainWindow.loadFile(indexPath).catch(err => {
     console.error("Ana sayfa yüklenemedi:", err);
-    // Eğer dist içinde değilse root içinde aramayı dene (Yedek plan)
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 });
 }

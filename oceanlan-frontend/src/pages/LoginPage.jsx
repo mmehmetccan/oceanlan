@@ -16,7 +16,7 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
 
   const [error, setError] = useState('');
-const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.5.7.exe');
+const [downloadUrl, setDownloadUrl] = useState('https://oceanlan.com/uploads/installer/OceanLan-Setup-1.5.8.exe');
   const { login, loading } = useContext(AuthContext);
   const [showPassword, setShowPassword] = useState(false);
   const [showPass, setShowPass] = useState({ new: false, confirm: false });

@@ -5,7 +5,7 @@
   "description": "OceanLan Sosyal Uygulaması",
   "author": "Mehmet Can Gumus",
   "private": true,
-  "version": "1.5.7",
+  "version": "1.5.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
