@@ -40,44 +40,45 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
-    const input = inputs[0];
-    const output = outputs[0];
+  const input = inputs[0];
+  const output = outputs[0];
 
-    if (!input || !input[0] || !output || !output[0]) {
-      return this.alive;
-    }
-
-    const inputChannel = input[0];
-    const outputChannel = output[0];
-
-    // Model hazır değilse bypass (sesi aynen ilet)
-    if (!this.model) {
-      for (let i = 0; i < inputChannel.length; i++) {
-        outputChannel[i] = inputChannel[i];
-      }
-      return this.alive;
-    }
-
-    // RNNoise ile 480 sample bloklar halinde işle
-    for (let i = 0; i < inputChannel.length; i++) {
-      this.inputBuffer[this.bufferPos] = inputChannel[i];
-
-      // Çıkış için bir önceki işlenmiş bloğu kullan
-      if (this.bufferPos < this.frameSize) {
-        outputChannel[i] = this.outputBuffer[this.bufferPos] || 0;
-      }
-
-      this.bufferPos++;
-
-      if (this.bufferPos >= this.frameSize) {
-        const cleaned = this.model.process(this.inputBuffer);
-        this.outputBuffer.set(cleaned);
-        this.bufferPos = 0;
-      }
-    }
-
+  if (!input || !input[0] || !output || !output[0]) {
     return this.alive;
   }
+
+  const inputChannel = input[0];
+  const outputChannel = output[0];
+
+  if (!this.model) {
+    for (let i = 0; i < inputChannel.length; i++) {
+      outputChannel[i] = inputChannel[i];
+    }
+    return this.alive;
+  }
+
+  // Crossfade için önceki çıkış değerini tut
+  let lastOutput = 0;
+
+  for (let i = 0; i < inputChannel.length; i++) {
+    this.inputBuffer[this.bufferPos] = inputChannel[i];
+
+    // Yumuşak geçiş için linear interpolasyon
+    const currentOut = this.outputBuffer[this.bufferPos] || 0;
+    outputChannel[i] = lastOutput * 0.3 + currentOut * 0.7; // Hafif smoothing
+    lastOutput = outputChannel[i];
+
+    this.bufferPos++;
+
+    if (this.bufferPos >= this.frameSize) {
+      const cleaned = this.model.process(this.inputBuffer);
+      this.outputBuffer.set(cleaned);
+      this.bufferPos = 0;
+    }
+  }
+
+  return this.alive;
+}
 }
 
 registerProcessor('rnnoise-processor', RNNoiseProcessor);

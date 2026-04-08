@@ -26,8 +26,8 @@ const rtcConfig = {
 // ============================================================
 const GATE_OPEN_RMS   = 0.022;
 const GATE_CLOSE_RMS  = 0.009;
-const GATE_HOLD_MS    = 400;
-const RMS_SMOOTHING   = 0.85;
+const GATE_HOLD_MS    = 350;
+const RMS_SMOOTHING   = 0.90;
 
 // ============================================================
 // 🎛️ NAZİK FİLTRE PARAMETRELERİ
@@ -53,6 +53,7 @@ const AGGRESSIVE_AUDIO_CONSTRAINTS = {
   googHighpassFilter: true,
   googTypingNoiseDetection: true,
   googNoiseReduction: true,
+  echoCancellationType: 'system',
 };
 
 export const VoiceProvider = ({ children }) => {
@@ -637,104 +638,112 @@ export const VoiceProvider = ({ children }) => {
   // 🎯 OPTİMİZE SES İŞLEME (RNNoise + Hafif Filtreler)
   // ─────────────────────────────────────────────────────────────
   const processAudioStream = async (rawStream) => {
-    try {
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtxClass({ 
-        sampleRate: 48000,
-        latencyHint: 'interactive'
-      });
-      
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
+  try {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtxClass({ 
+      sampleRate: 48000,
+      latencyHint: 'interactive'
+    });
+    
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-      const source = audioCtx.createMediaStreamSource(rawStream);
-      const destination = audioCtx.createMediaStreamDestination();
+    const source = audioCtx.createMediaStreamSource(rawStream);
+    const destination = audioCtx.createMediaStreamDestination();
 
-      // 1. Hafif Limiter (ani patlamaları törpüler)
-      const limiter = audioCtx.createDynamicsCompressor();
-      limiter.threshold.value = -20;
-      limiter.knee.value = 5;
-      limiter.ratio.value = 8;
-      limiter.attack.value = 0.001;
-      limiter.release.value = 0.05;
+    // 1. YUMUŞAK LİMİTER - Sesi bozmadan patlamaları kontrol eder
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -16;      // Daha yüksek eşik = daha az sıkıştırma
+    limiter.knee.value = 8;             // Yumuşak geçiş
+    limiter.ratio.value = 4;            // 4:1 oran
+    limiter.attack.value = 0.005;       // 5ms - doğal atak
+    limiter.release.value = 0.08;       // 80ms - pürüzsüz salınım
 
-      // 2. Highpass Filtre (mutfak uğultusu, klima sesi)
-      const highpass = audioCtx.createBiquadFilter();
-      highpass.type = 'highpass';
-      highpass.frequency.value = HIGH_PASS_FREQ;
-      highpass.Q.value = 0.7;
+    // 2. HIGHPASS FİLTRE - Mutfak uğultusu, klima (120 Hz)
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 120;      // 140'tan 120'ye düşürüldü, sesi inceltmez
+    highpass.Q.value = 0.6;
 
-      // 3. Klavye Notch Filtresi (5 kHz civarı)
-      const notch = audioCtx.createBiquadFilter();
-      notch.type = 'peaking';
-      notch.frequency.value = NOTCH_FREQ;
-      notch.Q.value = 2.0;
-      notch.gain.value = NOTCH_GAIN_DB;
+    // 3. BİRİNCİ NOTCH - Mekanik klavye ana frekansı (5 kHz)
+    const notch1 = audioCtx.createBiquadFilter();
+    notch1.type = 'peaking';
+    notch1.frequency.value = 5000;
+    notch1.Q.value = 2.5;
+    notch1.gain.value = -15;             // -12'den -15'e yükseltildi
 
-      // 4. Pre-Gain (RNNoise öncesi hafif yükseltme)
-      const preGain = audioCtx.createGain();
-      preGain.gain.value = 1.1;
+    // 4. İKİNCİ NOTCH - Klavye ikinci harmoniği (2.5 kHz)
+    const notch2 = audioCtx.createBiquadFilter();
+    notch2.type = 'peaking';
+    notch2.frequency.value = 2500;
+    notch2.Q.value = 2.0;
+    notch2.gain.value = -9;              // Hafif bastırma
 
-      // 5. Gate Gain Node
-      const gateGain = audioCtx.createGain();
-      gateGain.gain.value = 0;
-      gateGainNodeRef.current = gateGain;
+    // 5. PRE-GAIN KALDIRILDI (1.0) - Ses rengini bozmamak için
+    const preGain = audioCtx.createGain();
+    preGain.gain.value = 1.0;            // Eskiden 1.1'di
 
-      // 6. Input Volume Gain
-      const inputGain = audioCtx.createGain();
-      inputGain.gain.value = inputVolumeRef.current / 100;
-      inputGainNodeRef.current = inputGain;
+    // 6. GATE GAIN NODE
+    const gateGain = audioCtx.createGain();
+    gateGain.gain.value = 0;
+    gateGainNodeRef.current = gateGain;
 
-      if (isNoiseSuppressionRef.current) {
-        try {
-          await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
-          const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
-          workletNodeRef.current = rnnoiseNode;
-          
-          // Zincir: source → limiter → highpass → notch → preGain → RNNoise → inputGain → gate → dest
-          source.connect(limiter);
-          limiter.connect(highpass);
-          highpass.connect(notch);
-          notch.connect(preGain);
-          preGain.connect(rnnoiseNode);
-          rnnoiseNode.connect(inputGain);
-          inputGain.connect(gateGain);
-          gateGain.connect(destination);
-          
-          const analyser = audioCtx.createAnalyser();
-          rnnoiseNode.connect(analyser);
-          
-          rnnoiseNode.port.postMessage({ type: 'init' });
-          
-          // RNNoise hazır olana kadar gate kapalı kalmasın diye timeout
-          setTimeout(() => startOptimizedGateAnalysis(analyser, gateGain, audioCtx), 100);
-        } catch (rnnoiseError) {
-          console.warn('RNNoise yüklenemedi, fallback:', rnnoiseError);
-          // Fallback
-          source.connect(limiter);
-          limiter.connect(highpass);
-          highpass.connect(notch);
-          notch.connect(preGain);
-          preGain.connect(inputGain);
-          inputGain.connect(gateGain);
-          gateGain.connect(destination);
-          
-          const analyser = audioCtx.createAnalyser();
-          preGain.connect(analyser);
-          startOptimizedGateAnalysis(analyser, gateGain, audioCtx);
-        }
-      } else {
-        source.connect(highpass);
-        highpass.connect(inputGain);
-        inputGain.connect(destination);
+    // 7. INPUT VOLUME GAIN
+    const inputGain = audioCtx.createGain();
+    inputGain.gain.value = inputVolumeRef.current / 100;
+    inputGainNodeRef.current = inputGain;
+
+    if (isNoiseSuppressionRef.current) {
+      try {
+        await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
+        const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
+        workletNodeRef.current = rnnoiseNode;
+        
+        // ZİNCİR: source → limiter → highpass → notch1 → notch2 → preGain → RNNoise → inputGain → gate → dest
+        source.connect(limiter);
+        limiter.connect(highpass);
+        highpass.connect(notch1);
+        notch1.connect(notch2);
+        notch2.connect(preGain);
+        preGain.connect(rnnoiseNode);
+        rnnoiseNode.connect(inputGain);
+        inputGain.connect(gateGain);
+        gateGain.connect(destination);
+        
+        const analyser = audioCtx.createAnalyser();
+        rnnoiseNode.connect(analyser);
+        
+        rnnoiseNode.port.postMessage({ type: 'init' });
+        
+        setTimeout(() => startOptimizedGateAnalysis(analyser, gateGain, audioCtx), 100);
+      } catch (rnnoiseError) {
+        console.warn('RNNoise yüklenemedi, fallback:', rnnoiseError);
+        // Fallback zinciri
+        source.connect(limiter);
+        limiter.connect(highpass);
+        highpass.connect(notch1);
+        notch1.connect(notch2);
+        notch2.connect(preGain);
+        preGain.connect(inputGain);
+        inputGain.connect(gateGain);
+        gateGain.connect(destination);
+        
+        const analyser = audioCtx.createAnalyser();
+        preGain.connect(analyser);
+        startOptimizedGateAnalysis(analyser, gateGain, audioCtx);
       }
-
-      audioContextRef.current = audioCtx;
-      return destination.stream;
-    } catch (e) {
-      console.error('Ses işleme hatası:', e);
-      return rawStream;
+    } else {
+      source.connect(highpass);
+      highpass.connect(inputGain);
+      inputGain.connect(destination);
     }
-  };
+
+    audioContextRef.current = audioCtx;
+    return destination.stream;
+  } catch (e) {
+    console.error('Ses işleme hatası:', e);
+    return rawStream;
+  }
+};
 
   // ─────────────────────────────────────────────────────────────
   // GATE ANALİZİ (Düşük Gecikmeli)
