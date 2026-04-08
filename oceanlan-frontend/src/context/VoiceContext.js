@@ -688,11 +688,14 @@ export const VoiceProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────────
   // GATE ANALİZ DÖNGÜSÜ (RNNoise Uyumlu ve Hataları Giderilmiş)
   // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
+  // GATE ANALİZ DÖNGÜSÜ (Arka Plan Fix & Parantez Hatası Giderildi)
+  // ─────────────────────────────────────────────────────────────
   const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
     // Önceki döngüyü tamamen durdur
     gateLoopActiveRef.current = false;
 
-    // Bir sonraki tick'te yeni döngü başlasın (race condition önleme)
+    // Bir sonraki tick'te yeni döngü başlasın
     setTimeout(() => {
       gateLoopActiveRef.current = true;
 
@@ -700,43 +703,52 @@ export const VoiceProvider = ({ children }) => {
       if (analyser && audioCtx) {
         analyser.fftSize = 512;
         const timeData = new Float32Array(analyser.fftSize);
+        let gateIsOpen = false;
 
-        let gateIsOpen = false; // Fonksiyonun dışında bir yerde tanımlanmalı
         const checkVolume = () => {
-  if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
+          if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
 
-  analyser.getFloatTimeDomainData(timeData);
-  let sumSq = 0;
-  for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
-  const rms = Math.sqrt(sumSq / timeData.length);
+          // 🔧 ARKA PLAN FIX: Sekme arka planda kısıtlansa bile Context'i uyanık tut
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+          }
 
-  // ÇİFT EŞİK MANTIĞI:
-  // 0.025 ile açılır, 0.012'nin altına düşene kadar kapanmaz.
-  const openThreshold = 0.025; 
-  const closeThreshold = 0.012;
+          analyser.getFloatTimeDomainData(timeData);
+          let sumSq = 0;
+          for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
+          const rms = Math.sqrt(sumSq / timeData.length);
 
-  if (rms > openThreshold) {
-    gateIsOpen = true;
-  } else if (rms < closeThreshold) {
-    gateIsOpen = false;
-  }
+          // Histerizis (Çift Eşik) Ayarı
+          const openThreshold = 0.020; 
+          const closeThreshold = 0.010;
 
-  if (gateGainNode) {
-    // Kapanırken daha yavaş (0.15s), açılırken daha hızlı (0.02s) tepki
-    const targetGain = gateIsOpen ? 1.0 : 0.0;
-    const rampTime = gateIsOpen ? 0.02 : 0.15; 
-    gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
-  }
+          if (rms > openThreshold) {
+            gateIsOpen = true;
+          } else if (rms < closeThreshold) {
+            gateIsOpen = false;
+          }
 
-  updateSpeakingStatus(gateIsOpen);
-  setTimeout(checkVolume, 50);
-};
+          const finalStatus = inputModeRef.current === 'PUSH_TO_TALK' ? isPTTPressedRef.current : gateIsOpen;
+
+          if (gateGainNode) {
+            const targetGain = finalStatus ? 1.0 : 0.0;
+            const rampTime = finalStatus ? 0.04 : 0.20; 
+            gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
+          }
+
+          updateSpeakingStatus(finalStatus);
+
+          // Arka plan kısıtlamasından kurtulmak için döngüyü devam ettir
+          if (gateLoopActiveRef.current) {
+            setTimeout(checkVolume, 40); 
+          }
+        };
 
         checkVolume();
-        return; // İşlem başarılı, fonksiyondan çık.
+        return; 
       }
 
-      // --- 2. DURUM: Basit Mod (Hata durumları için yedek analiz) ---
+      // --- 2. DURUM: Basit Mod (Hata durumları veya yedek analiz) ---
       if (rawStreamForSimpleMode) {
         try {
           const simpleCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -756,7 +768,10 @@ export const VoiceProvider = ({ children }) => {
             for (let i = 0; i < arr.length; i++) sum += arr[i];
             
             updateSpeakingStatus((sum / arr.length) > 10);
-            setTimeout(checkLoop, 50);
+            
+            if (gateLoopActiveRef.current) {
+              setTimeout(checkLoop, 50);
+            }
           };
 
           checkLoop();
