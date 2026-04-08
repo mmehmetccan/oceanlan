@@ -5,7 +5,7 @@
   "description": "OceanLan Sosyal Uygulaması",
   "author": "Mehmet Can Gumus",
   "private": true,
-  "version": "1.5.6",
+  "version": "1.5.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -79,6 +79,7 @@
       ],
       "icon": "public/ms-icon-310x310.png",
       "artifactName": "OceanLan-Setup-${version}.exe"
+      
     },
     "nsis": {
       "oneClick": true,
