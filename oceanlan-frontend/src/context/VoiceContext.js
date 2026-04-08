@@ -691,94 +691,61 @@ export const VoiceProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────────
   // GATE ANALİZ DÖNGÜSÜ (Arka Plan Fix & Parantez Hatası Giderildi)
   // ─────────────────────────────────────────────────────────────
-  const startGateAnalysis = (analyser, gateGainNode, audioCtx, rawStreamForSimpleMode = null) => {
-    // Önceki döngüyü tamamen durdur
+  const startGateAnalysis = (analyser, gateGainNode, audioCtx) => {
     gateLoopActiveRef.current = false;
 
-    // Bir sonraki tick'te yeni döngü başlasın
     setTimeout(() => {
       gateLoopActiveRef.current = true;
+      if (!analyser || !audioCtx) return;
 
-      // --- 1. DURUM: Analyser ve Context Mevcutsa (Normal/RNNoise Modu) ---
-      if (analyser && audioCtx) {
-        analyser.fftSize = 512;
-        const timeData = new Float32Array(analyser.fftSize);
-        let gateIsOpen = false;
+      // 1. ScriptProcessor oluştur (Arka plan kısıtlamasından etkilenmez)
+      // 4096 buffer boyutu yaklaşık 85ms'lik stabil bir döngü sağlar
+      const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+      analyser.fftSize = 512;
+      const timeData = new Float32Array(analyser.fftSize);
+      let gateIsOpen = false;
 
-        const checkVolume = () => {
-          if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
-
-          // 🔧 ARKA PLAN FIX: Sekme arka planda kısıtlansa bile Context'i uyanık tut
-          if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(() => {});
-          }
-
-          analyser.getFloatTimeDomainData(timeData);
-          let sumSq = 0;
-          for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
-          const rms = Math.sqrt(sumSq / timeData.length);
-
-          // Histerizis (Çift Eşik) Ayarı
-          const openThreshold = 0.020; 
-          const closeThreshold = 0.010;
-
-          if (rms > openThreshold) {
-            gateIsOpen = true;
-          } else if (rms < closeThreshold) {
-            gateIsOpen = false;
-          }
-
-          const finalStatus = inputModeRef.current === 'PUSH_TO_TALK' ? isPTTPressedRef.current : gateIsOpen;
-
-          if (gateGainNode) {
-            const targetGain = finalStatus ? 1.0 : 0.0;
-            const rampTime = finalStatus ? 0.04 : 0.20; 
-            gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
-          }
-
-          updateSpeakingStatus(finalStatus);
-
-          // Arka plan kısıtlamasından kurtulmak için döngüyü devam ettir
-          if (gateLoopActiveRef.current) {
-            setTimeout(checkVolume, 40); 
-          }
-        };
-
-        checkVolume();
-        return; 
-      }
-
-      // --- 2. DURUM: Basit Mod (Hata durumları veya yedek analiz) ---
-      if (rawStreamForSimpleMode) {
-        try {
-          const simpleCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const simpleAnalyser = simpleCtx.createAnalyser();
-          const simpleSrc = simpleCtx.createMediaStreamSource(rawStreamForSimpleMode);
-          simpleSrc.connect(simpleAnalyser);
-
-          const checkLoop = () => {
-            if (!gateLoopActiveRef.current) { 
-              simpleCtx.close().catch(() => {}); 
-              return; 
-            }
-            
-            const arr = new Uint8Array(simpleAnalyser.frequencyBinCount);
-            simpleAnalyser.getByteFrequencyData(arr);
-            let sum = 0;
-            for (let i = 0; i < arr.length; i++) sum += arr[i];
-            
-            updateSpeakingStatus((sum / arr.length) > 10);
-            
-            if (gateLoopActiveRef.current) {
-              setTimeout(checkLoop, 50);
-            }
-          };
-
-          checkLoop();
-        } catch (err) {
-          console.error("Basit ses analizi başlatılamadı:", err);
+      scriptNode.onaudioprocess = () => {
+        if (!gateLoopActiveRef.current || audioCtx.state === 'closed') {
+          scriptNode.disconnect();
+          return;
         }
-      }
+
+        // Arka planda context'in uyumasına izin verme
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+
+        analyser.getFloatTimeDomainData(timeData);
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
+        const rms = Math.sqrt(sumSq / timeData.length);
+
+        // Histerizis Ayarları (Gecikmeyi azaltmak için openThreshold'u biraz düşürdük)
+        const openThreshold = 0.018; 
+        const closeThreshold = 0.008;
+
+        if (rms > openThreshold) {
+          gateIsOpen = true;
+        } else if (rms < closeThreshold) {
+          gateIsOpen = false;
+        }
+
+        const finalStatus = inputModeRef.current === 'PUSH_TO_TALK' ? isPTTPressedRef.current : gateIsOpen;
+
+        if (gateGainNode) {
+          const targetGain = finalStatus ? 1.0 : 0.0;
+          // Açılış rampasını 0.01 (10ms) yaparak gecikmeyi hissizleştirdik
+          const rampTime = finalStatus ? 0.01 : 0.20; 
+          gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, rampTime);
+        }
+
+        updateSpeakingStatus(finalStatus);
+      };
+
+      // Zinciri bağla: Analyser -> scriptNode -> Destination (duyulmaması için)
+      analyser.connect(scriptNode);
+      scriptNode.connect(audioCtx.destination);
     }, 100);
   };
 
