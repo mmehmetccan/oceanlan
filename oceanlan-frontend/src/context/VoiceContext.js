@@ -505,6 +505,11 @@ if (pendingStream) pendingStream.getTracks().forEach(t => t.stop());
 
     const audioStream = processedStreamRef.current || localStreamRef.current;
 
+if (!audioStream) {
+    console.warn('[WebRTC] Stream henüz hazır değil, peer kurulamadı');
+    return;
+  }
+  
     // ✅ EKLENDİ: ekran yoksa kamera varsa onu gönder
     const videoStream = myScreenStreamRef.current || myCameraStreamRef.current;
 
@@ -857,8 +862,12 @@ if (pendingStream) pendingStream.getTracks().forEach(t => t.stop());
   };
 
   const handleAnswer = ({ socketId, sdp }) => peersRef.current[socketId]?.signal(sdp);
-  const handleIce = ({ socketId, candidate }) => peersRef.current[socketId]?.signal(candidate);
-
+const handleIce = ({ socketId, candidate }) => {
+  if (peersRef.current[socketId]) {
+    // simple-peer ICE adayını doğrudan obje olarak bekler
+    peersRef.current[socketId].signal({ candidate });
+  }
+};
   const handleUserLeft = ({ socketId }) => {
     peersRef.current[socketId]?.destroy(); delete peersRef.current[socketId];
     audioElementsRef.current[socketId]?.remove(); delete audioElementsRef.current[socketId]; delete socketUserMapRef.current[socketId];
