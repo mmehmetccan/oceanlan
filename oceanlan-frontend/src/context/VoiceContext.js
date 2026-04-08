@@ -19,10 +19,10 @@ const rtcConfig = {
 // ============================================================
 // 🎛️ DENGELİ GATE PARAMETRELERİ
 // ------------------------------------------------------------
-// GATE_OPEN_RMS   : 0.022 - Normal konuşma seviyesinde açılır,
-//                   klavye ve uzak konuşmaların altında kalır.
-// GATE_CLOSE_RMS  : 0.009 - Konuşma bitince yumuşak kapanır.
+// GATE_OPEN_RMS   : 0.022 - Normal konuşmada açılır, uzak sesler açamaz.
+// GATE_CLOSE_RMS  : 0.009 - Konuşma bitince kapanır.
 // GATE_HOLD_MS    : 400   - Cümle aralarında kesinti olmaz.
+// RMS_SMOOTHING   : 0.85  - Hızlı tepki.
 // ============================================================
 const GATE_OPEN_RMS   = 0.022;
 const GATE_CLOSE_RMS  = 0.009;
@@ -32,9 +32,9 @@ const RMS_SMOOTHING   = 0.85;
 // ============================================================
 // 🎛️ NAZİK FİLTRE PARAMETRELERİ
 // ------------------------------------------------------------
-// HIGH_PASS_FREQ   : 140 Hz - Mutfak gürültüsü, buzdolabı uğultusu.
-// NOTCH_FREQ       : 5000 Hz - Mekanik klavye tıkırtılarının tepe noktası.
-// NOTCH_GAIN       : -12 dB - Sadece bastırır, yok etmez (doğallık için).
+// HIGH_PASS_FREQ   : 140 Hz - Mutfak uğultusu, klima sesi.
+// NOTCH_FREQ       : 5000 Hz - Mekanik klavye tıkırtısı.
+// NOTCH_GAIN       : -12 dB - Bastırır ama yok etmez.
 // ============================================================
 const HIGH_PASS_FREQ = 140;
 const NOTCH_FREQ     = 5000;
@@ -182,6 +182,7 @@ export const VoiceProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────────
   const setLocalMicEnabled = useCallback((enabled) => {
     const shouldSendAudio = !!enabled && !isMicMuted;
+
     const toggleTracks = (stream) => {
       if (stream) stream.getAudioTracks().forEach(t => { t.enabled = shouldSendAudio; });
     };
@@ -198,10 +199,439 @@ export const VoiceProvider = ({ children }) => {
         inputGainNodeRef.current.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 0.005); 
       } catch (_) {}
     }
+
     if (!shouldSendAudio) updateSpeakingStatus(false);
   }, [isMicMuted]);
 
-  // ... (diğer useEffect'ler ve fonksiyonlar aynı kalabilir, sadece processAudioStream ve gate analizi değişecek)
+  // ─────────────────────────────────────────────────────────────
+  // AYARLAR DEĞİŞİNCE STREAM'İ CANLI GÜNCELLE
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentVoiceChannelId || !isConnected || !socketRef.current) return;
+
+    let isCancelled  = false;
+    let pendingStream = null;
+
+    const refreshStream = async () => {
+      try {
+        const oldRawStream       = localStreamRef.current;
+        const oldProcessedStream = processedStreamRef.current;
+
+        const newConstraints = buildAudioConstraints(isNoiseSuppression, inputDeviceId);
+        const newRawStream = await navigator.mediaDevices.getUserMedia(newConstraints);
+        pendingStream = newRawStream;
+        if (isCancelled) { newRawStream.getTracks().forEach(t => t.stop()); return; }
+
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
+        }
+        gateLoopActiveRef.current = false;
+
+        const newProcessedStream = await processAudioStream(newRawStream);
+        if (isCancelled) {
+          newRawStream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        const newTrack = newProcessedStream?.getAudioTracks?.()?.[0];
+
+        localStreamRef.current    = newRawStream;
+        processedStreamRef.current = newProcessedStream;
+
+        if (newTrack) {
+          Object.values(peersRef.current).forEach(peer => {
+            if (!peer || peer.destroyed) return;
+            try {
+              const senders = peer._pc?.getSenders?.() || [];
+              const audioSender = senders.find(s => s.track?.kind === 'audio');
+              if (audioSender) {
+                audioSender.replaceTrack(newTrack).catch(err => {
+                  console.warn('[refreshStream] replaceTrack başarısız:', err);
+                });
+              }
+            } catch (e) {
+              console.warn('[refreshStream] sender erişim hatası:', e);
+            }
+          });
+        }
+
+        if (oldRawStream) oldRawStream.getTracks().forEach(t => t.stop());
+
+        if (inputModeRef.current === 'PUSH_TO_TALK') {
+          setLocalMicEnabled(isPTTPressedRef.current);
+        } else {
+          setLocalMicEnabled(true);
+        }
+
+      } catch (error) {
+        console.error('[refreshStream] Hata:', error);
+        addToast('Ses ayarları güncellenemedi.', 'error');
+      }
+    };
+
+    refreshStream();
+
+    return () => {
+      isCancelled = true;
+      if (pendingStream) pendingStream.getTracks().forEach(t => t.stop());
+    };
+  }, [isNoiseSuppression, inputDeviceId, inputMode, currentVoiceChannelId]);
+
+  // ─────────────────────────────────────────────────────────────
+  // PTT / VOICE ACTIVITY MOD DEĞİŞİNCE MİKROFON DURUMU
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (inputMode === 'PUSH_TO_TALK') {
+      setLocalMicEnabled(isPTTPressedRef.current);
+    } else {
+      setLocalMicEnabled(true);
+    }
+  }, [inputMode, isPTTPressed, isMicMuted, setLocalMicEnabled]);
+
+  // ─────────────────────────────────────────────────────────────
+  // INPUT VOLUME DEĞİŞİNCE GAIN GÜNCELLE
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!inputGainNodeRef.current || !audioContextRef.current) return;
+    if (isMicMuted) return;
+    if (inputMode === 'PUSH_TO_TALK' && !isPTTPressedRef.current) return;
+
+    let gainValue;
+    if (inputVolume === 0)        gainValue = 0;
+    else if (inputVolume <= 100)  gainValue = inputVolume / 100;
+    else                          gainValue = 1.0 + ((inputVolume - 100) / 30);
+
+    try {
+      inputGainNodeRef.current.gain.linearRampToValueAtTime(
+        gainValue,
+        audioContextRef.current.currentTime + 0.005
+      );
+    } catch (_) {}
+  }, [inputVolume, isMicMuted, inputMode]);
+
+  // ─────────────────────────────────────────────────────────────
+  // SOCKET BAĞLANTISI
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!token || !isAuthenticated) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setIsConnected(false);
+      }
+      return;
+    }
+    if (socketRef.current?.connected) return;
+
+    const isElectron     = navigator.userAgent.toLowerCase().includes(' electron/');
+    const isProductionUrl = window.location.hostname.includes('oceanlan.com');
+    const backendUrl     = (isElectron || isProductionUrl) ? 'https://oceanlan.com' : 'http://localhost:4000';
+
+    const newSocket = io(backendUrl, {
+      auth: { token },
+      transports: ['polling', 'websocket'],
+      secure: true,
+      reconnection: true,
+      autoConnect: true,
+    });
+    socketRef.current = newSocket;
+
+    newSocket.on('connect',    ()  => { setIsConnected(true); });
+    newSocket.on('disconnect', ()  => setIsConnected(false));
+    newSocket.on('user-joined-voice',    handleUserJoined);
+    newSocket.on('webrtc-offer',         handleOffer);
+    newSocket.on('webrtc-answer',        handleAnswer);
+    newSocket.on('webrtc-ice-candidate', handleIce);
+    newSocket.on('user-left-voice',      handleUserLeft);
+    newSocket.on('voice-channel-moved',  handleChannelMoved);
+    newSocket.on('user-speaking-change', ({ userId, isSpeaking }) =>
+      setSpeakingUsers(prev => ({ ...prev, [userId]: isSpeaking }))
+    );
+    newSocket.on('screen-share-stopped', ({ socketId }) =>
+      setPeersWithVideo(prev => { const c = { ...prev }; delete c[socketId]; return c; })
+    );
+    newSocket.on('voiceStateUpdate', (serverState) => {
+      if (!serverState) return;
+      Object.values(serverState).forEach(channelUsers => {
+        channelUsers.forEach(u => { socketUserMapRef.current[u.socketId] = u.userId; });
+      });
+      applyVolumeSettings();
+    });
+
+    return () => { newSocket.disconnect(); };
+  }, [token, isAuthenticated]);
+
+  // ─────────────────────────────────────────────────────────────
+  // ÇIKIŞ CİHAZI / SAĞIRLIK DEĞİŞİNCE AUDIO ELEMENTLERINI GÜNCELLE
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    Object.values(audioElementsRef.current).forEach(audio => {
+      if (!audio) return;
+      audio.muted = isDeafened;
+      if (typeof audio.setSinkId === 'function') {
+        const sinkId = outputDeviceId || 'default';
+        audio.setSinkId(sinkId).catch(() => {});
+      }
+    });
+  }, [isDeafened, outputDeviceId, userVolumes]);
+
+  // ─────────────────────────────────────────────────────────────
+  // KULLANICI SES SEVİYELERİ
+  // ─────────────────────────────────────────────────────────────
+  const applyVolumeSettings = () => {
+    Object.keys(audioElementsRef.current).forEach(socketId => {
+      const el  = audioElementsRef.current[socketId];
+      const uid = socketUserMapRef.current[socketId];
+      if (uid && el && userVolumes[uid] !== undefined) {
+        el.volume = userVolumes[uid] === 0 ? 0 : Math.min(userVolumes[uid] / 100, 1.0);
+      }
+    });
+  };
+  useEffect(() => { applyVolumeSettings(); }, [userVolumes]);
+
+  // ─────────────────────────────────────────────────────────────
+  // PTT LOGIC
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (inputMode !== 'PUSH_TO_TALK') {
+      isPTTPressedRef.current = false;
+      setIsPTTPressed(false);
+      return;
+    }
+
+    const isMouseBinding    = (code) => typeof code === 'string' && code.startsWith('MOUSE_');
+    const mouseButtonFromCode = (code) => {
+      const n = parseInt(String(code).replace('MOUSE_', ''), 10);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const pttDown = () => {
+      if (isMicMuted || isPTTPressedRef.current) return;
+      isPTTPressedRef.current = true;
+      setIsPTTPressed(true);
+      setLocalMicEnabled(true);
+      updateSpeakingStatus(true);
+    };
+    const pttUp = () => {
+      if (!isPTTPressedRef.current) return;
+      isPTTPressedRef.current = false;
+      setIsPTTPressed(false);
+      setLocalMicEnabled(false);
+      updateSpeakingStatus(false);
+    };
+
+    const onKeyDown          = (e) => { if (!e.repeat && e.code === pttKeyCode) pttDown(); };
+    const onKeyUp            = (e) => { if (e.code === pttKeyCode) pttUp(); };
+    const onMouseDown        = (e) => { if (isMouseBinding(pttKeyCode) && mouseButtonFromCode(pttKeyCode) === e.button) pttDown(); };
+    const onMouseUp          = (e) => { if (isMouseBinding(pttKeyCode) && mouseButtonFromCode(pttKeyCode) === e.button) pttUp(); };
+    const onBlur             = ()  => pttUp();
+    const onVisibilityChange = ()  => { if (document.hidden) pttUp(); };
+
+    window.addEventListener('keydown',          onKeyDown,          true);
+    window.addEventListener('keyup',            onKeyUp,            true);
+    window.addEventListener('mousedown',        onMouseDown,        true);
+    window.addEventListener('mouseup',          onMouseUp,          true);
+    window.addEventListener('blur',             onBlur,             true);
+    document.addEventListener('visibilitychange', onVisibilityChange, true);
+
+    let offDown = null, offUp = null;
+    if (window.electronAPI?.onPTTDown && window.electronAPI?.onPTTUp) {
+      offDown = window.electronAPI.onPTTDown(pttDown);
+      offUp   = window.electronAPI.onPTTUp(pttUp);
+    }
+
+    setLocalMicEnabled(false);
+
+    return () => {
+      window.removeEventListener('keydown',          onKeyDown,          true);
+      window.removeEventListener('keyup',            onKeyUp,            true);
+      window.removeEventListener('mousedown',        onMouseDown,        true);
+      window.removeEventListener('mouseup',          onMouseUp,          true);
+      window.removeEventListener('blur',             onBlur,             true);
+      document.removeEventListener('visibilitychange', onVisibilityChange, true);
+      offDown?.();
+      offUp?.();
+    };
+  }, [inputMode, pttKeyCode, isMicMuted, setLocalMicEnabled]);
+
+  // ─────────────────────────────────────────────────────────────
+  // YARDIMCI: constraints oluştur
+  // ─────────────────────────────────────────────────────────────
+  const buildAudioConstraints = (noiseSupp, devId) => {
+    if (noiseSupp) {
+      return {
+        audio: {
+          ...AGGRESSIVE_AUDIO_CONSTRAINTS,
+          deviceId: devId ? { exact: devId } : undefined,
+        },
+        video: false,
+      };
+    }
+    return {
+      audio: {
+        deviceId:          devId ? { exact: devId } : undefined,
+        echoCancellation:  true,
+        autoGainControl:   true,
+        noiseSuppression:  false,
+      },
+      video: false,
+    };
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // KAMERA
+  // ─────────────────────────────────────────────────────────────
+  const startCamera = async () => {
+    try {
+      if (myScreenStreamRef.current) stopScreenShare();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId:         inputDeviceId ? { exact: inputDeviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl:  true,
+          channelCount:     1,
+          sampleRate:       48000,
+        },
+        video: false,
+      });
+
+      setMyCameraStream(stream);
+      myCameraStreamRef.current = stream;
+
+      Object.values(peersRef.current).forEach(peer => {
+        try { if (peer && !peer.destroyed) peer.addStream(stream); } catch (_) {}
+      });
+
+      const vTrack = stream.getVideoTracks?.()?.[0];
+      if (vTrack) vTrack.onended = () => stopCamera();
+    } catch (err) {
+      console.error('[Camera] Başlatılamadı:', err);
+      addToast('Kamera başlatılamadı', 'error');
+    }
+  };
+
+  const stopCamera = () => {
+    socketRef.current?.emit('screen-share-stopped', {
+      serverId:  currentServerId,
+      channelId: currentVoiceChannelId,
+      socketId:  socketRef.current?.id,
+      userId:    user?._id,
+    });
+
+    const stream = myCameraStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      Object.values(peersRef.current).forEach(p => { try { p.removeStream(stream); } catch (_) {} });
+      setMyCameraStream(null);
+      myCameraStreamRef.current = null;
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // EKRAN PAYLAŞIMI
+  // ─────────────────────────────────────────────────────────────
+  const startScreenShare = async (electronSourceId = null) => {
+    try {
+      if (myCameraStreamRef.current) stopCamera();
+
+      let stream;
+      if (window.electronAPI && electronSourceId) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource:   'desktop',
+              chromeMediaSourceId: electronSourceId,
+              minWidth: 1280, maxWidth: 1920,
+              minHeight: 720, maxHeight: 1080,
+              maxFrameRate: 30,
+            },
+          },
+        });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: 30, max: 30 },
+            width:     { ideal: 1920 },
+            height:    { ideal: 1080 },
+          },
+          audio: true,
+          selfBrowserSurface: 'exclude',
+        });
+      }
+
+      setMyScreenStream(stream);
+      myScreenStreamRef.current = stream;
+
+      const videoTrack = stream.getVideoTracks()[0];
+
+      Object.values(peersRef.current).forEach(peer => {
+        if (!peer || peer.destroyed) return;
+        try {
+          const senders      = peer._pc?.getSenders?.() || [];
+          const videoSender  = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) {
+            videoSender.replaceTrack(videoTrack).catch(() => peer.addStream(stream));
+          } else {
+            peer.addStream(stream);
+          }
+        } catch (err) {
+          console.warn('[ScreenShare] Track eklenemedi:', err);
+        }
+      });
+
+      videoTrack.onended = () => stopScreenShare();
+      videoTrack.onmute  = () => {
+        setTimeout(() => { if (videoTrack.readyState === 'ended') stopScreenShare(); }, 3000);
+      };
+    } catch (err) {
+      console.error('[ScreenShare] Hata:', err);
+      addToast('Ekran paylaşımı başlatılamadı', 'error');
+    }
+  };
+
+  const stopScreenShare = () => {
+    socketRef.current?.emit('screen-share-stopped', {
+      serverId:  currentServerId,
+      channelId: currentVoiceChannelId,
+      socketId:  socketRef.current?.id,
+      userId:    user?._id,
+    });
+
+    const stream = myScreenStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      Object.values(peersRef.current).forEach(peer => {
+        if (!peer || peer.destroyed) return;
+        try {
+          const senders     = peer._pc?.getSenders?.() || [];
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) videoSender.replaceTrack(null).catch(() => {});
+        } catch (_) {}
+      });
+      setMyScreenStream(null);
+      myScreenStreamRef.current = null;
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // WebRTC PEER YÖNETİMİ
+  // ─────────────────────────────────────────────────────────────
+  const handleUserJoined = ({ socketId, userId }) => {
+    if (socketId && userId) socketUserMapRef.current[socketId] = userId;
+
+    const audioStream = processedStreamRef.current || localStreamRef.current;
+    if (!audioStream) {
+      console.warn('[WebRTC] Stream henüz hazır değil, peer kurulamadı');
+      return;
+    }
+
+    const videoStream = myScreenStreamRef.current || myCameraStreamRef.current;
+    const streams     = [audioStream, videoStream].filter(Boolean);
+    createPeer(socketId, true, streams, userId);
+  };
 
   // ─────────────────────────────────────────────────────────────
   // 🎯 OPTİMİZE SES İŞLEME (RNNoise + Hafif Filtreler)
@@ -373,7 +803,6 @@ export const VoiceProvider = ({ children }) => {
     scriptNode.connect(audioCtx.destination);
   };
 
-  
   // ─────────────────────────────────────────────────────────────
   // KONUŞMA DURUMU
   // ─────────────────────────────────────────────────────────────
@@ -469,11 +898,8 @@ export const VoiceProvider = ({ children }) => {
     isSpeakingRef.current  = false;
     gateLoopActiveRef.current = false;
 
-    // Script node'u temizle
     if (scriptNodeRef.current) {
-      try {
-        scriptNodeRef.current.disconnect();
-      } catch (e) {}
+      try { scriptNodeRef.current.disconnect(); } catch (e) {}
       scriptNodeRef.current = null;
     }
 
