@@ -44,11 +44,11 @@ const rtcConfig = {
 // RMS_SMOOTHING   : Anlık RMS dalgalanmalarını yumuşatır.
 //                   0.90 korundu — çok yüksek olursa gecikme artar.
 // ============================================================
-const GATE_OPEN_RMS   = 0.035;
+const GATE_OPEN_RMS   = 0.025;
 const GATE_CLOSE_RMS  = 0.012;
 const GATE_FLOOR      = 0.0001;
 const GATE_HOLD_MS    = 500;
-const EXPANDER_POWER  = 3.0;
+const EXPANDER_POWER  = 12.0;
 const RMS_SMOOTHING   = 0.90;
 
 // ============================================================
@@ -653,9 +653,9 @@ export const VoiceProvider = ({ children }) => {
         // ─── Compressor: klavye gibi ani yüksek sesler tepe enerji yapar;
         //     compressor bunları hızla bastırır GATE açılmadan önce ─────────
         const compressor = audioCtx.createDynamicsCompressor();
-        compressor.threshold.value = -20;   // daha agresif eşik
+        compressor.threshold.value = -35;   // daha agresif eşik
         compressor.knee.value      = 10;    // daha sert geçiş
-        compressor.ratio.value     = 8;     // yüksek baskı oranı
+        compressor.ratio.value     = 20;     // yüksek baskı oranı
         compressor.attack.value    = 0.001; // çok hızlı attack — anlık sesleri yakalar
         compressor.release.value   = 0.15;
 
@@ -713,10 +713,8 @@ export const VoiceProvider = ({ children }) => {
 
           // AudioContext arka planda suspend edilmişse resume et
           if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(() => {});
-            setTimeout(checkVolume, 50);
-            return;
-          }
+    audioCtx.resume().catch(() => {});
+  }
 
           if (inputModeRef.current === 'PUSH_TO_TALK') {
             const isOpen = isPTTPressedRef.current;
