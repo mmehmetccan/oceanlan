@@ -3,7 +3,7 @@
   "homepage": "./",
   "name": "oceanlan",
   "private": true,
-  "version": "1.5.3",
+  "version": "1.5.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
