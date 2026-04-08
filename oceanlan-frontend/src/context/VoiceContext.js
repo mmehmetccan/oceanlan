@@ -614,7 +614,7 @@ export const VoiceProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────────
   // GELİŞMİŞ GÜRÜLTÜ ENGELLEME İŞLEMCİSİ
   // ─────────────────────────────────────────────────────────────
-  const processAudioStream = async (rawStream) => {
+ const processAudioStream = async (rawStream) => {
   try {
     const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioCtxClass({ sampleRate: 48000 });
@@ -627,38 +627,48 @@ export const VoiceProvider = ({ children }) => {
     await audioCtx.audioWorklet.addModule('/processors/rnnoise-processor.js');
     const rnnoiseNode = new AudioWorkletNode(audioCtx, 'rnnoise-processor');
 
-    // 2. ÖN FİLTRELEME (RNNoise'un hata yapmasını engeller)
+    // 2. AGRESİF FİLTRE VE DİNAMİK İŞLEMCİLER
     
-    // Low-Pass: 7000Hz üstünü keser (Çatal, bıçak, cızıltı sesleri bu bölgededir)
+    // Low-Pass: 6500Hz üstünü sertçe kes (Klavye çıtlamaları ve cızıltı buradadır)
     const highFreqCut = audioCtx.createBiquadFilter();
     highFreqCut.type = 'lowpass';
-    highFreqCut.frequency.value = 7000; 
+    highFreqCut.frequency.value = 6500; 
+    highFreqCut.Q.value = 1.0; // Daha dik bir kesiş
 
-    // High-Pass: 200Hz altını keser (Fan uğultusu ve masa titreşimi bu bölgededir)
+    // High-Pass: 180Hz altını kes (Fan ve masa gürültüsü)
     const lowFreqCut = audioCtx.createBiquadFilter();
     lowFreqCut.type = 'highpass';
-    lowFreqCut.frequency.value = 200; 
+    lowFreqCut.frequency.value = 180; 
 
-    // Gain: Sesin az gelmesi sorunu için %20'lik bir ön kazanç
-    const preGain = audioCtx.createGain();
-    preGain.gain.value = 1.2;
+    // Compressor/Limiter: Ani klavye vuruşlarını RNNoise'a girmeden "ezmek" için
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -24; 
+    limiter.knee.value = 0; // Sert diz (Hard knee)
+    limiter.ratio.value = 20; 
+    limiter.attack.value = 0.001; // Milisaniyelik tepki
+    limiter.release.value = 0.05;
+
+    // Output Gate (Sessizlik anında cızıltıyı tamamen yok etmek için)
+    const outputGate = audioCtx.createGain();
+    outputGate.gain.value = 1.0;
+    gateGainNodeRef.current = outputGate; // Gate döngüsü için ref'e bağla
 
     if (isNoiseSuppressionRef.current) {
-      // ⛓️ OPTİMİZE ZİNCİR:
-      // Kaynak -> LowCut (Fan) -> HighCut (Çatal/Cızıltı) -> preGain -> RNNoise -> Çıkış
-      source.connect(lowFreqCut);
+      // ⛓️ AGRESİF ZİNCİR:
+      // Kaynak -> Limiter -> LowCut -> HighCut -> RNNoise -> outputGate -> Destination
+      source.connect(limiter);
+      limiter.connect(lowFreqCut);
       lowFreqCut.connect(highFreqCut);
-      highFreqCut.connect(preGain);
-      preGain.connect(rnnoiseNode);
+      highFreqCut.connect(rnnoiseNode);
+      rnnoiseNode.connect(outputGate);
+      outputGate.connect(destination);
       
-      rnnoiseNode.connect(destination);
-      
-      // Yeşil ışık analizi için analyser
       const analyser = audioCtx.createAnalyser();
       rnnoiseNode.connect(analyser);
       
       rnnoiseNode.port.postMessage({ type: 'init' });
-      startGateAnalysis(analyser, null, audioCtx); 
+      // Gate analizi artık outputGate'i de kontrol edecek
+      startGateAnalysis(analyser, outputGate, audioCtx); 
     } else {
       source.connect(destination);
       const rawAnalyser = audioCtx.createAnalyser();
@@ -695,34 +705,25 @@ export const VoiceProvider = ({ children }) => {
         const timeData = new Float32Array(analyser.fftSize);
 
         const checkVolume = () => {
-          // Döngü durdurulduysa veya context kapandıysa çık
-          if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
+  if (!gateLoopActiveRef.current || audioCtx.state === 'closed') return;
 
-          // Tarayıcı kısıtlamaları için AudioContext'i uyandır
-          if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(() => {});
-          }
+  analyser.getFloatTimeDomainData(timeData);
+  let sumSq = 0;
+  for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
+  const rms = Math.sqrt(sumSq / timeData.length);
 
-          // A) PUSH_TO_TALK (Bas-Konuş) Aktifse
-          if (inputModeRef.current === 'PUSH_TO_TALK') {
-            updateSpeakingStatus(isPTTPressedRef.current);
-            setTimeout(checkVolume, 50);
-            return;
-          }
+  // Eşik değerini 0.03 yaparak klavye ve cızıltının "ışığı yakmasını" engelle
+  const isSpeaking = rms > 0.03; 
 
-          // B) VOICE_ACTIVITY (Ses Aktivitesi) - RNNoise Destekli
-          analyser.getFloatTimeDomainData(timeData);
-          let sumSq = 0;
-          for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
-          const rms = Math.sqrt(sumSq / timeData.length);
+  // Eğer gateGainNode (outputGate) varsa, sessizlikte kazancı 0 yap (Cızıltıyı öldür)
+  if (gateGainNode) {
+    const targetGain = isSpeaking ? 1.0 : 0.0;
+    gateGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.05);
+  }
 
-          // RNNoise gürültüyü sildiği için 0.01 gibi düşük bir RMS değeri 
-          // sadece konuşma varken tetiklenecektir.
-          const isSpeaking = rms > 0.025; 
-          updateSpeakingStatus(isSpeaking);
-
-          setTimeout(checkVolume, 50);
-        };
+  updateSpeakingStatus(isSpeaking);
+  setTimeout(checkVolume, 50);
+};
 
         checkVolume();
         return; // İşlem başarılı, fonksiyondan çık.
