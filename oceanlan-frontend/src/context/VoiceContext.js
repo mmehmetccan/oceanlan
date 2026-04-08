@@ -712,9 +712,9 @@ export const VoiceProvider = ({ children }) => {
           if (!gateGainNode || audioCtx.state === 'closed') return;
 
           // AudioContext arka planda suspend edilmişse resume et
-          if (audioCtx.state !== 'running') {
-  audioCtx.resume().catch(() => {});
-}
+          if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
 
           if (inputModeRef.current === 'PUSH_TO_TALK') {
             const isOpen = isPTTPressedRef.current;
@@ -773,7 +773,7 @@ export const VoiceProvider = ({ children }) => {
             if (simpleCtx.state === 'closed') return;
 
             // AudioContext suspend olduysa resume et
-            if (simpleCtx.state === 'running') {
+            if (simpleCtx.state === 'suspended') {
               simpleCtx.resume().catch(() => {});
               setTimeout(checkLoop, 50);
               return;
