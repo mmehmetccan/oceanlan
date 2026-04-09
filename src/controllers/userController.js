@@ -6,7 +6,7 @@ const Member = require('../models/MemberModel');
 const FriendRequest = require('../models/FriendRequestModel');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
-const axios = require('axios');
+const https = require('https'); // Node.js yerleşik modülü
 
 const ensureGamificationData = async (user) => {
   let changed = false;
@@ -392,21 +392,50 @@ const handleSteamCallback = async (req, res) => {
 const getSteamStatus = async (req, res) => {
     try {
         const user = await User.findById(req.params.userId);
-        if (!user || !user.steamId) return res.status(404).json({ success: false, message: "Bağlı hesap yok." });
+        if (!user || !user.steamId) {
+            return res.status(404).json({ success: false, message: "Bağlı hesap yok." });
+        }
 
-        const response = await axios.get(
-            `http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${user.steamId}`
-        );
+        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${user.steamId}`;
 
-        const player = response.data.response.players[0];
-        const data = {
-            nickname: player.personaname,
-            avatar: player.avatarfull,
-            currentGame: player.gameextrainfo || null,
-            status: player.personastate // 1: Online, 0: Offline
-        };
+        // Node.js yerleşik https.get kullanımı
+        https.get(url, (response) => {
+            let data = '';
 
-        res.status(200).json({ success: true, data });
+            // Veri parçalarını topla
+            response.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            // Tüm veri geldiğinde işle
+            response.on('end', () => {
+                try {
+                    const jsonData = JSON.parse(data);
+                    const player = jsonData.response.players[0];
+
+                    if (!player) {
+                        return res.status(404).json({ success: false, message: "Steam verisi bulunamadı." });
+                    }
+
+                    res.status(200).json({
+                        success: true,
+                        data: {
+                            steamId: user.steamId,
+                            personaname: player.personaname,
+                            avatar: player.avatarfull,
+                            currentGame: player.gameextrainfo || null,
+                            status: player.personastate
+                        }
+                    });
+                } catch (parseError) {
+                    res.status(500).json({ success: false, message: "Veri işleme hatası" });
+                }
+            });
+
+        }).on("error", (err) => {
+            res.status(500).json({ success: false, error: err.message });
+        });
+
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
