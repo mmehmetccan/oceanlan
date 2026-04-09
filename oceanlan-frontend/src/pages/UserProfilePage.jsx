@@ -7,6 +7,10 @@ import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { getImageUrl } from '../utils/urlHelper';
 import { FaEye, FaEyeSlash } from 'react-icons/fa'; // 🟢 YENİ IMPORT
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const location = useLocation();
+
 // İKONLAR
 import {
     EnvelopeIcon,
@@ -43,6 +47,66 @@ const UserProfilePage = () => {
     // Confirmation Modal State
     const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
+
+
+    useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const steamSuccess = queryParams.get('steam_success');
+    const steamError = queryParams.get('steam_error');
+    const error = queryParams.get('error');
+    
+    if (steamSuccess === 'true') {
+        addToast('Steam hesabın başarıyla bağlandı! 🎮', 'success');
+        // URL'den parametreyi temizle (isteğe bağlı)
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Kullanıcı verilerini yenile
+        const fetchUpdatedUser = async () => {
+            try {
+                const res = await axiosInstance.get('/users/me');
+                if (res.data.data) {
+                    dispatch({
+                        type: 'LOGIN_SUCCESS',
+                        payload: {
+                            token: localStorage.getItem('token'),
+                            user: res.data.data
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error('Kullanıcı verileri yenilenemedi:', err);
+            }
+        };
+        fetchUpdatedUser();
+    }
+    
+    if (steamError || error) {
+        const errorMsg = steamError === 'missing_data' ? 'Steam verileri alınamadı.' :
+                         steamError === 'invalid_token' ? 'Oturum süresi doldu, tekrar dene.' :
+                         steamError === 'user_not_found' ? 'Kullanıcı bulunamadı.' :
+                         'Steam bağlantısı başarısız oldu.';
+        addToast(errorMsg, 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}, [location.search, addToast, dispatch]);
+
+
+useEffect(() => {
+    // Cookie'leri kontrol et
+    const steamConnected = document.cookie.split('; ').find(row => row.startsWith('steam_connected='));
+    const steamError = document.cookie.split('; ').find(row => row.startsWith('steam_error='));
+    
+    if (steamConnected) {
+        addToast('Steam hesabın başarıyla bağlandı! 🎮', 'success');
+        document.cookie = 'steam_connected=; max-age=0';
+        // Kullanıcıyı yenile
+    }
+    
+    if (steamError) {
+        addToast('Steam bağlantısı başarısız oldu.', 'error');
+        document.cookie = 'steam_error=; max-age=0';
+    }
+}, []);
+
 
     // 1. Sayfa açıldığında veritabanından güncel veriyi çek
     useEffect(() => {

@@ -66,6 +66,8 @@ const AppContent = () => {
             <Route path="/register" element={
                 <PublicRoute><RegisterPage /></PublicRoute>
             } />
+            <Route path="/dashboard/settings" element={<UserProfilePage />} />
+
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
