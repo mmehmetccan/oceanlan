@@ -369,14 +369,14 @@ const equipBadge = async (req, res) => {
 };
 
 const redirectToSteam = async (req, res) => {
-    // 🟢 Frontend'den gelen token'ı alıyoruz
-    const token = req.query.token; 
+    const token = req.query.token; // 🟢 Frontend'den gelen token
     
+    // Token yoksa Steam'e hiç gönderme, direkt hata ver
     if (!token) {
-        return res.status(401).json({ success: false, message: "Token gerekli" });
+        return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=no_token_provided`);
     }
 
-    // 🟢 DİKKAT: returnURL içine token'ı gömüyoruz
+    // Token'ı return_to içine URL ENCODE ederek koyuyoruz
     const returnURL = `https://oceanlan.com/api/v1/users/auth/steam/callback?token=${token}`;
     const realm = `https://oceanlan.com`;
     
