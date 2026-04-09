@@ -2,15 +2,11 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { getImageUrl } from '../utils/urlHelper';
-import { FaEye, FaEyeSlash } from 'react-icons/fa'; // 🟢 YENİ IMPORT
-import { useNavigate, useLocation } from 'react-router-dom';
-
-const location = useLocation();
-
-// İKONLAR
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import {
     EnvelopeIcon,
     ShieldCheckIcon,
@@ -18,32 +14,23 @@ import {
     CpuChipIcon,
     UserGroupIcon
 } from '@heroicons/react/24/outline';
-
 import '../styles/ProfileSettings.css';
 
-const handleAvatarError = (e) => {
-    if (e?.target?.dataset?.fallbackApplied === 'true') return;
-    if (e?.target) {
-        e.target.dataset.fallbackApplied = 'true';
-        e.target.src = getImageUrl(null);
-    }
-};
-
 const UserProfilePage = () => {
+    // ✅ TÜM HOOK'LAR EN ÜSTTE, HERHANGİ BİR RETURN'DEN ÖNCE
     const { user, dispatch, logout } = useContext(AuthContext);
     const { addToast } = useContext(ToastContext);
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Local State
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [confirmNewPassword, setConfirmNewPassword] = useState(''); // 🟢 YENİ
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [avatarFile, setAvatarFile] = useState(null);
-
-    // Confirmation Modal State
     const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
 
@@ -61,46 +48,67 @@ const UserProfilePage = () => {
         return <div className="profile-settings-area">Yükleniyor...</div>;
     }
 
-    useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const steamSuccess = queryParams.get('steam_success');
-    const steamError = queryParams.get('steam_error');
-    const error = queryParams.get('error');
-    
-    if (steamSuccess === 'true') {
-        addToast('Steam hesabın başarıyla bağlandı! 🎮', 'success');
-        // URL'den parametreyi temizle (isteğe bağlı)
-        window.history.replaceState({}, document.title, window.location.pathname);
-        // Kullanıcı verilerini yenile
-        const fetchUpdatedUser = async () => {
+      useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const steamSuccess = queryParams.get('steam_success');
+        const steamError = queryParams.get('steam_error');
+        
+        if (steamSuccess === 'true' && addToast) {
+            addToast('Steam hesabın başarıyla bağlandı! 🎮', 'success');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            const fetchUpdatedUser = async () => {
+                try {
+                    const res = await axiosInstance.get('/users/me');
+                    if (res.data.user && dispatch) {
+                        dispatch({
+                            type: 'LOGIN_SUCCESS',
+                            payload: {
+                                token: localStorage.getItem('token'),
+                                user: res.data.user
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error('Kullanıcı yenilenemedi:', err);
+                }
+            };
+            fetchUpdatedUser();
+        }
+        
+        if (steamError && addToast) {
+            addToast('Steam bağlantısı başarısız oldu.', 'error');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [location.search, addToast, dispatch]);
+
+
+
+ useEffect(() => {
+        const fetchLatestUserData = async () => {
             try {
                 const res = await axiosInstance.get('/users/me');
-                if (res.data.data) {
+                if (res.data.user && dispatch) {
                     dispatch({
                         type: 'LOGIN_SUCCESS',
                         payload: {
                             token: localStorage.getItem('token'),
-                            user: res.data.data
+                            user: res.data.user
                         }
                     });
+                    setUsername(res.data.user.username);
+                    setEmail(res.data.user.email);
                 }
-            } catch (err) {
-                console.error('Kullanıcı verileri yenilenemedi:', err);
+            } catch (error) {
+                console.error("Profil güncellenirken hata:", error);
             }
         };
-        fetchUpdatedUser();
-    }
-    
-    if (steamError || error) {
-        const errorMsg = steamError === 'missing_data' ? 'Steam verileri alınamadı.' :
-                         steamError === 'invalid_token' ? 'Oturum süresi doldu, tekrar dene.' :
-                         steamError === 'user_not_found' ? 'Kullanıcı bulunamadı.' :
-                         'Steam bağlantısı başarısız oldu.';
-        addToast(errorMsg, 'error');
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-}, [location.search, addToast, dispatch]);
 
+        if (user) {
+            setUsername(user.username);
+            setEmail(user.email);
+            fetchLatestUserData();
+        }
+    }, [user, dispatch]);
 
 useEffect(() => {
     // Cookie'leri kontrol et
@@ -120,33 +128,9 @@ useEffect(() => {
 }, []);
 
 
-    // 1. Sayfa açıldığında veritabanından güncel veriyi çek
-    useEffect(() => {
-        const fetchLatestUserData = async () => {
-            try {
-                const res = await axiosInstance.get('/users/me');
-                if (res.data.data) {
-                    dispatch({
-                        type: 'LOGIN_SUCCESS',
-                        payload: {
-                            token: localStorage.getItem('token'),
-                            user: res.data.data
-                        }
-                    });
-                    setUsername(res.data.data.username);
-                    setEmail(res.data.data.email);
-                }
-            } catch (error) {
-                console.error("Profil güncellenirken hata:", error);
-            }
-        };
-
-        if (user) {
-            setUsername(user.username);
-            setEmail(user.email);
-            fetchLatestUserData();
-        }
-    }, []);
+    if (!user || !addToast) {
+        return <div className="profile-settings-area">Yükleniyor...</div>;
+    }
 
     // Avatar URL Hesaplaması
     const displayAvatarUrl = useMemo(() => {
