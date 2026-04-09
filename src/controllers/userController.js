@@ -393,33 +393,27 @@ const redirectToSteam = async (req, res) => {
 
 const handleSteamCallback = async (req, res) => {
     try {
-        const { token } = req.query; 
-        const claimedId = req.query['openid.claimed_id'];
+        const { token } = req.query; // Steam'in geri getirdiği token
+        const steamId = req.query['openid.claimed_id']?.split('/').pop();
 
-        if (!token || !claimedId) {
-            console.error("Token veya SteamID eksik");
-            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=missing_info`);
+        if (!token || !steamId) {
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=data_missing`);
         }
 
-        // 1. Token'dan kullanıcıyı tanı
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = decoded.id;
-
-        // 2. SteamID64'ü ayıkla (URL'nin sonundaki sayı)
-        const steamId = claimedId.split('/').pop();
-
-        // 3. Veritabanına KAYDET (En kritik yer)
+        
+        // Veritabanına kaydet ve logla
         const updatedUser = await User.findByIdAndUpdate(
-            userId, 
+            decoded.id, 
             { steamId: steamId }, 
-            { new: true } // Güncellenmiş veriyi geri döndür
+            { new: true }
         );
 
-        console.log(`[STEAM SUCCESS]: ${updatedUser.username} hesabına ${steamId} bağlandı.`);
-
+        console.log(`[DATABASE SAVE]: ${updatedUser.username} için SteamID kaydedildi: ${steamId}`);
+        
         res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_success=true`);
     } catch (err) {
-        console.error("Callback Hatası:", err);
+        console.error("Kayıt Hatası:", err);
         res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=true`);
     }
 };
