@@ -12,7 +12,7 @@ const protect = async (req, res, next) => {
   else if (req.query && req.query.token) {
     token = req.query.token;
   }
-
+console.log("Gelen Query:", req.query);
   if (!token) {
     return res.status(401).json({ success: false, message: 'Yetkisiz erişim: Token bulunamadı' });
   }
