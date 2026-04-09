@@ -10,6 +10,7 @@ import ConfirmationModal from '../modals/ConfirmationModal'; // 🔔 Modal eklen
 import UserLevelTag from '../gamification/UserLevelTag';
 import '../../styles/FriendsView.css';
 import UserBadgeList from '../gamification/UserBadgeList';
+import SteamActivityDisplay from '../gamification/SteamActivityDisplay';
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const API_URL = `/friends`;

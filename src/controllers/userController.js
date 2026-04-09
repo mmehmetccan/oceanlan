@@ -446,49 +446,46 @@ const getSteamStatus = async (req, res) => {
     try {
         const user = await User.findById(req.params.userId);
         
-        if (!user) {
-            return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
-        }
+        console.log('[Steam API] Kullanıcı:', user?.username);
+        console.log('[Steam API] Steam ID:', user?.steamId);
         
-        if (!user.steamId) {
-            return res.status(404).json({ success: false, message: "Steam hesabı bağlı değil." });
+        if (!user || !user.steamId) {
+            return res.status(404).json({ success: false, message: "Bağlı hesap yok." });
         }
-
-        console.log(`[Steam API] ${user.username} için Steam ID: ${user.steamId}`);
-        console.log(`[Steam API] Kullanılan API Key: ${process.env.STEAM_API_KEY ? 'Var ✅' : 'Yok ❌'}`);
 
         const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${user.steamId}`;
+        console.log('[Steam API] İstek URL:', url.replace(process.env.STEAM_API_KEY, 'HIDDEN'));
         
-        const fetch = (await import('node-fetch')).default;
+        // 🟢 Node.js 20+ native fetch kullan
         const response = await fetch(url);
-        const data = await response.json();
+        const jsonData = await response.json();
         
-        console.log('[Steam API] Yanıt:', JSON.stringify(data, null, 2));
-
-        if (!data.response || !data.response.players || data.response.players.length === 0) {
-            return res.status(404).json({ success: false, message: "Steam profil bilgileri alınamadı." });
+        console.log('[Steam API] Yanıt:', JSON.stringify(jsonData, null, 2));
+        
+        const player = jsonData.response?.players?.[0];
+        
+        if (!player) {
+            return res.status(404).json({ success: false, message: "Steam verisi bulunamadı. Kullanıcının Steam profili gizli olabilir." });
         }
-
-        const player = data.response.players[0];
         
         res.status(200).json({
             success: true,
             data: {
                 steamId: user.steamId,
                 personaname: player.personaname,
-                avatar: player.avatarmedium, // veya avatarfull
+                avatar: player.avatarfull || player.avatarmedium,
                 profileUrl: player.profileurl,
                 currentGame: player.gameextrainfo || null,
-                status: player.personastate, // 0: Offline, 1: Online, 2: Busy, 3: Away, 4: Snooze, 5: Looking to trade, 6: Looking to play
-                lastLogOff: player.lastlogoff
+                status: player.personastate // 0: Offline, 1: Online, 2: Busy, 3: Away, 4: Snooze
             }
         });
-
+        
     } catch (err) {
         console.error("[Steam API] Hata:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
 
 module.exports = {
   getMe,
