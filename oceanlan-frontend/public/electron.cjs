@@ -103,7 +103,6 @@ preload: isDev
 
   mainWindow.setMenuBarVisibility(false);
 
-mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Ekran Paylaşımı İzni
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {

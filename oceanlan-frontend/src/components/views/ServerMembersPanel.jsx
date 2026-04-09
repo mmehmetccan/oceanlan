@@ -8,7 +8,7 @@ import { getImageUrl } from '../../utils/urlHelper';
 import "../../styles/ServerMembersPanel.css";
 import UserBadgeList from '../gamification/UserBadgeList';
 import UserLevelTag from '../gamification/UserLevelTag';
-
+import SteamActivityDisplay from '../gamification/SteamActivityDisplay';
 const handleAvatarError = (e) => {
     if (e?.target?.dataset?.fallbackApplied === 'true') return;
     if (e?.target) {
@@ -143,11 +143,11 @@ const ServerMembersPanel = () => {
                                             <span className={`smp-status-dot ${isOnline ? 'online' : 'offline'}`} />
                                         </div>
 
-                                        <div className="smp-info">
-                                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                <span className="smp-name" style={{ color: isOnline ? '#fff' : '#96989d' }}>
-                                                    {member.user?.username || 'Bilinmeyen'}
-                                                </span>
+                                        <div className="smp-member-info">
+                                          <span className="smp-name">
+                                              {member.user?.username}
+                                          </span>
+                                          <SteamActivityDisplay userId={member.user?._id} />
                                                 {isOwner && <span className="smp-badge">👑</span>}
 
                                                 {/* 👇 SADECE LEVEL EKLENDİ */}
@@ -155,7 +155,6 @@ const ServerMembersPanel = () => {
                                                     level={member.user?.level}
                                                     activeBadge={member.user?.activeBadge}
                                                 />                                    </div>
-                                        </div>
                                     </div>
                                 );
                             })}

@@ -154,6 +154,22 @@ const UserProfilePage = () => {
             setLoading(false);
         }
     };
+
+
+    const handleSteamLink = () => {
+    // .env dosyasındaki VITE_API_URL'i kullanıyoruz (yoksa fallback localhost)
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+    
+    // Backend'deki /auth/steam rotasına yönlendirirken mevcut token'ı parametre olarak ekliyoruz
+    // Bu sayede backend kimin bağlandığını 'protect' middleware'i ile anlayacak
+    const token = localStorage.getItem('token');
+    const backendBase = API_URL.replace('/api/v1', ''); // API yolunu temizle
+    
+    window.location.href = `${backendBase}/api/v1/users/auth/steam?token=${token}`;
+};
+
+
+    
     // Avatar Yükle
     const handleAvatarUpload = async () => {
         if (!avatarFile) return;
@@ -360,6 +376,50 @@ const UserProfilePage = () => {
     </button>
 </form>
             </div>
+
+            <div className="settings-card steam-integration-card" style={{ marginTop: '20px', borderLeft: '4px solid #171a21' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Steam İkonu (react-icons/fa içinden FaSteam kullanabilirsin) */}
+            <div style={{ background: '#171a21', padding: '8px', borderRadius: '8px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 6.627 5.37 12 12 12 6.627 0 12-5.373 12-12 0-6.627-5.373-12-12-12zm0 18.25c-3.452 0-6.25-2.798-6.25-6.25 0-3.452 2.798-6.25 6.25-6.25s6.25 2.798 6.25 6.25c0 3.452-2.798 6.25-6.25 6.25z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>Steam Hesabı</h3>
+                <p className="hint" style={{ margin: 0, fontSize: '12px' }}>
+                    {user?.steamId ? 'Hesabın bağlı durumda' : 'Profilinde oyun durumunu paylaş'}
+                </p>
+            </div>
+        </div>
+
+        {user?.steamId ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1ab199' }}>
+                <ShieldCheckIcon width={20} />
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Bağlı</span>
+            </div>
+        ) : (
+            <button 
+                type="button" 
+                className="btn-primary" 
+                onClick={handleSteamLink}
+                style={{ background: '#171a21', borderColor: '#444' }}
+            >
+                Şimdi Bağla
+            </button>
+        )}
+    </div>
+    
+    {/* Eğer bağlıysa küçük bir durum özeti gösterilebilir */}
+    {user?.steamId && (
+        <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '13px' }}>
+            <p style={{ color: '#888', margin: 0 }}>
+                Steam verilerin her 60 saniyede bir profilinde güncellenir.
+            </p>
+        </div>
+    )}
+</div>
 
             {/* ÇIKIŞ KARTI */}
             <div className="settings-card logout-card">

@@ -8,7 +8,7 @@ import { useSocket } from '../../hooks/useSocket';
 import UserProfileModal from '../profile/UserProfileModal';
 import { AudioSettingsContext } from '../../context/AudioSettingsContext';
 import { getImageUrl } from '../../utils/urlHelper';
-
+import SteamActivityDisplay from '../gamification/SteamActivityDisplay'; // 🟢 BURAYA EKLE
 import "../../styles/MemberContextMenu.css";
 
 const API_URL_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -122,6 +122,7 @@ const MemberContextMenu = ({ member, x, y, serverId, onClose }) => {
             </div>
             <div className="member-menu-info">
               <div className="member-menu-name clickable" onClick={() => setShowProfile(true)}>{targetUser.username || 'Kullanıcı'}</div>
+              <SteamActivityDisplay userId={targetUserId} showAlways={true} />
               <div className="member-menu-sub">{activeServer?.owner?._id === targetUserId && <span style={{color:'#faa61a'}}>👑 Sunucu Sahibi</span>}</div>
               <div className="member-menu-roles">
                   {displayRoles.length > 0 ? displayRoles.map(r => (

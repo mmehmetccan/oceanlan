@@ -7,7 +7,7 @@ import { ToastContext } from '../context/ToastContext';
 import { getImageUrl } from '../utils/urlHelper';
 import UserLevelTag from '../components/gamification/UserLevelTag';
 import UserBadgeList from '../components/gamification/UserBadgeList';
-
+import SteamActivityDisplay from '../components/gamification/SteamActivityDisplay'; 
 import '../styles/UserProfileView.css';
 
 const handleAvatarError = (e) => {
@@ -134,6 +134,11 @@ const UserProfileViewPage = () => {
           <div className="user-profile-main">
             <div className="user-profile-name-row">
               <h2>{user.username}</h2>
+              <div className="profile-info-content">
+  <h2 className="profile-username">{profile.user.username}</h2>
+  {/* Steam Bilgisi Eklenen Kısım */}
+  <SteamActivityDisplay userId={profile.user._id} showAlways={true} />
+</div>
               {/* 1. SEVİYE ETİKETİ */}
               <UserLevelTag level={user.level}/>
             </div>

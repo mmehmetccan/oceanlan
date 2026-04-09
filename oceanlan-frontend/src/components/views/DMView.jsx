@@ -174,6 +174,10 @@ const DMView = () => {
       <div className="messages-container dm-messages">
         {messages.map((msg, index) => {
           const isOwn = msg.author?._id === (user.id || user._id) || msg.authorId === (user.id || user._id);
+          <div className="dm-header-left">
+    <h3>@{friendName}</h3>
+    <SteamActivityDisplay userId={friendId} />
+</div>
 
           return (
             <div key={index} className={`dm-message ${isOwn ? 'from-me' : 'from-them'}`}>

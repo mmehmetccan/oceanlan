@@ -6,6 +6,7 @@ const Member = require('../models/MemberModel');
 const FriendRequest = require('../models/FriendRequestModel');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
+const axios = require('axios');
 
 const ensureGamificationData = async (user) => {
   let changed = false;
@@ -366,6 +367,51 @@ const equipBadge = async (req, res) => {
   }
 };
 
+const handleSteamCallback = async (req, res) => {
+    try {
+        // Steam OpenID'den gelen identity URL'sinin sonundaki sayı SteamID64'tür
+        const steamId = req.query['openid.claimed_id'].split('/').pop();
+        
+        // Giriş yapmış kullanıcıyı bul ve SteamID'sini ata
+        await User.findByIdAndUpdate(req.user.id, { steamId });
+
+        // Gamification: Hesap bağlama ödülü ver (Opsiyonel)
+        if (req.app.get('io')) {
+            const { processGamification } = require('../utils/gamificationEngine');
+            await processGamification(req.user.id, 'STEAM_LINKED', req.app.get('io'));
+        }
+
+        res.redirect(`${process.env.FRONTEND_URL}/settings?steam_success=true`);
+    } catch (err) {
+        console.error("Steam Bağlantı Hatası:", err);
+        res.redirect(`${process.env.FRONTEND_URL}/settings?steam_error=true`);
+    }
+};
+
+// Steam API'den canlı oyun ve profil durumu çeken fonksiyon
+const getSteamStatus = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        if (!user || !user.steamId) return res.status(404).json({ success: false, message: "Bağlı hesap yok." });
+
+        const response = await axios.get(
+            `http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${user.steamId}`
+        );
+
+        const player = response.data.response.players[0];
+        const data = {
+            nickname: player.personaname,
+            avatar: player.avatarfull,
+            currentGame: player.gameextrainfo || null,
+            status: player.personastate // 1: Online, 0: Offline
+        };
+
+        res.status(200).json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 module.exports = {
   getMe,
   updateMe,
@@ -373,4 +419,6 @@ module.exports = {
   updateProfilePicture,
   getUserProfile,
   equipBadge,
+  handleSteamCallback,
+  getSteamStatus,
 };

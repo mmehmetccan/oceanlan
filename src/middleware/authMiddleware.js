@@ -1,37 +1,43 @@
-
 const jwt = require('jsonwebtoken');
 const User = require('../models/UserModel');
 
 const protect = async (req, res, next) => {
   let token;
 
-  // 1. Istegin 'headers' (baslik) kismina bak: Authorization var mi ve Bearer ile mi basliyor?
+  // 1. Durum: Header kontrolü (Normal API istekleri için)
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // 2. Token'i al ('Bearer ' kismini at, kalan token'i al)
-      token = req.headers.authorization.split(' ')[1];
-
-      // 3. Token'i dogrula (bizim JWT_SECRET ile imzalanmis mi?)
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // 4. Token gecerliyse, kullaniciyi bul ve 'req.user'a ekle (sifreyi gosterme)
-      req.user = await User.findById(decoded.id).select('-password');
-
-      // 4.1 Presence: her istekte online/son gorulme guncelle
-      await User.updateOne(
-        { _id: decoded.id },
-        { $set: { onlineStatus: 'online', lastSeenAt: new Date() } }
-      );
-
-      // 5. Devam et
-      return next();
-    } catch (error) {
-      return res.status(401).json({ success: false, message: 'Yetkisiz erisim: Gecersiz token' });
-    }
+    token = req.headers.authorization.split(' ')[1];
+  } 
+  // 🟢 2. Durum: URL Query kontrolü (Steam yönlendirmesi gibi özel durumlar için)
+  else if (req.query && req.query.token) {
+    token = req.query.token;
   }
 
   if (!token) {
-    return res.status(401).json({ success: false, message: 'Yetkisiz erisim: Token bulunamadi' });
+    return res.status(401).json({ success: false, message: 'Yetkisiz erişim: Token bulunamadı' });
+  }
+
+  try {
+    // 3. Token'ı doğrula
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 4. Kullanıcıyı bul
+    req.user = await User.findById(decoded.id).select('-password');
+
+    if (!req.user) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+
+    // 4.1 Presence güncellemesi
+    await User.updateOne(
+      { _id: decoded.id },
+      { $set: { onlineStatus: 'online', lastSeenAt: new Date() } }
+    );
+
+    next();
+  } catch (error) {
+    console.error("Auth Hatası:", error);
+    return res.status(401).json({ success: false, message: 'Yetkisiz erişim: Geçersiz token' });
   }
 };
 

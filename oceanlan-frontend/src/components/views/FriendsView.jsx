@@ -227,8 +227,15 @@ const FriendListItem = ({ friend, onMessage, onRemove }) => (
                         activeBadge={friend.activeBadge}
                     />
                 </div>
-                <span
-                    className="friend-status-text">{friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}</span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span className="friend-status-text">
+                        {friend.onlineStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}
+                    </span>
+
+                    {/* 🟢 STEAM OYUN BİLGİSİ BURAYA EKLENDİ */}
+                    <SteamActivityDisplay userId={friend._id} />
+                </div>
             </div>
         </div>
         <div className="friend-actions">

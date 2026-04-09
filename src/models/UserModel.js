@@ -49,6 +49,17 @@ const UserSchema = new mongoose.Schema({
       ref: 'User',
     }
   ],
+  steamId: { 
+  type: String, 
+  default: null 
+},
+steamProfile: {
+  personaname: String,
+  avatar: String,
+  game: String,     // Şu an oynadığı oyun
+  isOnline: Boolean,
+  lastUpdated: Date
+},
   streamKey: {
     type: String,
     unique: true,
