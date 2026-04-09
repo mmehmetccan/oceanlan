@@ -157,15 +157,21 @@ const UserProfilePage = () => {
 
 
     const handleSteamLink = () => {
-    // .env dosyasındaki VITE_API_URL'i kullanıyoruz (yoksa fallback localhost)
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+    // Kullanıcıya bilgi ver
+    addToast('Steam hesabına yönlendiriliyorsunuz...', 'info');
     
-    // Backend'deki /auth/steam rotasına yönlendirirken mevcut token'ı parametre olarak ekliyoruz
-    // Bu sayede backend kimin bağlandığını 'protect' middleware'i ile anlayacak
     const token = localStorage.getItem('token');
-    const backendBase = API_URL.replace('/api/v1', ''); // API yolunu temizle
     
-    window.location.href = `${backendBase}/api/v1/users/auth/steam?token=${token}`;
+    if (!token) {
+        addToast('Oturum bilgisi bulunamadı. Lütfen tekrar giriş yapın.', 'error');
+        return;
+    }
+    
+    // Direkt backend URL'ini kullan - daha basit
+    const steamAuthUrl = `/api/v1/users/auth/steam?token=${encodeURIComponent(token)}`;
+    
+    console.log('Steam yönlendirme URL:', steamAuthUrl);
+    window.location.href = steamAuthUrl;
 };
 
 

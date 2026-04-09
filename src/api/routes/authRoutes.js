@@ -17,7 +17,8 @@ const {
   resendCode,
   getStreamKey,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getTempToken
 } = require('../../controllers/authController');
 
 
@@ -32,6 +33,7 @@ router.post('/forgotpassword', forgotPasswordLimiter, forgotPassword);
 router.put('/resetpassword', resetPassword);
 router.post('/verify-email', verifyEmailLimiter, verifyEmail);
 
+router.post('/auth/temp-token', protect, getTempToken);
 
 router.post('/resend-code', forgotPasswordLimiter, resendCode);
 

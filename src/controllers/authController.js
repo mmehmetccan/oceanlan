@@ -310,7 +310,20 @@ const getStreamKey = async (req, res) => {
     res.status(500).json({ success: false, message: 'Sunucu Hatası', error: error.message });
   }
 };
-
+const getTempToken = async (req, res) => {
+    try {
+        // 5 dakika geçerli geçici token
+        const tempToken = jwt.sign(
+            { id: req.user.id, type: 'steam_temp' },
+            process.env.JWT_SECRET,
+            { expiresIn: '5m' }
+        );
+        
+        res.json({ success: true, tempToken });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 
 
 // module.exports'u GÜNCELLE
@@ -322,4 +335,5 @@ module.exports = {
   getStreamKey,
   forgotPassword,
   resetPassword,
+  getTempToken
 };

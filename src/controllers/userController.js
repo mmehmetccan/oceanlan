@@ -368,16 +368,19 @@ const equipBadge = async (req, res) => {
   }
 };
 
-const redirectToSteam = async (req, res) => {
-    const token = req.query.token; // 🟢 Frontend'den gelen token
+const redirectToSteam = (req, res) => {
+    const token = req.query.token;
     
-    // Token yoksa Steam'e hiç gönderme, direkt hata ver
+    console.log('[Steam] Redirect fonksiyonu çağrıldı, token:', token ? 'var' : 'yok');
+    
     if (!token) {
+        console.error('[Steam] Token bulunamadı');
         return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=no_token_provided`);
     }
 
-    // Token'ı return_to içine URL ENCODE ederek koyuyoruz
-    const returnURL = `https://oceanlan.com/api/v1/users/auth/steam/callback?token=${token}`;
+    // Token'ı URL encode et
+    const encodedToken = encodeURIComponent(token);
+    const returnURL = `https://oceanlan.com/api/v1/users/auth/steam/callback?token=${encodedToken}`;
     const realm = `https://oceanlan.com`;
     
     const steamAuthUrl = `https://steamcommunity.com/openid/login?` +
@@ -388,33 +391,53 @@ const redirectToSteam = async (req, res) => {
         `openid.identity=http://specs.openid.net/auth/2.0/identifier_select&` +
         `openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select`;
 
+    console.log('[Steam] Steam\'e yönlendiriliyor:', steamAuthUrl);
     res.redirect(steamAuthUrl);
 };
 
 const handleSteamCallback = async (req, res) => {
     try {
-        const { token } = req.query; // Steam'in geri getirdiği token
+        console.log('[Steam Callback] Tüm parametreler:', req.query);
+        
+        const token = req.query.token;
         const steamId = req.query['openid.claimed_id']?.split('/').pop();
 
+        console.log('[Steam Callback] Token:', token);
+        console.log('[Steam Callback] Steam ID:', steamId);
+
         if (!token || !steamId) {
-            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=data_missing`);
+            console.error('[Steam Callback] Eksik veri');
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=missing_data`);
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // Token'ı doğrula
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+            console.log('[Steam Callback] Token geçerli, kullanıcı ID:', decoded.id);
+        } catch (err) {
+            console.error('[Steam Callback] Token geçersiz:', err.message);
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=invalid_token`);
+        }
         
-        // Veritabanına kaydet ve logla
+        // Veritabanını güncelle
         const updatedUser = await User.findByIdAndUpdate(
             decoded.id, 
             { steamId: steamId }, 
             { new: true }
         );
-
-        console.log(`[DATABASE SAVE]: ${updatedUser.username} için SteamID kaydedildi: ${steamId}`);
         
+        if (!updatedUser) {
+            console.error('[Steam Callback] Kullanıcı bulunamadı:', decoded.id);
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=user_not_found`);
+        }
+
+        console.log(`[Steam Callback] BAŞARILI! ${updatedUser.username} - Steam ID: ${steamId}`);
         res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_success=true`);
+        
     } catch (err) {
-        console.error("Kayıt Hatası:", err);
-        res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=true`);
+        console.error('[Steam Callback] Hata:', err);
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=unknown`);
     }
 };
 
