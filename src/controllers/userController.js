@@ -7,6 +7,7 @@ const FriendRequest = require('../models/FriendRequestModel');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 const https = require('https'); // Node.js yerleşik modülü
+const jwt = require('jsonwebtoken');
 
 const ensureGamificationData = async (user) => {
   let changed = false;
@@ -367,18 +368,50 @@ const equipBadge = async (req, res) => {
   }
 };
 
+const redirectToSteam = async (req, res) => {
+    // protect middleware'inden gelen token'ı alıyoruz
+    const token = req.query.token; 
+    
+    const returnURL = `https://oceanlan.com/api/v1/users/auth/steam/callback?token=${token}`;
+    const realm = `https://oceanlan.com`;
+    
+    const steamAuthUrl = `https://steamcommunity.com/openid/login?` +
+        `openid.ns=http://specs.openid.net/auth/2.0&` +
+        `openid.mode=checkid_setup&` +
+        `openid.return_to=${encodeURIComponent(returnURL)}&` +
+        `openid.realm=${encodeURIComponent(realm)}&` +
+        `openid.identity=http://specs.openid.net/auth/2.0/identifier_select&` +
+        `openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select`;
+
+    res.redirect(steamAuthUrl);
+};
+
 const handleSteamCallback = async (req, res) => {
     try {
-        // Steam OpenID'den gelen identity URL'sinin sonundaki sayı SteamID64'tür
-        const steamId = req.query['openid.claimed_id'].split('/').pop();
-        
-        // Giriş yapmış kullanıcıyı bul ve SteamID'sini ata
-        await User.findByIdAndUpdate(req.user.id, { steamId });
+        // Steam'in geri getirdiği token'ı URL'den alıyoruz
+        const { token } = req.query; 
 
-        // Gamification: Hesap bağlama ödülü ver (Opsiyonel)
+        if (!token) {
+            return res.redirect(`${process.env.FRONTEND_URL}/settings?error=no_token`);
+        }
+
+        // Token'ı manuel doğrulayarak kullanıcıyı buluyoruz
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.id;
+
+        // SteamID64'ü OpenID yanıtından çekiyoruz
+        const claimedId = req.query['openid.claimed_id'];
+        if (!claimedId) throw new Error("SteamID bulunamadı");
+        
+        const steamId = claimedId.split('/').pop();
+        
+        // Kullanıcıyı bul ve güncelle
+        await User.findByIdAndUpdate(userId, { steamId });
+
+        // Gamification ödülü
         if (req.app.get('io')) {
             const { processGamification } = require('../utils/gamificationEngine');
-            await processGamification(req.user.id, 'STEAM_LINKED', req.app.get('io'));
+            await processGamification(userId, 'STEAM_LINKED', req.app.get('io'));
         }
 
         res.redirect(`${process.env.FRONTEND_URL}/settings?steam_success=true`);
@@ -450,4 +483,5 @@ module.exports = {
   equipBadge,
   handleSteamCallback,
   getSteamStatus,
+  redirectToSteam,
 };

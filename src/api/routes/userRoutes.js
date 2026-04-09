@@ -13,6 +13,7 @@ const {
   equipBadge,
   handleSteamCallback,
   getSteamStatus,
+  redirectToSteam,
 } = require('../../controllers/userController');
 const upload = require('../../middleware/multerConfig');
 
@@ -42,9 +43,9 @@ router.get('/auth/steam', protect, (req, res) => {
     res.redirect(redirectUrl);
 });
 
+router.get('/auth/steam', protect, redirectToSteam);
 // Steam Callback (Steam'den gelen yanıtı işler)
-router.get('/auth/steam/callback', protect, handleSteamCallback);
-
+router.get('/auth/steam/callback', handleSteamCallback);
 // Steam Profil Bilgisi
 router.get('/:userId/steam-status', protect, getSteamStatus);
 
