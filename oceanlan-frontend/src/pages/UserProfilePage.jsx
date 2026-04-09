@@ -2,7 +2,6 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
-import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { getImageUrl } from '../utils/urlHelper';
