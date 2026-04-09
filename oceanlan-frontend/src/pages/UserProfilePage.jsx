@@ -48,6 +48,19 @@ const UserProfilePage = () => {
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
 
 
+      useEffect(() => {
+        if (!user) {
+            console.log('Kullanıcı verisi bekleniyor...');
+            return;
+        }
+        // Normal kod burada devam eder
+    }, [user]);
+
+    // Eğer context'ler hazır değilse loading göster
+    if (!user || !addToast) {
+        return <div className="profile-settings-area">Yükleniyor...</div>;
+    }
+
     useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const steamSuccess = queryParams.get('steam_success');

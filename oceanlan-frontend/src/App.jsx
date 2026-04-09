@@ -19,7 +19,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import LegalPage from './pages/LegalPage';
 import ToastContainer from './components/common/ToastContainer';
-
+import UserProfilePage from './pages/UserProfilePage';
 // 🟢 KORUMALI ROTA (Giriş yapmamışsa Login'e at)
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useContext(AuthContext);
