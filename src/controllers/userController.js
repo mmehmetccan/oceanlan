@@ -369,9 +369,14 @@ const equipBadge = async (req, res) => {
 };
 
 const redirectToSteam = async (req, res) => {
-    // protect middleware'inden gelen token'ı alıyoruz
+    // 🟢 Frontend'den gelen token'ı alıyoruz
     const token = req.query.token; 
     
+    if (!token) {
+        return res.status(401).json({ success: false, message: "Token gerekli" });
+    }
+
+    // 🟢 DİKKAT: returnURL içine token'ı gömüyoruz
     const returnURL = `https://oceanlan.com/api/v1/users/auth/steam/callback?token=${token}`;
     const realm = `https://oceanlan.com`;
     
@@ -388,36 +393,34 @@ const redirectToSteam = async (req, res) => {
 
 const handleSteamCallback = async (req, res) => {
     try {
-        // Steam'in geri getirdiği token'ı URL'den alıyoruz
         const { token } = req.query; 
+        const claimedId = req.query['openid.claimed_id'];
 
-        if (!token) {
-            return res.redirect(`${process.env.FRONTEND_URL}/settings?error=no_token`);
+        if (!token || !claimedId) {
+            console.error("Token veya SteamID eksik");
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?error=missing_info`);
         }
 
-        // Token'ı manuel doğrulayarak kullanıcıyı buluyoruz
+        // 1. Token'dan kullanıcıyı tanı
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.id;
 
-        // SteamID64'ü OpenID yanıtından çekiyoruz
-        const claimedId = req.query['openid.claimed_id'];
-        if (!claimedId) throw new Error("SteamID bulunamadı");
-        
+        // 2. SteamID64'ü ayıkla (URL'nin sonundaki sayı)
         const steamId = claimedId.split('/').pop();
-        
-        // Kullanıcıyı bul ve güncelle
-        await User.findByIdAndUpdate(userId, { steamId });
 
-        // Gamification ödülü
-        if (req.app.get('io')) {
-            const { processGamification } = require('../utils/gamificationEngine');
-            await processGamification(userId, 'STEAM_LINKED', req.app.get('io'));
-        }
+        // 3. Veritabanına KAYDET (En kritik yer)
+        const updatedUser = await User.findByIdAndUpdate(
+            userId, 
+            { steamId: steamId }, 
+            { new: true } // Güncellenmiş veriyi geri döndür
+        );
 
-        res.redirect(`${process.env.FRONTEND_URL}/settings?steam_success=true`);
+        console.log(`[STEAM SUCCESS]: ${updatedUser.username} hesabına ${steamId} bağlandı.`);
+
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_success=true`);
     } catch (err) {
-        console.error("Steam Bağlantı Hatası:", err);
-        res.redirect(`${process.env.FRONTEND_URL}/settings?steam_error=true`);
+        console.error("Callback Hatası:", err);
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?steam_error=true`);
     }
 };
 
