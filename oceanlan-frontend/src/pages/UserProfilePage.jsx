@@ -127,6 +127,13 @@ useEffect(() => {
     }
 }, []);
 
+const handleAvatarError = (e) => {
+        if (e?.target?.dataset?.fallbackApplied === 'true') return;
+        if (e?.target) {
+            e.target.dataset.fallbackApplied = 'true';
+            e.target.src = getImageUrl(null);
+        }
+    };
 
     if (!user || !addToast) {
         return <div className="profile-settings-area">Yükleniyor...</div>;
