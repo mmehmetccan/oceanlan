@@ -36,8 +36,8 @@ router.put(
 );
 
 router.get('/auth/steam', protect, (req, res) => {
-    const returnUrl = `${process.env.BACKEND_URL}/api/v1/users/auth/steam/callback`;
-    const realm = `${process.env.BACKEND_URL}`;
+    const returnUrl = `https://oceanlan.com/api/v1/users/auth/steam/callback`;
+    const realm = `https://oceanlan.com`;
     const redirectUrl = `https://steamcommunity.com/openid/login?openid.ns=http://specs.openid.net/auth/2.0&openid.mode=checkid_setup&openid.return_to=${returnUrl}&openid.realm=${realm}&openid.identity=http://specs.openid.net/auth/2.0/identifier_select`;
     res.redirect(redirectUrl);
 });
