@@ -445,51 +445,47 @@ const handleSteamCallback = async (req, res) => {
 const getSteamStatus = async (req, res) => {
     try {
         const user = await User.findById(req.params.userId);
-        if (!user || !user.steamId) {
-            return res.status(404).json({ success: false, message: "Bağlı hesap yok." });
+        
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+        }
+        
+        if (!user.steamId) {
+            return res.status(404).json({ success: false, message: "Steam hesabı bağlı değil." });
         }
 
+        console.log(`[Steam API] ${user.username} için Steam ID: ${user.steamId}`);
+        console.log(`[Steam API] Kullanılan API Key: ${process.env.STEAM_API_KEY ? 'Var ✅' : 'Yok ❌'}`);
+
         const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${user.steamId}`;
+        
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        console.log('[Steam API] Yanıt:', JSON.stringify(data, null, 2));
 
-        // Node.js yerleşik https.get kullanımı
-        https.get(url, (response) => {
-            let data = '';
+        if (!data.response || !data.response.players || data.response.players.length === 0) {
+            return res.status(404).json({ success: false, message: "Steam profil bilgileri alınamadı." });
+        }
 
-            // Veri parçalarını topla
-            response.on('data', (chunk) => {
-                data += chunk;
-            });
-
-            // Tüm veri geldiğinde işle
-            response.on('end', () => {
-                try {
-                    const jsonData = JSON.parse(data);
-                    const player = jsonData.response.players[0];
-
-                    if (!player) {
-                        return res.status(404).json({ success: false, message: "Steam verisi bulunamadı." });
-                    }
-
-                    res.status(200).json({
-                        success: true,
-                        data: {
-                            steamId: user.steamId,
-                            personaname: player.personaname,
-                            avatar: player.avatarfull,
-                            currentGame: player.gameextrainfo || null,
-                            status: player.personastate
-                        }
-                    });
-                } catch (parseError) {
-                    res.status(500).json({ success: false, message: "Veri işleme hatası" });
-                }
-            });
-
-        }).on("error", (err) => {
-            res.status(500).json({ success: false, error: err.message });
+        const player = data.response.players[0];
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                steamId: user.steamId,
+                personaname: player.personaname,
+                avatar: player.avatarmedium, // veya avatarfull
+                profileUrl: player.profileurl,
+                currentGame: player.gameextrainfo || null,
+                status: player.personastate, // 0: Offline, 1: Online, 2: Busy, 3: Away, 4: Snooze, 5: Looking to trade, 6: Looking to play
+                lastLogOff: player.lastlogoff
+            }
         });
 
     } catch (err) {
+        console.error("[Steam API] Hata:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };

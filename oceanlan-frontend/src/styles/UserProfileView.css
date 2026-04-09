@@ -32,6 +32,19 @@
   scrollbar-color: #202225 #2f3136; /* Firefox renkleri */
 }
 
+
+.steam-profile-info {
+    transition: background 0.2s ease;
+}
+
+.steam-profile-info:hover {
+    background: rgba(23, 26, 33, 0.9);
+}
+
+.steam-profile-info:active {
+    transform: scale(0.98);
+}
+
 /* --- MODERN SCROLLBAR (Chrome, Edge, Safari) --- */
 .user-profile-modal::-webkit-scrollbar {
   width: 8px;

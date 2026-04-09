@@ -21,8 +21,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const navigate = useNavigate();
   const [currentUserId, setCurrentUserId] = useState(userId);
 
-  // 🟢 AuthContext'ten user'ı alıyoruz. 
-  // DİKKAT: currentUser.servers dizisinin dolu olduğundan emin olun.
   const { user: currentUser } = useContext(AuthContext);
   const { addToast } = useContext(ToastContext);
 
@@ -31,8 +29,21 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [error, setError] = useState(null);
   const [equippedBadge, setEquippedBadge] = useState(null);
+  const [steamProfile, setSteamProfile] = useState(null); // 🟢 YENİ
 
   const isSelf = currentUser && (currentUser.id === currentUserId || currentUser._id === currentUserId);
+
+  // 🟢 Steam profil bilgilerini çek
+  const fetchSteamProfile = async (targetUserId) => {
+    try {
+      const res = await axiosInstance.get(`/users/${targetUserId}/steam-status`);
+      if (res.data.success) {
+        setSteamProfile(res.data.data);
+      }
+    } catch (err) {
+      console.error('Steam profil alınamadı:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -41,12 +52,18 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
         setLoading(true);
         setError(null);
         setProfile(null);
+        setSteamProfile(null); // 🟢 Reset steam profile
 
         const res = await axiosInstance.get(`/users/${currentUserId}/profile`);
         setProfile(res.data);
 
         if (res.data.user?.activeBadge) {
           setEquippedBadge(res.data.user.activeBadge);
+        }
+
+        // 🟢 Steam profilini çek
+        if (res.data.user?._id) {
+          await fetchSteamProfile(res.data.user._id);
         }
 
       } catch (err) {
@@ -89,25 +106,23 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
     }
   };
 
+  // 🟢 Steam profiline tıklama
+  const handleSteamClick = () => {
+    if (steamProfile?.steamId) {
+      window.open(`https://steamcommunity.com/profiles/${steamProfile.steamId}`, '_blank');
+    }
+  };
+
   const user = profile?.user || { _id: currentUserId, username: initialName || 'Bilinmeyen Kullanıcı' };
 
-  // 🟢 DÜZELTME BAŞLANGICI: Sunucu Listesini Filtreleme
   const rawServers = profile?.servers || [];
-
-  // Sizin (Current User) üye olduğunuz sunucuların ID listesini çıkarıyoruz
   const myServerIds = currentUser?.servers?.map(s => String(s._id || s || '')) || [];
-
-  // 2. Filtreleme: Hedef sunucunun ID'sini de String'e çevirip listede var mı diye bak.
   const visibleServers = isSelf
     ? rawServers
     : rawServers.filter(server => {
       const targetServerId = String(server._id || server.id);
       return myServerIds.includes(targetServerId);
     });
-  // 🟢 DÜZELTME BİTİŞİ
-  console.log("Benim Sunucularım:", currentUser?.servers);
-  console.log("Profildeki Sunucular:", rawServers);
-  console.log("Benim ID Listem (String):", myServerIds);
 
   const friends = profile?.friends || [];
   const isFriend = profile?.isFriend ?? false;
@@ -125,7 +140,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
     }
   };
 
-  // XP VE LEVEL HESAPLAMASI
   const currentLevel = user.level || 1;
   const currentXP = user.xp || 0;
   const xpForCurrentLevel = Math.pow((currentLevel - 1) / 0.1, 2);
@@ -152,7 +166,7 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               </div>
 
               <div className="user-profile-main">
-                <div className="user-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="user-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h2>{user.username}</h2>
                   <UserLevelTag level={user.level} />
                   {equippedBadge && (
@@ -175,6 +189,52 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                     </div>
                   )}
                 </div>
+
+                {/* 🟢 STEAM PROFİL BİLGİLERİ - YENİ EKLENDİ */}
+                {steamProfile && (
+                  <div 
+                    className="steam-profile-info-modal"
+                    onClick={handleSteamClick}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginTop: '8px',
+                      marginBottom: '8px',
+                      padding: '6px 10px',
+                      background: 'rgba(23, 26, 33, 0.6)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s',
+                      maxWidth: '280px'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(23, 26, 33, 0.9)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(23, 26, 33, 0.6)'}
+                  >
+                    <img 
+                      src={steamProfile.avatar} 
+                      alt="Steam Avatar" 
+                      style={{ width: '28px', height: '28px', borderRadius: '50%' }}
+                    />
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {steamProfile.personaname}
+                      </div>
+                      {steamProfile.currentGame ? (
+                        <div style={{ fontSize: '10px', color: '#3ca4ff', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <span>🎮</span> <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{steamProfile.currentGame}</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '10px', color: '#888' }}>
+                          Steam Bağlı
+                        </div>
+                      )}
+                    </div>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#888">
+                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm6.657 14.857c-.247 1.054-1.285 1.705-2.317 1.454l-2.614-.645c-.563.486-1.266.837-2.046.963l-.364 2.684c-.144 1.071-1.127 1.821-2.193 1.674s-1.821-1.127-1.674-2.193l.365-2.684c-1.396-.226-2.502-1.283-2.775-2.67l-2.613-.645c-1.032-.251-1.666-1.285-1.414-2.317s1.285-1.666 2.317-1.414l2.614.645c.563-.486 1.266-.837 2.046-.963l.364-2.684c.144-1.071 1.127-1.821 2.193-1.674s1.821 1.127 1.674 2.193l-.365 2.684c1.396.226 2.502 1.283 2.775 2.67l2.613.645c1.032.251 1.666 1.285 1.414 2.317z"/>
+                    </svg>
+                  </div>
+                )}
 
                 <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '280px', marginTop: '6px', marginBottom: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#b9bbbe', marginBottom: '2px' }}>
@@ -226,7 +286,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
               {/* Sunucular */}
               <div className="user-profile-section">
                 <h3>{isSelf ? 'Sunucularım' : 'Ortak Sunucular'}</h3>
-                {/* 🟢 DÜZELTME: 'servers' yerine 'visibleServers' kullanıyoruz */}
                 {visibleServers.length === 0 ? (
                   <p className="empty-text">
                     {isSelf ? 'Henüz bir sunucuya katılmadınız.' : 'Ortak sunucu bulunamadı.'}
@@ -234,7 +293,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                 ) : (
                   <ul className="pill-list">
                     {visibleServers.map((server, index) => {
-                      // Sunucu resmini güvenli hale getiriyoruz
                       const serverImgSrc = server.iconUrl ? getImageUrl(server.iconUrl) : null;
 
                       return (
@@ -242,7 +300,6 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                           key={server._id || index}
                           className="pill-item"
                           onClick={() => {
-                            // Güvenlik kontrolü (Kendi sunucusu değilse ve ortak değilse gitmesin)
                             if (!isSelf && !myServerIds.includes(String(server._id))) {
                               addToast("Bu sunucuya erişiminiz yok.", "error");
                               return;
@@ -254,8 +311,8 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '10px', // Resim ile isim arası boşluk
-                            padding: '6px 12px 6px 8px', // İç boşluklar
+                            gap: '10px',
+                            padding: '6px 12px 6px 8px',
                             backgroundColor: 'rgba(0,0,0,0.2)',
                             borderRadius: '20px',
                             marginBottom: '5px',
@@ -263,20 +320,19 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                           }}
                           title={`${server.name} sunucusuna git`}
                         >
-                          {/* --- SUNUCU RESMİ ALANI --- */}
                           <div style={{
-                            width: '32px',  // Resim genişliği
-                            height: '32px', // Resim yüksekliği
-                            borderRadius: '50%', // Yuvarlak yap
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
                             overflow: 'hidden',
-                            backgroundColor: '#36393f', // Resim yoksa arka plan rengi
+                            backgroundColor: '#36393f',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '12px',
                             fontWeight: 'bold',
                             color: '#dcddde',
-                            flexShrink: 0, // İsim uzun olsa bile resim küçülmesin
+                            flexShrink: 0,
                             border: '1px solid rgba(255,255,255,0.1)'
                           }}>
                             {serverImgSrc ? (
@@ -284,19 +340,15 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                                 src={serverImgSrc}
                                 alt={server.name}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                // Eğer resim linki kırıksa (404), gizle ve baş harfi göster
                                 onError={(e) => {
                                   e.target.style.display = 'none';
                                   e.target.parentNode.innerText = server.name.charAt(0).toUpperCase();
                                 }}
                               />
                             ) : (
-                              // Resim yoksa baş harfi göster
                               <span>{server.name?.charAt(0).toUpperCase()}</span>
                             )}
                           </div>
-
-                          {/* --- SUNUCU İSMİ --- */}
                           <span style={{ fontWeight: '500', color: '#fff' }}>
                             {server.name}
                           </span>
@@ -307,7 +359,7 @@ const UserProfileModal = ({ userId, initialName, onClose }) => {
                 )}
               </div>
 
-              {/* Arkadaşlar Kısmı Aynen Kalıyor... */}
+              {/* Arkadaşlar Kısmı */}
               <div className="user-profile-section">
                 <h3>Arkadaşları</h3>
                 {friends.length === 0 ? (

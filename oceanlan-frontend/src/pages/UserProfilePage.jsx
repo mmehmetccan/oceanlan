@@ -15,6 +15,7 @@ import {
     UserGroupIcon
 } from '@heroicons/react/24/outline';
 import '../styles/ProfileSettings.css';
+import SteamActivityDisplay from '../components/gamification/SteamActivityDisplay';
 
 const UserProfilePage = () => {
     // ✅ TÜM HOOK'LAR EN ÜSTTE, HERHANGİ BİR RETURN'DEN ÖNCE
@@ -33,6 +34,7 @@ const UserProfilePage = () => {
     const [avatarFile, setAvatarFile] = useState(null);
     const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: false });
+const [steamProfile, setSteamProfile] = useState(null);
 
 
       useEffect(() => {
@@ -42,6 +44,12 @@ const UserProfilePage = () => {
         }
         // Normal kod burada devam eder
     }, [user]);
+
+useEffect(() => {
+    if (user?.steamId) {
+        fetchSteamProfile();
+    }
+}, [user?.steamId])
 
     // Eğer context'ler hazır değilse loading göster
     if (!user || !addToast) {
@@ -222,6 +230,18 @@ const handleAvatarError = (e) => {
         }
     };
 
+
+
+    const fetchSteamProfile = async () => {
+    try {
+        const res = await axiosInstance.get(`/users/${user._id}/steam-status`);
+        if (res.data.success) {
+            setSteamProfile(res.data.data);
+        }
+    } catch (err) {
+        console.error('Steam profil alınamadı:', err);
+    }
+};
 
     const handleSteamLink = () => {
     // Kullanıcıya bilgi ver
@@ -483,6 +503,18 @@ const handleAvatarError = (e) => {
             </button>
         )}
     </div>
+
+    {steamProfile && (
+    <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <img src={steamProfile.avatar} alt="Steam Avatar" style={{ width: '40px', height: '40px', borderRadius: '50%' }} />
+        <div>
+            <div style={{ fontWeight: 'bold' }}>{steamProfile.personaname}</div>
+            {steamProfile.currentGame && (
+                <div style={{ fontSize: '12px', color: '#3ca4ff' }}>🎮 {steamProfile.currentGame} oynuyor</div>
+            )}
+        </div>
+    </div>
+)}
     
     {/* Eğer bağlıysa küçük bir durum özeti gösterilebilir */}
     {user?.steamId && (

@@ -7,7 +7,7 @@ import { ToastContext } from '../context/ToastContext';
 import { getImageUrl } from '../utils/urlHelper';
 import UserLevelTag from '../components/gamification/UserLevelTag';
 import UserBadgeList from '../components/gamification/UserBadgeList';
-import SteamActivityDisplay from '../components/gamification/SteamActivityDisplay'; 
+import SteamActivityDisplay from '../components/gamification/SteamActivityDisplay';
 import '../styles/UserProfileView.css';
 
 const handleAvatarError = (e) => {
@@ -28,10 +28,22 @@ const UserProfileViewPage = () => {
   const [loading, setLoading] = useState(true);
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [error, setError] = useState(null);
-
+  const [steamProfile, setSteamProfile] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
 
   const isSelf = currentUser && currentUser.id === userId;
+
+  // Steam profil bilgilerini çek
+  const fetchSteamProfile = async (targetUserId) => {
+    try {
+      const res = await axiosInstance.get(`/users/${targetUserId}/steam-status`);
+      if (res.data.success) {
+        setSteamProfile(res.data.data);
+      }
+    } catch (err) {
+      console.error('Steam profil alınamadı:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -42,6 +54,11 @@ const UserProfileViewPage = () => {
 
         const res = await axiosInstance.get(`/users/${userId}/profile`);
         setProfile(res.data);
+        
+        // Steam profilini de çek
+        if (res.data.user?._id) {
+          await fetchSteamProfile(res.data.user._id);
+        }
       } catch (err) {
         console.error('[UserProfileView] fetch error', err);
         setError(err.response?.data?.message || 'Profil bilgileri alınırken hata.');
@@ -99,6 +116,13 @@ const UserProfileViewPage = () => {
       }
   };
 
+  // Steam profiline tıklama
+  const handleSteamClick = () => {
+    if (steamProfile?.steamId) {
+      window.open(`https://steamcommunity.com/profiles/${steamProfile.steamId}`, '_blank');
+    }
+  };
+
   if (loading) return <div className="user-profile-page"><div className="user-profile-card"><p>Yükleniyor...</p></div></div>;
   if (error || !profile || !profile.user) return <div className="user-profile-page"><div className="user-profile-card"><p>{error || 'Bulunamadı.'}</p></div></div>;
 
@@ -109,16 +133,10 @@ const UserProfileViewPage = () => {
   const isRequestSent = !!profile.isRequestSent;
   const profileAvatarUrl = getImageUrl(user.avatarUrl || user.avatar);
 
-  // 🟢 XP VE LEVEL HESAPLAMASI
   const currentLevel = user.level || 1;
   const currentXP = user.xp || 0;
-
-
-
-  // Formül: Level = 0.1 * sqrt(XP) + 1  =>  XP = ((Level - 1) / 0.1)^2
   const xpForCurrentLevel = Math.pow((currentLevel - 1) / 0.1, 2);
   const xpForNextLevel = Math.pow((currentLevel) / 0.1, 2);
-
   const progressRaw = ((currentXP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100;
   const progress = Math.min(Math.max(progressRaw, 0), 100);
 
@@ -134,16 +152,55 @@ const UserProfileViewPage = () => {
           <div className="user-profile-main">
             <div className="user-profile-name-row">
               <h2>{user.username}</h2>
-              <div className="profile-info-content">
-  <h2 className="profile-username">{profile.user.username}</h2>
-  {/* Steam Bilgisi Eklenen Kısım */}
-  <SteamActivityDisplay userId={profile.user._id} showAlways={true} />
-</div>
-              {/* 1. SEVİYE ETİKETİ */}
               <UserLevelTag level={user.level}/>
             </div>
 
-            {/* 2. XP BARI (YENİ EKLENDİ) */}
+            {/* 🟢 STEAM PROFİL BİLGİLERİ - YENİ EKLENDİ */}
+            {steamProfile && (
+              <div 
+                className="steam-profile-info" 
+                onClick={handleSteamClick}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginTop: '8px',
+                  marginBottom: '8px',
+                  padding: '8px 12px',
+                  background: 'rgba(23, 26, 33, 0.6)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(23, 26, 33, 0.9)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(23, 26, 33, 0.6)'}
+              >
+                <img 
+                  src={steamProfile.avatar} 
+                  alt="Steam Avatar" 
+                  style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
+                    {steamProfile.personaname}
+                  </div>
+                  {steamProfile.currentGame ? (
+                    <div style={{ fontSize: '11px', color: '#3ca4ff', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>🎮</span> {steamProfile.currentGame} Oynuyor
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: '#888' }}>
+                      Steam Hesabı Bağlı
+                    </div>
+                  )}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#888">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm6.657 14.857c-.247 1.054-1.285 1.705-2.317 1.454l-2.614-.645c-.563.486-1.266.837-2.046.963l-.364 2.684c-.144 1.071-1.127 1.821-2.193 1.674s-1.821-1.127-1.674-2.193l.365-2.684c-1.396-.226-2.502-1.283-2.775-2.67l-2.613-.645c-1.032-.251-1.666-1.285-1.414-2.317s1.285-1.666 2.317-1.414l2.614.645c.563-.486 1.266-.837 2.046-.963l.364-2.684c.144-1.071 1.127-1.821 2.193-1.674s1.821 1.127 1.674 2.193l-.365 2.684c1.396.226 2.502 1.283 2.775 2.67l2.613.645c1.032.251 1.666 1.285 1.414 2.317z"/>
+                </svg>
+              </div>
+            )}
+
+            {/* XP Bar */}
             <div className="user-profile-xp-container" style={{ width: '100%', maxWidth: '300px', marginTop: '8px', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#b9bbbe', marginBottom: '2px' }}>
                     <span>XP: {Math.floor(currentXP)}</span>
@@ -160,10 +217,10 @@ const UserProfileViewPage = () => {
             </div>
 
             <div className="user-profile-sub">
-              Katılma: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '-'}
+              Katılmaaa: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '-'}
             </div>
 
-            {/* 3. ROZETLER */}
+            {/* Rozetler */}
             {user.badges && user.badges.length > 0 && (
                 <div className="user-profile-badges-section">
                   <UserBadgeList badges={user.badges}/>
@@ -195,7 +252,7 @@ const UserProfileViewPage = () => {
           </div>
 
           <div className="user-profile-section">
-            <h3>Arkadaşları</h3>
+            <h3>Arkadaşlarıasdasdsa</h3>
             {friends.length === 0 ? <p className="empty-text">Yok.</p> : (
               <ul className="friend-list">
                 {friends.map((f, index) => {
@@ -214,7 +271,6 @@ const UserProfileViewPage = () => {
                         <img src={friendAvatar} alt={friendName} onError={handleAvatarError} />
                       </div>
                       <span className="friend-name">{friendName}</span>
-                      {/* Arkadaş listesinde de level görünsün istersen: */}
                       <UserLevelTag level={friendUser.level} />
                     </li>
                   );
@@ -225,7 +281,7 @@ const UserProfileViewPage = () => {
         </div>
       </div>
 
-      {/* ÖZEL SAĞ TIK MENÜSÜ */}
+      {/* Özel Sağ Tık Menüsü */}
       {contextMenu && (
           <div
             className="custom-context-menu"
